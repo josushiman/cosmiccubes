@@ -31,6 +31,11 @@ class ReactAdmin():
     async def get_one(cls, model: Model, _id: UUID) -> Model:
         return await model.get(id=_id)
 
+        db_entity_test = await model.filter(id=_id).prefetch_related('type').first()
+        print(db_entity_test.type.name) # TODO do a match on what prefetchs should be done
+        # Figure out how to then return these. Probably need to use schemas :(
+        return db_entity_test
+
     @classmethod
     async def get_list(cls, model: Model, commons: dict, kwargs_raw: dict) -> tuple:
         # When an list of id's are provided, go straight to the get_many function.

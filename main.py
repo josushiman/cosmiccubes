@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from typing import List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from tortoise import Tortoise
 from uuid import UUID
 from app.helpers import ReactAdmin as ra
@@ -22,6 +23,14 @@ async def lifespan(app: FastAPI):
     await Tortoise.close_connections()
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    expose_headers=['x-total-count'],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def common_parameters(_end: int = 10, _start: int = 0, _order: str = Query(default="ASC", min_length=3, max_length=4, regex="ASC|DESC"), \
     _sort: str = None):
