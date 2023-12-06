@@ -1,10 +1,10 @@
 import os
+from tortoise import Tortoise
 from dotenv import load_dotenv
 from typing import List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from tortoise import Tortoise
 from uuid import UUID
 from app.helpers import ReactAdmin as ra
 
@@ -42,10 +42,7 @@ async def create(resource: str, _body: dict):
 
 @app.get("/{resource}/{_id}")
 async def get_one(resource: str, _id: UUID):
-    # Ensure a model exists for the resource that's been passed.
-    entity_model = await ra.get_entity_model(resource)
-
-    return await ra.get_one(entity_model, _id)
+    return await ra.get_one(resource, _id)
 
 @app.get("/{resource}")
 async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_parameters), \
@@ -62,11 +59,8 @@ async def get_list(request: Request, response: Response, resource: str, commons:
         elif query == 'id':
             kwargs['id'] = _id
 
-    # Ensure a model exists for the resource that's been passed.
-    entity_model = await ra.get_entity_model(resource)
-
     # Get the entities and the count.
-    entities, count = await ra.get_list(entity_model, commons, kwargs)
+    entities, count = await ra.get_list(resource, commons, kwargs)
 
     # List responses require the count to be set in the header using a custom param.
     response.headers["X-Total-Count"] = count

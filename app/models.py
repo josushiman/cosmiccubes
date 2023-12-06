@@ -1,5 +1,4 @@
 from tortoise import fields, models
-from tortoise.contrib.pydantic import pydantic_model_creator
 
 class AccountTypes(models.Model):
     id = fields.UUIDField(pk=True)
@@ -101,6 +100,3 @@ class ProjectItems(models.Model):
 
     class PydanticMeta:
         computed = ["total"]
-
-ProjectItems_Pydantic = pydantic_model_creator(ProjectItems, name="ProjectItems")
-ProjectItemsIn_Pydantic = pydantic_model_creator(ProjectItems, name="ProjectItemsIn", exclude_readonly=True)
