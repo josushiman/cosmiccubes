@@ -69,15 +69,11 @@ class ReactAdmin():
         kwargs = await cls.process_raw_kwargs(kwargs_raw)
         order_by, limit = await cls.get_order_limit_value(commons)
 
-        # TEMP - Get the model. But figure out how to swap this out so the bottom two things use Schema & Models
-        model = await cls.get_entity_model(resource)
+        entity_model = await cls.get_entity_model(resource)
 
         # Make the DB requests to get the entities and count
-        entities = await cls.get_entity_list_data(model, limit, commons["_start"], order_by, kwargs if kwargs != {} else None)
-        row_count = await cls.get_entity_list_count(model, kwargs if kwargs != {} else None)
-
-        # Load any reference data if needed.
-        # entities = await cls.load_entities(model, entities)
+        entities = await cls.get_entity_list_data(entity_model, resource, limit, commons["_start"], order_by, kwargs if kwargs != {} else None)
+        row_count = await cls.get_entity_list_count(entity_model, kwargs if kwargs != {} else None)
 
         # Return it as a tuple.
         return entities, str(row_count)
@@ -144,25 +140,27 @@ class ReactAdmin():
         return "-"+sort
 
     @classmethod
-    async def get_entity_list_data(cls, model: Model, limit: int, offset: int, order_by: str = None, filter: dict = None) -> list[Model]:
+    async def get_entity_list_data(cls, entity_model: Model, resource: str, limit: int, offset: int, order_by: str = None, filter: dict = None) -> list[Model]:
+        entity_schema = await cls.get_entity_schema(resource)
+
         try:
             if order_by is None:
                 if filter:
-                    return await model.filter(**filter).limit(limit).offset(offset).all()
-                return await model.all().limit(limit).offset(offset)
+                    return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset))
+                return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset))
             elif filter is not None:
-                return await model.filter(**filter).limit(limit).offset(offset).order_by(order_by).all()
-            return await model.all().limit(limit).offset(offset).order_by(order_by)
+                return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset).order_by(order_by))
+            return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset).order_by(order_by))
         except OperationalError as e_opp:
             raise HTTPException(status_code=422, detail={
                 "message": "Incorrect sort field provided."
             }) from e_opp
     
     @classmethod
-    async def get_entity_list_count(cls, model: Model, filter: dict = None) -> int:
+    async def get_entity_list_count(cls, entity_model: Model, filter: dict = None) -> int:
         if filter is not None:
-            return await model.filter(**filter).count()
-        return await model.all().count()
+            return await entity_model.filter(**filter).count()
+        return await entity_model.all().count()
 
     @classmethod
     async def update(cls, resource: str, resp_body: dict, _id: UUID):
