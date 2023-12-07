@@ -168,7 +168,9 @@ class ReactAdmin():
         entity_model = await cls.get_entity_model(resource)
 
         try:
-            return await entity_model.filter(id=_id).update(**resp_body)
+            print("attempting to update")
+            await entity_model.filter(id=_id).update(**resp_body)
+            return await cls.get_one(resource, _id)
         except FieldError as e_field:
             print("wrong field entered")
             return
