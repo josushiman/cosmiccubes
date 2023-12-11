@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
     dotenv_db_url = os.getenv("DB_URL")
     await Tortoise.init(
         db_url=dotenv_db_url,
-        modules={'models': ['app.models']}
+        modules={'models': ['app.models']},
     )
     # Generate the model schemas.
     await Tortoise.generate_schemas()

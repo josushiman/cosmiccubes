@@ -2,10 +2,10 @@ from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError
 from fastapi import HTTPException
 from uuid import UUID
-from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Mortgages, \
-    Projects, ProjectItems, ProjectItemCategories
+from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
+    Mortgages, Projects, ProjectItems, ProjectItemCategories
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
-    CompanyCategories_Pydantic, DirectDebits_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
+    CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
     ProjectItemCategories_Pydantic
 
 class ReactAdmin():
@@ -19,6 +19,7 @@ class ReactAdmin():
             "companies": Companies,
             "company-categories": CompanyCategories,
             "direct-debits": DirectDebits,
+            "incomes": Incomes,
             "mortgages": Mortgages,
             "projects": Projects,
             "project-item-categories": ProjectItemCategories,
@@ -40,6 +41,7 @@ class ReactAdmin():
             "companies": Companies_Pydantic,
             "company-categories": CompanyCategories_Pydantic,
             "direct-debits": DirectDebits_Pydantic,
+            "incomes": Incomes_Pydantic,
             "mortgages": Mortgages_Pydantic,
             "projects": Projects_Pydantic,
             "project-item-categories": ProjectItemCategories_Pydantic,
@@ -54,10 +56,9 @@ class ReactAdmin():
     @classmethod
     async def get_one(cls, resource: str, _id: UUID) -> Model:
         # Get the pydantic schema, then the model.
-        entity_schema = await cls.get_entity_schema(resource)
         entity_model = await cls.get_entity_model(resource)
+        entity_schema = await cls.get_entity_schema(resource)
 
-        # Get the entity, then return it.
         return await entity_schema.from_queryset_single(entity_model.get(id=_id))
 
     @classmethod

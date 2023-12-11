@@ -65,6 +65,16 @@ class DirectDebits(models.Model):
     amount = fields.FloatField()
     notes = fields.CharField(max_length=250)
 
+class Incomes(models.Model):
+    id = fields.UUIDField(pk=True)
+    name = fields.CharField(max_length=150, unique=True)
+    account = fields.ForeignKeyField('models.Accounts', related_name='incomes')
+    company = fields.ForeignKeyField('models.Companies', related_name='incomes')
+    amount = fields.FloatField()
+    period = fields.CharField(max_length=150)
+    paid_on = fields.DateField()
+    notes = fields.CharField(max_length=250)
+
 class Mortgages(models.Model):
     id = fields.UUIDField(pk=True)
     name = fields.CharField(max_length=150, unique=True)
