@@ -42,8 +42,8 @@ class ReactAdmin():
             "direct-debits": DirectDebits_Pydantic,
             "mortgages": Mortgages_Pydantic,
             "projects": Projects_Pydantic,
-            "project-item-categories": ProjectItems_Pydantic,
-            "project-items": ProjectItemCategories_Pydantic
+            "project-item-categories": ProjectItemCategories_Pydantic,
+            "project-items": ProjectItems_Pydantic
         }
 
         try:
