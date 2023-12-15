@@ -3,10 +3,10 @@ from tortoise.exceptions import IntegrityError, OperationalError, FieldError
 from fastapi import HTTPException
 from uuid import UUID
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
-    Mortgages, Projects, ProjectItems, ProjectItemCategories
+    Mortgages, Projects, ProjectItems, ProjectItemCategories, Transactions
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
     CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
-    ProjectItemCategories_Pydantic
+    ProjectItemCategories_Pydantic, Transactions_Pydantic
 
 class ReactAdmin():
     @classmethod
@@ -23,13 +23,14 @@ class ReactAdmin():
             "mortgages": Mortgages,
             "projects": Projects,
             "project-item-categories": ProjectItemCategories,
-            "project-items": ProjectItems
+            "project-items": ProjectItems,
+            "transactions": Transactions,
         }
 
         try:
             return model_list[resource]
         except KeyError:
-            raise HTTPException(status_code=404)
+            raise HTTPException(status_code=400)
     
     @classmethod
     async def get_entity_schema(cls, resource: str):
@@ -45,13 +46,14 @@ class ReactAdmin():
             "mortgages": Mortgages_Pydantic,
             "projects": Projects_Pydantic,
             "project-item-categories": ProjectItemCategories_Pydantic,
-            "project-items": ProjectItems_Pydantic
+            "project-items": ProjectItems_Pydantic,
+            "transactions": Transactions_Pydantic,
         }
 
         try:
             return schema_list[resource]
         except KeyError:
-            raise HTTPException(status_code=404)
+            raise HTTPException(status_code=400)
     
     @classmethod
     async def get_one(cls, resource: str, _id: UUID) -> Model:
@@ -98,9 +100,9 @@ class ReactAdmin():
         try:
             return await entity_model.create(**resp_body)
         except AttributeError as e_attr:
-            return # May have missed adding '_id' at the end of any FK relations in the json. e.g. type = type_id
+            raise HTTPException(status_code=400) from e_attr # May have missed adding '_id' at the end of any FK relations in the json. e.g. type = type_id
         except IntegrityError as e_dupe:
-            return
+            raise HTTPException(status_code=409) from e_dupe
 
     @classmethod
     async def process_raw_kwargs(cls, kwargs_raw: dict):
@@ -169,15 +171,12 @@ class ReactAdmin():
         entity_model = await cls.get_entity_model(resource)
 
         try:
-            print("attempting to update")
             await entity_model.filter(id=_id).update(**resp_body)
             return await cls.get_one(resource, _id)
         except FieldError as e_field:
-            print("wrong field entered")
-            return
+            raise HTTPException(status_code=422)
         except IntegrityError as e_dupe:
-            print("tried creating a dupe")
-            return
+            raise HTTPException(status_code=409) from e_dupe
 
     @classmethod
     async def delete(cls, resource: str, id: str):
