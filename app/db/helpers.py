@@ -1,3 +1,12 @@
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s] %(filename)s %(asctime)s %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
 from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError
 from fastapi import HTTPException
@@ -100,8 +109,10 @@ class ReactAdmin():
         try:
             return await entity_model.create(**resp_body)
         except AttributeError as e_attr:
+            logging.info("Body is missing key attributes.")
             raise HTTPException(status_code=400) from e_attr # May have missed adding '_id' at the end of any FK relations in the json. e.g. type = type_id
         except IntegrityError as e_dupe:
+            logging.info("Potentially trying to create a duplicate.")
             raise HTTPException(status_code=409) from e_dupe
 
     @classmethod
@@ -130,9 +141,8 @@ class ReactAdmin():
         limit = commons["_end"] - commons["_start"]
 
         if limit < 0:
-            raise HTTPException(status_code=400, detail={
-                "message": "End query parameter cannot be less than start query parameter."
-            })
+            logging.info("Limit value cannot be less than 0.")
+            raise HTTPException(status_code=400)
 
         return order_by, limit
 
@@ -155,9 +165,8 @@ class ReactAdmin():
                 return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset).order_by(order_by))
             return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset).order_by(order_by))
         except OperationalError as e_opp:
-            raise HTTPException(status_code=422, detail={
-                "message": "Incorrect sort field provided."
-            }) from e_opp
+            logging.info("Incorrect sort field provided.")
+            raise HTTPException(status_code=422) from e_opp
     
     @classmethod
     async def get_entity_list_count(cls, entity_model: Model, filter: dict = None) -> int:
@@ -174,8 +183,10 @@ class ReactAdmin():
             await entity_model.filter(id=_id).update(**resp_body)
             return await cls.get_one(resource, _id)
         except FieldError as e_field:
-            raise HTTPException(status_code=422)
+            logging.info("Incorrect fields being passed to the model.")
+            raise HTTPException(status_code=422) from e_field
         except IntegrityError as e_dupe:
+            logging.info("Potentially trying to create a duplicate.")
             raise HTTPException(status_code=409) from e_dupe
 
     @classmethod
@@ -184,5 +195,5 @@ class ReactAdmin():
 
         deleted_count = await entity_model.filter(id=id).delete()
         if not deleted_count:
-            print("didnt find entity")
+            logging.info("Couldn't find entity to delete.")
         return

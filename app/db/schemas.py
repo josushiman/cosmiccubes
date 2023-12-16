@@ -1,5 +1,15 @@
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s] %(filename)s %(asctime)s %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
 from tortoise import Tortoise
 from tortoise.contrib.pydantic import pydantic_model_creator
+logging.info("Initialising Models")
 Tortoise.init_models(["app.db.models"], "models")
 
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
