@@ -29,7 +29,7 @@ dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
 dotenv_referer = raw_referer if raw_referer != 'None' else ["*"]
 dotenv_docs = raw_docs if raw_docs != 'None' else None
 
-logging.info(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
+logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,25 +52,24 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
             origin = request.headers["origin"]
             referer = request.headers["referer"]
             host = request.headers["host"]
+            logging.info(f"Origin: {origin}")
+            logging.info(f"Referer: {referer}")
+            logging.info(f"Host: {host}")
             if origin != dotenv_origins:
-                logging.debug(f"Origin: {origin}")
-                logging.warning(f"Origin {origin} attempted access using a valid token.")
+                logging.warning(f"Origin {origin} attempted access using a valid token")
                 raise HTTPException(status_code=403)
             if referer != dotenv_referer:
-                logging.debug(f"Referer: {referer}")
-                logging.warning(f"Referer {referer} attempted access using a valid token.")
+                logging.warning(f"Referer {referer} attempted access using a valid token")
                 raise HTTPException(status_code=403)
             if dotenv_hosts != host:
-                logging.debug(f"Host: {host}")
-                logging.warning(f"Host {host} attempted access using a valid token.")
+                logging.warning(f"Host {host} attempted access using a valid token")
                 raise HTTPException(status_code=403)
-            
         except KeyError:
-            logging.warning(f"Attempt to access API from unauthorised location {request.headers['referer']}.")
+            logging.warning(f"Attempt to access API from unauthorised location")
             raise HTTPException(status_code=403)
 
     if x_token != dotenv_token:
-        logging.warning(f"Origin {request.headers['referer']} provided an invalid token.")
+        logging.warning(f"Invalid token provided from Origin and/or Host")
         raise HTTPException(status_code=403)
 
 logging.info(f"{dotenv_docs}")
