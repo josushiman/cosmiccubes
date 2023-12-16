@@ -64,8 +64,8 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
             if dotenv_hosts != host:
                 logging.warning(f"Host {host} attempted access using a valid token")
                 raise HTTPException(status_code=403)
-        except KeyError:
-            logging.warning(f"Attempt to access API from unauthorised location")
+        except KeyError as e_key:
+            logging.warning(f"Attempt to access API from unauthorised location", exc_info=e_key)
             raise HTTPException(status_code=403)
 
     if x_token != dotenv_token:
