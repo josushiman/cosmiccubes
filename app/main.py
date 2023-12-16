@@ -22,9 +22,11 @@ dotenv_db_url = os.getenv("DB_URL")
 dotenv_token = os.getenv("ENV_TOKEN")
 raw_hosts = os.getenv("ENV_HOSTS")
 raw_origins = os.getenv("ENV_ORIGINS")
+raw_referer = os.getenv("ENV_REFERER")
 raw_docs = os.getenv("ENV_DOCS")
 dotenv_hosts = raw_hosts if raw_hosts != 'None' else ["*"]
 dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
+dotenv_referer = raw_referer if raw_referer != 'None' else ["*"]
 dotenv_docs = raw_docs if raw_docs != 'None' else None
 
 @asynccontextmanager
@@ -48,12 +50,19 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
             origin = request.headers["origin"]
             referer = request.headers["referer"]
             host = request.headers["host"]
-            logging.info(f"Origin: {origin}")
-            logging.info(f"Referer: {referer}")
-            logging.info(f"Host: {host}")
-            if referer not in dotenv_hosts or origin not in dotenv_origins:
-                logging.warning(f"Origin {origin} attempted access using a valid token to {origin}.")
+            if origin != dotenv_origins:
+                logging.debug(f"Origin: {origin}")
+                logging.warning(f"Origin {origin} attempted access using a valid token.")
                 raise HTTPException(status_code=403)
+            if referer != dotenv_referer:
+                logging.debug(f"Referer: {referer}")
+                logging.warning(f"Referer {referer} attempted access using a valid token.")
+                raise HTTPException(status_code=403)
+            if dotenv_hosts != host:
+                logging.debug(f"Host: {host}")
+                logging.warning(f"Host {host} attempted access using a valid token.")
+                raise HTTPException(status_code=403)
+            
         except KeyError:
             logging.warning(f"Attempt to access API from unauthorised location {request.headers['referer']}.")
             raise HTTPException(status_code=403)
