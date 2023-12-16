@@ -81,7 +81,7 @@ logging.info(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -145,12 +145,15 @@ async def delete(resource: str, _id: UUID):
 @app.delete("/portal/{resource}")
 async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alias="ids")):
     for _id in _ids:
-        await ra.delete(resource, _id)
-    return #add log here to say done or something
+        rows_deleted = await ra.delete(resource, _id)
+    return {
+        "message": f"Deleted {rows_deleted} rows."
+    }
 
 
 @app.post("/ext/transactions", status_code=201)
 async def create_transaction(_body: dict):
+    logging.info(f"Attempting to create transaction: {_body}")
     return await ra.create("transactions", _body)
 
 # Add specific endpoints for getting rechart data. e.g. /rechart/{resource}
@@ -159,29 +162,32 @@ async def create_transaction(_body: dict):
 # Object = key, value pairs
 # { "name": "a", "metric1": "value1", etc... }
 
-@app.get("/dashboard/direct-debits/total")
-async def get_dd_totals():
+# @app.get("/dashboard/spent/totals")
+# async def get_spent_totals(months: int):
+#     # From todays date
+#     # Show the past 3 months total expenses on contactless payments
+#     # {
+#     #     "month": "May",
+#     #     "total_spent": 1928
+#     # }
+#     return
+
+@app.get("/portal/dashboard/direct-debits/{type}")
+async def get_dd_totals(type: str):
     entity_model = await ra.get_entity_model('direct-debits')
     entity_schema = await ra.get_entity_schema('direct-debits')
 
-    db_entities = await entity_schema.from_queryset(entity_model.filter(period="monthly"))
+    db_entities = await entity_schema.from_queryset(entity_model.all())
 
     monthly_total = 0
     annual_total = 0
 
-    cost_breakdown = []
-
     for entity in db_entities:
-        cost_breakdown.append({
-            "name": entity.name,
-            "company": entity.company.name,
-            "amount": entity.amount
-        })
-        monthly_total += entity.amount
+        if entity.period == "monthly":
+            monthly_total += entity.amount
         annual_total += entity.annual_cost
 
     return {
-        "data": cost_breakdown,
         "monthly_total": monthly_total,
         "annual_total": annual_total
     }

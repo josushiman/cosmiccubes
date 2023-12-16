@@ -39,6 +39,7 @@ class ReactAdmin():
         try:
             return model_list[resource]
         except KeyError:
+            logging.warning(f"Model for {resource} doesn't exist.")
             raise HTTPException(status_code=400)
     
     @classmethod
@@ -62,11 +63,11 @@ class ReactAdmin():
         try:
             return schema_list[resource]
         except KeyError:
+            logging.warning(f"Schema for {resource} doesn't exist.")
             raise HTTPException(status_code=400)
     
     @classmethod
     async def get_one(cls, resource: str, _id: UUID) -> Model:
-        # Get the pydantic schema, then the model.
         entity_model = await cls.get_entity_model(resource)
         entity_schema = await cls.get_entity_schema(resource)
 
@@ -75,25 +76,22 @@ class ReactAdmin():
     @classmethod
     async def get_list(cls, resource: str, commons: dict, kwargs_raw: dict) -> tuple:
         # When an list of id's are provided, go straight to the get_many function.
-        if 'id' in kwargs_raw and type(kwargs_raw['id']) is list: return await cls.get_many(resource, kwargs_raw['id'])
+        if 'id' in kwargs_raw and type(kwargs_raw['id']) is list: 
+            return await cls.get_many(resource, kwargs_raw['id'])
 
-        # Otherwise process the kwargs, limit, and order values
         kwargs = await cls.process_raw_kwargs(kwargs_raw)
         order_by, limit = await cls.get_order_limit_value(commons)
 
         entity_model = await cls.get_entity_model(resource)
 
-        # Make the DB requests to get the entities and count
         entities = await cls.get_entity_list_data(entity_model, resource, limit, commons["_start"], order_by, kwargs if kwargs != {} else None)
         row_count = await cls.get_entity_list_count(entity_model, kwargs if kwargs != {} else None)
 
-        # Return it as a tuple.
         return entities, str(row_count)
     
     @classmethod
     async def get_many(cls, resource: str, ids: list[UUID]) -> tuple:
         results = []
-        # Get each entity from the id's provided in the list.
         for entity_id in ids:
             db_entity = await cls.get_one(resource, entity_id)
             results.append(db_entity)
@@ -102,10 +100,8 @@ class ReactAdmin():
 
     @classmethod
     async def create(cls, resource: str, resp_body: dict):
-        # From the resource, get the Model and attempt to create it with kwargs.
         entity_model = await cls.get_entity_model(resource)
 
-        # Create the entity
         try:
             return await entity_model.create(**resp_body)
         except AttributeError as e_attr:
@@ -134,10 +130,8 @@ class ReactAdmin():
     async def get_order_limit_value(cls, commons: dict):
         order_by = None
         if commons["_order"] or commons["_sort"]:
-            # Get the sort value
             order_by = await cls.get_sort_value(commons["_order"], commons["_sort"])
 
-        # Get the limit value
         limit = commons["_end"] - commons["_start"]
 
         if limit < 0:
@@ -176,7 +170,6 @@ class ReactAdmin():
 
     @classmethod
     async def update(cls, resource: str, resp_body: dict, _id: UUID):
-        # From the resource, get the Model and attempt to create it with kwargs.
         entity_model = await cls.get_entity_model(resource)
 
         try:
@@ -196,4 +189,4 @@ class ReactAdmin():
         deleted_count = await entity_model.filter(id=id).delete()
         if not deleted_count:
             logging.info("Couldn't find entity to delete.")
-        return
+        return deleted_count
