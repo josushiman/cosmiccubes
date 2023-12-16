@@ -1,5 +1,4 @@
 import os
-import json
 import logging
 from tortoise import Tortoise
 from dotenv import load_dotenv
@@ -20,10 +19,17 @@ logging.basicConfig(
 )
 
 load_dotenv()
+dotenv_db_url = os.getenv("DB_URL")
+dotenv_token = os.getenv("ENV_TOKEN")
+raw_hosts = os.getenv("ENV_HOSTS")
+raw_origins = os.getenv("ENV_ORIGINS")
+raw_docs = os.getenv("ENV_DOCS")
+dotenv_hosts = raw_hosts if raw_hosts != 'None' else ["*"]
+dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
+dotenv_docs = raw_docs if raw_docs != 'None' else None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    dotenv_db_url = os.getenv("DB_URL")
     logging.info("Initialising DB")
     await Tortoise.init(
         db_url=dotenv_db_url,
@@ -37,14 +43,6 @@ async def lifespan(app: FastAPI):
     # Close all connections when shutting down.
     await Tortoise.close_connections()
 
-dotenv_token = os.getenv("ENV_TOKEN")
-raw_hosts = os.getenv("ENV_HOSTS")
-raw_origins = os.getenv("ENV_ORIGINS")
-dotenv_hosts = json.loads(raw_hosts)
-dotenv_origins = json.loads(raw_origins)
-raw_docs = os.getenv("ENV_DOCS")
-dotenv_docs = raw_docs if raw_docs != 'None' else None
-
 async def get_token_header(request: Request, x_token: str = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
         try:
@@ -54,12 +52,14 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
                 logging.warning(f"Origin {origin} attempted access using a valid token to {origin}.")
                 raise HTTPException(status_code=403)
         except KeyError:
-            logging.warning("Attempt to access API from unauthorised location.")
+            logging.warning(f"Attempt to access API from unauthorised location {request.headers['referer']}.")
             raise HTTPException(status_code=403)
 
         if x_token != dotenv_token:
-            logging.warning(f"Origin {referer} provided an invalid token.")
+            logging.warning(f"Origin {request.headers['referer']} provided an invalid token.")
             raise HTTPException(status_code=403)
+
+logging.info(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
