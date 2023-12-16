@@ -55,9 +55,9 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
             logging.warning(f"Attempt to access API from unauthorised location {request.headers['referer']}.")
             raise HTTPException(status_code=403)
 
-        if x_token != dotenv_token:
-            logging.warning(f"Origin {request.headers['referer']} provided an invalid token.")
-            raise HTTPException(status_code=403)
+    if x_token != dotenv_token:
+        logging.warning(f"Origin {request.headers['referer']} provided an invalid token.")
+        raise HTTPException(status_code=403)
 
 logging.info(f"{dotenv_docs}")
 
@@ -69,7 +69,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=dotenv_origins,
+    allow_origins=dotenv_hosts,
     expose_headers=['x-total-count'],
     allow_credentials=True,
     allow_methods=["*"],
