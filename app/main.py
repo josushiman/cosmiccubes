@@ -7,7 +7,6 @@ from fastapi import FastAPI, Response, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
-from app.db.models import Transactions
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -84,7 +83,7 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 
 @app.post("/ext/transactions", status_code=201)
 async def create_transaction(_body: dict):
-    return await Transactions.create(**_body)
+    return await ra.create("transactions", _body)
 
 # Add specific endpoints for getting rechart data. e.g. /rechart/{resource}
 # Always has to be returned as follows
