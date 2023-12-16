@@ -19,9 +19,10 @@ logging.basicConfig(
     ]
 )
 
+load_dotenv()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_dotenv()
     dotenv_db_url = os.getenv("DB_URL")
     logging.info("Initialising DB")
     await Tortoise.init(
