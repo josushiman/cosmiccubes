@@ -1,9 +1,8 @@
 import os
 import json
 import logging
-import sys
 from tortoise import Tortoise
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 from typing import List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPException
@@ -37,12 +36,13 @@ async def lifespan(app: FastAPI):
     # Close all connections when shutting down.
     await Tortoise.close_connections()
 
-config = dotenv_values(".env")
-
-dotenv_token = config["ENV_TOKEN"]
-dotenv_hosts = json.loads(config["ENV_HOSTS"])
-dotenv_origins = json.loads(config["ENV_ORIGINS"])
-dotenv_docs = config["ENV_DOCS"] if config["ENV_DOCS"] != 'None' else None
+dotenv_token = os.getenv("ENV_TOKEN")
+raw_hosts = os.getenv("ENV_HOSTS")
+raw_origins = os.getenv("ENV_ORIGINS")
+dotenv_hosts = json.loads(raw_hosts)
+dotenv_origins = json.loads(raw_origins)
+raw_docs = os.getenv("ENV_DOCS")
+dotenv_docs = raw_docs if raw_docs != 'None' else None
 
 async def get_token_header(request: Request, x_token: str = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
