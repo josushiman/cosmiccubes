@@ -6,7 +6,6 @@ from typing import List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
 
@@ -48,7 +47,11 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
         try:
             origin = request.headers["origin"]
             referer = request.headers["referer"]
-            if referer not in dotenv_origins or origin not in dotenv_hosts:
+            host = request.headers["host"]
+            logging.info(f"Origin: {origin}")
+            logging.info(f"Referer: {referer}")
+            logging.info(f"Host: {host}")
+            if referer not in dotenv_hosts or origin not in dotenv_origins:
                 logging.warning(f"Origin {origin} attempted access using a valid token to {origin}.")
                 raise HTTPException(status_code=403)
         except KeyError:
