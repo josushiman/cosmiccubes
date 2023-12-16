@@ -48,6 +48,7 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
         try:
             origin = request.headers["origin"]
             referer = request.headers["referer"]
+            logging.debug()
             if referer not in dotenv_origins or origin not in dotenv_hosts:
                 logging.warning(f"Origin {origin} attempted access using a valid token to {origin}.")
                 raise HTTPException(status_code=403)
@@ -69,16 +70,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=dotenv_hosts,
+    allow_origins=["*"],
     expose_headers=['x-total-count'],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=['Content-Type', 'User-Agent', 'x-token', 'Referer', 'Origin']
-)
-
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=dotenv_hosts
+    allow_headers=["*"]
 )
 
 async def common_parameters(_end: int = 10, _start: int = 0, _order: str = Query(default="ASC", min_length=3, max_length=4, regex="ASC|DESC"), \
