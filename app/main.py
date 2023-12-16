@@ -29,6 +29,8 @@ dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
 dotenv_referer = raw_referer if raw_referer != 'None' else ["*"]
 dotenv_docs = raw_docs if raw_docs != 'None' else None
 
+logging.info(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Initialising DB")
