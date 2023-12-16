@@ -48,7 +48,7 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
         try:
             origin = request.headers["origin"]
             referer = request.headers["referer"]
-            logging.debug()
+            logging.info(f"{origin}, {referer}")
             if referer not in dotenv_origins or origin not in dotenv_hosts:
                 logging.warning(f"Origin {origin} attempted access using a valid token to {origin}.")
                 raise HTTPException(status_code=403)
