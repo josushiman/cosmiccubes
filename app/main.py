@@ -48,13 +48,14 @@ async def lifespan(app: FastAPI):
 
 async def get_token_header(request: Request, x_token: str = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
+        logging.info(request.headers.raw)
         try:
             origin = request.headers["origin"]
             referer = request.headers["referer"]
             host = request.headers["host"]
-            logging.info(f"Origin: {origin}")
-            logging.info(f"Referer: {referer}")
-            logging.info(f"Host: {host}")
+            # logging.info(f"Origin: {origin}")
+            # logging.info(f"Referer: {referer}")
+            # logging.info(f"Host: {host}")
             if origin != dotenv_origins:
                 logging.warning(f"Origin {origin} attempted access using a valid token")
                 raise HTTPException(status_code=403)
