@@ -154,6 +154,9 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 @app.post("/ext/transactions", status_code=201)
 async def create_transaction(_body: dict):
     logging.info(f"Attempting to create transaction: {_body}")
+
+    _body["amount"] = _body["amount"].strip('£')
+
     return await ra.create("transactions", _body)
 
 # Add specific endpoints for getting rechart data. e.g. /rechart/{resource}
