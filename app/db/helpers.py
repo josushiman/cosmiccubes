@@ -12,10 +12,10 @@ from tortoise.exceptions import IntegrityError, OperationalError, FieldError
 from fastapi import HTTPException
 from uuid import UUID
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
-    Mortgages, Projects, ProjectItems, ProjectItemCategories, Transactions
+    Mortgages, Projects, ProjectItems, ProjectItemCategories
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
     CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
-    ProjectItemCategories_Pydantic, Transactions_Pydantic
+    ProjectItemCategories_Pydantic
 
 class ReactAdmin():
     @classmethod
@@ -33,7 +33,6 @@ class ReactAdmin():
             "projects": Projects,
             "project-item-categories": ProjectItemCategories,
             "project-items": ProjectItems,
-            "transactions": Transactions,
         }
 
         try:
@@ -57,7 +56,6 @@ class ReactAdmin():
             "projects": Projects_Pydantic,
             "project-item-categories": ProjectItemCategories_Pydantic,
             "project-items": ProjectItems_Pydantic,
-            "transactions": Transactions_Pydantic,
         }
 
         try:

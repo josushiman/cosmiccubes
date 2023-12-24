@@ -141,9 +141,10 @@ class ProjectItems(models.Model):
         computed = ["total"]
         unique_together=("name", "company", "category")
 
-class Transactions(models.Model):
-    id = fields.UUIDField(pk=True)
-    name = fields.CharField(max_length=150)
-    date_time = fields.DatetimeField()
-    amount = fields.FloatField(default=0.0)
-    merchant = fields.CharField(max_length=150)
+# TODO change with YNAB
+# class Transactions(models.Model):
+#     id = fields.UUIDField(pk=True)
+#     name = fields.CharField(max_length=150)
+#     date_time = fields.DatetimeField()
+#     amount = fields.FloatField(default=0.0)
+#     merchant = fields.CharField(max_length=150)

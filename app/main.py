@@ -8,6 +8,7 @@ from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPExce
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
+# from app.ynab import YNAB as ynab
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,7 +82,7 @@ logging.info(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    # dependencies=[Depends(get_token_header)],
+    dependencies=[Depends(get_token_header)], #TODO
     openapi_url=dotenv_docs
     )
 
@@ -150,15 +151,6 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
         "message": f"Deleted {rows_deleted} rows."
     }
 
-
-@app.post("/ext/transactions", status_code=201)
-async def create_transaction(_body: dict):
-    logging.info(f"Attempting to create transaction: {_body}")
-
-    _body["amount"] = _body["amount"].strip('£')
-
-    return await ra.create("transactions", _body)
-
 # Add specific endpoints for getting rechart data. e.g. /rechart/{resource}
 # Always has to be returned as follows
 # List[Object]
@@ -174,6 +166,17 @@ async def create_transaction(_body: dict):
 #     #     "total_spent": 1928
 #     # }
 #     return
+
+# @app.get("/test/ynab")
+# async def test_ynab():
+#     # Show the last 5 transactions
+#     budget_list = await ynab.make_request('budgets-list')
+#     budget_id = budget_list['data']['budgets'][0]['id']
+
+#     transaction_list = await ynab.make_request('transactions-list', param_1=budget_id)
+#     response_list = sorted(transaction_list['data']['transactions'], key=lambda item: item['date'], reverse=True)
+
+#     return response_list[0:5]
 
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
@@ -194,7 +197,3 @@ async def get_dd_totals(type: str):
         "monthly_total": monthly_total,
         "annual_total": annual_total
     }
-
-# Upcoming payments endpoint
-# Shows the next 3 days worth of payments
-# Can show more if needed
