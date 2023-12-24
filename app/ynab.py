@@ -1,7 +1,10 @@
 import os
 import requests
 import logging
+import json
 from dotenv import load_dotenv
+from app.ynab_models import AccountsResponse
+from fastapi import HTTPException
 
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
@@ -13,8 +16,31 @@ class BearerAuth(requests.auth.AuthBase):
     def __call__(self, r):
         r.headers["authorization"] = "Bearer " + self.token
         return r
-    
+
 class YNAB():
+    @classmethod
+    async def convert_to_float(cls, amount):
+        # Amount comes in as a milliunit e.g. 21983290
+        # It needs to be returned as 21983.29
+        return amount / 1000
+
+    @classmethod
+    async def convert_to_pydantic(cls, action: str, _dict: dict):
+        pydantic_class = await cls.get_class(action)
+        return pydantic_class.model_validate_json(json.dumps(_dict))
+
+    @classmethod
+    async def get_class(cls, action: str):
+        model_list ={
+            "accounts-list": AccountsResponse,
+        }
+
+        try:
+            return model_list[action]
+        except KeyError:
+            logging.warning(f"Class for {action} doesn't exist.")
+            raise HTTPException(status_code=400)
+
     @classmethod
     async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
         '''
@@ -26,6 +52,7 @@ class YNAB():
         month = only used when getting categories for a single month. provided in ISO format (e.g. 2016-12-01)
 
         Source: https://api.ynab.com/v1
+        Rate limit: 200 requests per hour
         '''
         match action:
             case 'accounts-list':
@@ -123,14 +150,44 @@ class YNAB():
             logging.error(exc)
 
         return response.json()
-    
-    # Store budget ID as global variable.?
+
+    @classmethod
+    async def get_balance_info(cls):
+        account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        pydantic_accounts_list = await cls.convert_to_pydantic('accounts-list', account_list)
+
+        total_amount = 0.00
+        spent_amount = 0.00
+
+        for account in pydantic_accounts_list.data.accounts:
+            if account.type.value == 'checking':
+                total_amount += account.balance
+            else:
+                spent_amount += account.balance
+
+            logging.debug(f'''
+            name: {account.name}
+            balance: {account.balance}
+            cleared: {account.cleared_balance}
+            uncleared: {account.uncleared_balance}
+            ''')
+
+        # Units are returned as milliunits.
+        available_amount = await cls.convert_to_float(total_amount -- spent_amount)
+        total_amount = await cls.convert_to_float(total_amount)
+        spent_amount = await cls.convert_to_float(spent_amount)
+
+        return {
+            "total": total_amount,
+            "spent": spent_amount,
+            "available": available_amount,
+        }
 
     # Get last X transactions
     # Get next X scheduled transactions
         # Filter out any transactions which do not have an import_id
     
-    # Current 'available' balance current month
+    
     # Total Spent current month
     # Income, by month
     # Expenses, by month

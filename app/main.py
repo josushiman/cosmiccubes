@@ -8,7 +8,7 @@ from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPExce
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
-# from app.ynab import YNAB as ynab
+from app.ynab import YNAB as ynab
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,7 +82,7 @@ logging.info(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)], #TODO
+    # dependencies=[Depends(get_token_header)], #TODO
     openapi_url=dotenv_docs
     )
 
@@ -177,6 +177,10 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 #     response_list = sorted(transaction_list['data']['transactions'], key=lambda item: item['date'], reverse=True)
 
 #     return response_list[0:5]
+
+@app.get("/ynab/balance-info")
+async def get_balance_info():
+    return await ynab.get_balance_info()
 
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
