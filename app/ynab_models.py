@@ -18,6 +18,22 @@ class AccountType(Enum):
     medicalDebt = 'medicalDebt'
     otherDebt = 'otherDebt'
 
+class GoalTypeEnum(Enum):
+    TB = 'TB'
+    TBD = 'TBD'
+    MF = 'MF'
+    NEED = 'NEED'
+    DEBT = 'DEBT'
+
+class CategoryGroup(BaseModel):
+    id: UUID
+    name: str
+    hidden: bool = Field(..., description='Whether or not the category group is hidden')
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the category group has been deleted.  Deleted category groups will only be included in delta requests.',
+    )
+
 class CurrencyFormat(BaseModel):
     iso_code: str
     example_format: str
@@ -28,83 +44,117 @@ class CurrencyFormat(BaseModel):
     currency_symbol: str
     display_symbol: bool
 
-# class CategoryGroup(BaseModel):
-#     id: UUID
-#     name: str
-#     hidden: bool = Field(..., description='Whether or not the category group is hidden')
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the category group has been deleted.  Deleted category groups will only be included in delta requests.',
-#     )
+class Account(BaseModel):
+    id: UUID
+    name: str
+    type: AccountType
+    on_budget: bool = Field(..., description='Whether this account is on budget or not')
+    closed: bool = Field(..., description='Whether this account is closed or not')
+    note: Optional[str] = None
+    balance: int = Field(
+        ..., description='The current balance of the account in milliunits format'
+    )
+    cleared_balance: int = Field(
+        ...,
+        description='The current cleared balance of the account in milliunits format',
+    )
+    uncleared_balance: int = Field(
+        ...,
+        description='The current uncleared balance of the account in milliunits format',
+    )
+    transfer_payee_id: UUID = Field(
+        ...,
+        description='The payee id which should be used when transferring to this account',
+    )
+    direct_import_linked: Optional[bool] = Field(
+        None,
+        description='Whether or not the account is linked to a financial institution for automatic transaction import.',
+    )
+    direct_import_in_error: Optional[bool] = Field(
+        None,
+        description='If an account linked to a financial institution (direct_import_linked=true) and the linked connection is not in a healthy state, this will be true.',
+    )
+    last_reconciled_at: Optional[str] = Field(
+        None, description='A date/time specifying when the account was last reconciled.'
+    )
+    debt_original_balance: Optional[int] = Field(
+        None,
+        description='The original debt/loan account balance, specified in milliunits format.',
+    )
+    debt_interest_rates: Optional[Dict[str, int]] = None
+    debt_minimum_payments: Optional[Dict[str, int]] = None
+    debt_escrow_amounts: Optional[Dict[str, int]] = None
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the account has been deleted.  Deleted accounts will only be included in delta requests.',
+    )
 
-# class GoalTypeEnum(Enum):
-#     TB = 'TB'
-#     TBD = 'TBD'
-#     MF = 'MF'
-#     NEED = 'NEED'
-#     DEBT = 'DEBT'
+class Category(BaseModel):
+    id: UUID
+    category_group_id: UUID
+    category_group_name: Optional[str] = None
+    name: str
+    hidden: bool = Field(..., description='Whether or not the category is hidden')
+    original_category_group_id: Optional[UUID] = None
+    note: Optional[str] = None
+    budgeted: int = Field(..., description='Budgeted amount in milliunits format')
+    activity: int = Field(..., description='Activity amount in milliunits format')
+    balance: int = Field(..., description='Balance in milliunits format')
+    goal_type: Optional[GoalTypeEnum] = Field(
+        None,
+        description="The type of goal, if the category has a goal (TB='Target Category Balance', TBD='Target Category Balance by Date', MF='Monthly Funding', NEED='Plan Your Spending')",
+    )
+    goal_day: Optional[int] = Field(
+        None,
+        description="A day offset modifier for the goal's due date. When goal_cadence is 2 (Weekly), this value specifies which day of the week the goal is due (0 = Sunday, 6 = Saturday). Otherwise, this value specifies which day of the month the goal is due (1 = 1st, 31 = 31st, null = Last day of Month).",
+    )
+    goal_cadence: Optional[int] = Field(
+        None,
+        description="The goal cadence. Value in range 0-14. There are two subsets of these values which behave differently. For values 0, 1, 2, and 13, the goal's due date repeats every goal_cadence * goal_cadence_frequency, where 0 = None, 1 = Monthly, 2 = Weekly, and 13 = Yearly. For example, goal_cadence 1 with goal_cadence_frequency 2 means the goal is due every other month. For values 3-12 and 14, goal_cadence_frequency is ignored and the goal's due date repeats every goal_cadence, where 3 = Every 2 Months, 4 = Every 3 Months, ..., 12 = Every 11 Months, and 14 = Every 2 Years.",
+    )
+    goal_cadence_frequency: Optional[int] = Field(
+        None,
+        description="The goal cadence frequency. When goal_cadence is 0, 1, 2, or 13, a goal's due date repeats every goal_cadence * goal_cadence_frequency. For example, goal_cadence 1 with goal_cadence_frequency 2 means the goal is due every other month.  When goal_cadence is 3-12 or 14, goal_cadence_frequency is ignored.",
+    )
+    goal_creation_month: Optional[str] = Field(
+        None, description='The month a goal was created'
+    )
+    goal_target: Optional[int] = Field(
+        None, description='The goal target amount in milliunits'
+    )
+    goal_target_month: Optional[str] = Field(
+        None,
+        description='The original target month for the goal to be completed.  Only some goal types specify this date.',
+    )
+    goal_percentage_complete: Optional[int] = Field(
+        None, description='The percentage completion of the goal'
+    )
+    goal_months_to_budget: Optional[int] = Field(
+        None,
+        description='The number of months, including the current month, left in the current goal period.',
+    )
+    goal_under_funded: Optional[int] = Field(
+        None,
+        description="The amount of funding still needed in the current month to stay on track towards completing the goal within the current goal period. This amount will generally correspond to the 'Underfunded' amount in the web and mobile clients except when viewing a category with a Needed for Spending Goal in a future month.  The web and mobile clients will ignore any funding from a prior goal period when viewing category with a Needed for Spending Goal in a future month.",
+    )
+    goal_overall_funded: Optional[int] = Field(
+        None,
+        description='The total amount funded towards the goal within the current goal period.',
+    )
+    goal_overall_left: Optional[int] = Field(
+        None,
+        description='The amount of funding still needed to complete the goal within the current goal period.',
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the category has been deleted.  Deleted categories will only be included in delta requests.',
+    )
 
-# class Category(BaseModel):
-#     id: UUID
-#     category_group_id: UUID
-#     category_group_name: Optional[str] = None
-#     name: str
-#     hidden: bool = Field(..., description='Whether or not the category is hidden')
-#     original_category_group_id: Optional[UUID] = None
-#     note: Optional[str] = None
-#     budgeted: int = Field(..., description='Budgeted amount in milliunits format')
-#     activity: int = Field(..., description='Activity amount in milliunits format')
-#     balance: int = Field(..., description='Balance in milliunits format')
-#     goal_type: Optional[GoalTypeEnum] = Field(
-#         None,
-#         description="The type of goal, if the category has a goal (TB='Target Category Balance', TBD='Target Category Balance by Date', MF='Monthly Funding', NEED='Plan Your Spending')",
-#     )
-#     goal_day: Optional[int] = Field(
-#         None,
-#         description="A day offset modifier for the goal's due date. When goal_cadence is 2 (Weekly), this value specifies which day of the week the goal is due (0 = Sunday, 6 = Saturday). Otherwise, this value specifies which day of the month the goal is due (1 = 1st, 31 = 31st, null = Last day of Month).",
-#     )
-#     goal_cadence: Optional[int] = Field(
-#         None,
-#         description="The goal cadence. Value in range 0-14. There are two subsets of these values which behave differently. For values 0, 1, 2, and 13, the goal's due date repeats every goal_cadence * goal_cadence_frequency, where 0 = None, 1 = Monthly, 2 = Weekly, and 13 = Yearly. For example, goal_cadence 1 with goal_cadence_frequency 2 means the goal is due every other month. For values 3-12 and 14, goal_cadence_frequency is ignored and the goal's due date repeats every goal_cadence, where 3 = Every 2 Months, 4 = Every 3 Months, ..., 12 = Every 11 Months, and 14 = Every 2 Years.",
-#     )
-#     goal_cadence_frequency: Optional[int] = Field(
-#         None,
-#         description="The goal cadence frequency. When goal_cadence is 0, 1, 2, or 13, a goal's due date repeats every goal_cadence * goal_cadence_frequency. For example, goal_cadence 1 with goal_cadence_frequency 2 means the goal is due every other month.  When goal_cadence is 3-12 or 14, goal_cadence_frequency is ignored.",
-#     )
-#     goal_creation_month: Optional[str] = Field(
-#         None, description='The month a goal was created'
-#     )
-#     goal_target: Optional[int] = Field(
-#         None, description='The goal target amount in milliunits'
-#     )
-#     goal_target_month: Optional[str] = Field(
-#         None,
-#         description='The original target month for the goal to be completed.  Only some goal types specify this date.',
-#     )
-#     goal_percentage_complete: Optional[int] = Field(
-#         None, description='The percentage completion of the goal'
-#     )
-#     goal_months_to_budget: Optional[int] = Field(
-#         None,
-#         description='The number of months, including the current month, left in the current goal period.',
-#     )
-#     goal_under_funded: Optional[int] = Field(
-#         None,
-#         description="The amount of funding still needed in the current month to stay on track towards completing the goal within the current goal period. This amount will generally correspond to the 'Underfunded' amount in the web and mobile clients except when viewing a category with a Needed for Spending Goal in a future month.  The web and mobile clients will ignore any funding from a prior goal period when viewing category with a Needed for Spending Goal in a future month.",
-#     )
-#     goal_overall_funded: Optional[int] = Field(
-#         None,
-#         description='The total amount funded towards the goal within the current goal period.',
-#     )
-#     goal_overall_left: Optional[int] = Field(
-#         None,
-#         description='The amount of funding still needed to complete the goal within the current goal period.',
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the category has been deleted.  Deleted categories will only be included in delta requests.',
-#     )
-
+class CategoryGroupWithCategories(CategoryGroup):
+    categories: List[Category] = Field(
+        ...,
+        description='Category group categories.  Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).',
+    )
 
 # class Data8(BaseModel):
 #     category: Category
@@ -245,62 +295,12 @@ class CurrencyFormat(BaseModel):
 #     uncleared = 'uncleared'
 #     reconciled = 'reconciled'
 
-class Account(BaseModel):
-    id: UUID
-    name: str
-    type: AccountType
-    on_budget: bool = Field(..., description='Whether this account is on budget or not')
-    closed: bool = Field(..., description='Whether this account is closed or not')
-    note: Optional[str] = None
-    balance: int = Field(
-        ..., description='The current balance of the account in milliunits format'
-    )
-    cleared_balance: int = Field(
-        ...,
-        description='The current cleared balance of the account in milliunits format',
-    )
-    uncleared_balance: int = Field(
-        ...,
-        description='The current uncleared balance of the account in milliunits format',
-    )
-    transfer_payee_id: UUID = Field(
-        ...,
-        description='The payee id which should be used when transferring to this account',
-    )
-    direct_import_linked: Optional[bool] = Field(
-        None,
-        description='Whether or not the account is linked to a financial institution for automatic transaction import.',
-    )
-    direct_import_in_error: Optional[bool] = Field(
-        None,
-        description='If an account linked to a financial institution (direct_import_linked=true) and the linked connection is not in a healthy state, this will be true.',
-    )
-    last_reconciled_at: Optional[str] = Field(
-        None, description='A date/time specifying when the account was last reconciled.'
-    )
-    debt_original_balance: Optional[int] = Field(
-        None,
-        description='The original debt/loan account balance, specified in milliunits format.',
-    )
-    debt_interest_rates: Optional[Dict[str, int]] = None
-    debt_minimum_payments: Optional[Dict[str, int]] = None
-    debt_escrow_amounts: Optional[Dict[str, int]] = None
-    deleted: bool = Field(
-        ...,
-        description='Whether or not the account has been deleted.  Deleted accounts will only be included in delta requests.',
-    )
-
 # class Data7(BaseModel):
 #     category: Category
 
 # class CategoryResponse(BaseModel):
 #     data: Data7
 
-# class CategoryGroupWithCategories(CategoryGroup):
-#     categories: List[Category] = Field(
-#         ...,
-#         description='Category group categories.  Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).',
-#     )
 
 # class Data9(BaseModel):
 #     payees: List[Payee]
@@ -468,13 +468,6 @@ class Account(BaseModel):
 #     scheduled_transactions: Optional[List[ScheduledTransactionSummary]] = None
 #     scheduled_subtransactions: Optional[List[ScheduledSubTransaction]] = None
 
-# class Data6(BaseModel):
-#     category_groups: List[CategoryGroupWithCategories]
-#     server_knowledge: int = Field(..., description='The knowledge of the server')
-
-# class CategoriesResponse(BaseModel):
-#     data: Data6
-
 # class Data13(BaseModel):
 #     transactions: List[TransactionDetail]
 #     server_knowledge: int = Field(..., description='The knowledge of the server')
@@ -520,3 +513,10 @@ class Data5(BaseModel):
 
 class AccountResponse(BaseModel):
     data: Data5
+
+class Data6(BaseModel):
+    category_groups: List[CategoryGroupWithCategories]
+    server_knowledge: int = Field(..., description='The knowledge of the server')
+
+class CategoriesResponse(BaseModel):
+    data: Data6

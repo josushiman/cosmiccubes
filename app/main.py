@@ -182,6 +182,10 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 async def get_balance_info():
     return await ynab.get_balance_info()
 
+@app.get("/ynab/category-summary")
+async def get_category_summary():
+    return await ynab.get_category_summary()
+
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
     entity_model = await ra.get_entity_model('direct-debits')

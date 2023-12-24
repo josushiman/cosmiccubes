@@ -3,7 +3,7 @@ import requests
 import logging
 import json
 from dotenv import load_dotenv
-from app.ynab_models import AccountsResponse
+from app.ynab_models import AccountsResponse, CategoriesResponse
 from fastapi import HTTPException
 
 load_dotenv()
@@ -31,12 +31,13 @@ class YNAB():
 
     @classmethod
     async def get_class(cls, action: str):
-        model_list ={
+        class_list ={
             "accounts-list": AccountsResponse,
+            "categories-list": CategoriesResponse,
         }
 
         try:
-            return model_list[action]
+            return class_list[action]
         except KeyError:
             logging.warning(f"Class for {action} doesn't exist.")
             raise HTTPException(status_code=400)
@@ -182,6 +183,38 @@ class YNAB():
             "spent": spent_amount,
             "available": available_amount,
         }
+    
+    @classmethod
+    async def get_category_summary(cls):
+        category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        pydantic_categories_list = await cls.convert_to_pydantic('categories-list', category_list)
+
+        result_json = []
+
+        for category_group in pydantic_categories_list.data.category_groups:
+            count_categories = len(category_group.categories)
+            if count_categories < 1: continue
+
+            total_balance = 0.0
+            total_budgeted = 0.0
+            total_goal = 0
+            for category in category_group.categories:
+                total_balance += category.balance
+                total_budgeted += category.budgeted
+                if category.goal_percentage_complete:
+                    total_goal += category.goal_percentage_complete
+            
+            if category_group.name != 'Credit Card Payments':
+                total_goal = total_goal / count_categories
+
+            result_json.append({
+                'name': category_group.name,
+                'available': await cls.convert_to_float(total_balance),
+                'budgeted': await cls.convert_to_float(total_budgeted),
+                'goal': total_goal,
+            })
+        
+        return result_json
 
     # Get last X transactions
     # Get next X scheduled transactions
@@ -193,9 +226,6 @@ class YNAB():
     # Expenses, by month
 
     # 
-
-    # List all categories
-        # Friendly name
     
     # All time
     # By month
