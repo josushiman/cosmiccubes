@@ -2,6 +2,7 @@ import os
 import httpx
 import logging
 import json
+from datetime import datetime
 from async_lru import alru_cache
 from dotenv import load_dotenv
 from app.ynab_models import AccountsResponse, CategoriesResponse, ScheduledTransactionsResponse, TransactionsResponse
@@ -194,7 +195,6 @@ class YNAB():
         
         return result_json
 
-    # Get last X transactions
     @classmethod
     async def get_last_x_transactions(cls, count: int, since_date: str = None):
         # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
@@ -215,18 +215,50 @@ class YNAB():
     # scheduled_transaction_list = await cls.make_request('schedule-transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO 
     # pydantic_transactions_list = ScheduledTransactionsResponse.model_validate_json(json.dumps(scheduled_transaction_list))
     # Total Spent current month
-    # Income, by month
-    # Expenses, by month
-
-    # 
     
-    # All time
+    # Income, by month, past 3,6.12 months
+    # Expenses, by month, past 3,6.12 months
+    @classmethod
+    async def total_expenses_by_category(cls, year: bool):
+        category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+
+        result_json = {
+            'since_date': '',
+            'categories': {}
+        }
+
+        for category_group in pydantic_categories_list.data.category_groups:
+            for category in category_group.categories:
+                result_json['categories'][f'{category.id}'] = {
+                    'name': category.name,
+                    'category_group_name': category.category_group_name,
+                    'category_group_id': category.category_group_id,
+                    'total': 0
+                }
+
+        if year:
+            logging.debug("Getting transactions for the full year.")
+            since_date = datetime.today().strftime('%Y') + '-01-01'
+        else:
+            logging.debug("Getting transactions for this month only.")
+            since_date = datetime.today().strftime('%Y-%m') + '-01'
+        
+        result_json['since_date'] = since_date
+        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+
+        for transaction in pydantic_transactions_list.data.transactions:
+            result_json['categories'][f'{transaction.category_id}']['total'] += transaction.amount
+
+        return result_json
+    # By year
     # By month
     # ---
     # Total expenses by category
     # Total expenses by account
     # Total expenses by payee
-    # Top 5 expenses by category
-    # Top 5 expenses by payee
+    # Top X expenses by category
+    # Top X expenses by payee
 
     # Last paid date for account/credit cards

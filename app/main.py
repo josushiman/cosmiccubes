@@ -167,17 +167,6 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 #     # }
 #     return
 
-# @app.get("/test/ynab")
-# async def test_ynab():
-#     # Show the last 5 transactions
-#     budget_list = await ynab.make_request('budgets-list')
-#     budget_id = budget_list['data']['budgets'][0]['id']
-
-#     transaction_list = await ynab.make_request('transactions-list', param_1=budget_id)
-#     response_list = sorted(transaction_list['data']['transactions'], key=lambda item: item['date'], reverse=True)
-
-#     return response_list[0:5]
-
 @app.get("/ynab/balance-info")
 async def get_balance_info():
     return await ynab.get_balance_info()
@@ -185,6 +174,10 @@ async def get_balance_info():
 @app.get("/ynab/category-summary")
 async def get_category_summary():
     return await ynab.get_category_summary()
+
+@app.get("/ynab/category-totals")
+async def get_category_totals(year: bool = False):
+    return await ynab.total_expenses_by_category(year=year)
 
 @app.get("/ynab/last-x-transactions")
 async def get_last_x_transactions(count: int, since_date: str = None):
