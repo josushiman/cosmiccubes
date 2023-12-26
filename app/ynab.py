@@ -1,7 +1,8 @@
 import os
-import requests
+import httpx
 import logging
 import json
+from async_lru import alru_cache
 from dotenv import load_dotenv
 from app.ynab_models import AccountsResponse, CategoriesResponse
 from fastapi import HTTPException
@@ -10,37 +11,12 @@ load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
 dotenv_ynab_token = os.getenv("EXT_YNAB_TOKEN")
 
-class BearerAuth(requests.auth.AuthBase):
-    def __init__(self, token):
-        self.token = token
-    def __call__(self, r):
-        r.headers["authorization"] = "Bearer " + self.token
-        return r
-
 class YNAB():
     @classmethod
     async def convert_to_float(cls, amount):
         # Amount comes in as a milliunit e.g. 21983290
         # It needs to be returned as 21983.29
         return amount / 1000
-
-    @classmethod
-    async def convert_to_pydantic(cls, action: str, _dict: dict):
-        pydantic_class = await cls.get_class(action)
-        return pydantic_class.model_validate_json(json.dumps(_dict))
-
-    @classmethod
-    async def get_class(cls, action: str):
-        class_list ={
-            "accounts-list": AccountsResponse,
-            "categories-list": CategoriesResponse,
-        }
-
-        try:
-            return class_list[action]
-        except KeyError:
-            logging.warning(f"Class for {action} doesn't exist.")
-            raise HTTPException(status_code=400)
 
     @classmethod
     async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
@@ -145,17 +121,18 @@ class YNAB():
 
         logging.debug(f'Attempting to call YNAB with {ynab_url}')
 
-        try:
-            response = requests.get(ynab_url, auth=BearerAuth(dotenv_ynab_token))
-        except Exception as exc:
-            logging.error(exc)
-
-        return response.json()
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(ynab_url, headers={'Authorization': f"Bearer {dotenv_ynab_token}"})
+                return response.json()
+            except httpx.HTTPError as exc:
+                logging.debug(exc)
+                raise HTTPException(status_code=500)
 
     @classmethod
     async def get_balance_info(cls):
         account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
-        pydantic_accounts_list = await cls.convert_to_pydantic('accounts-list', account_list)
+        pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
         total_amount = 0.00
         spent_amount = 0.00
@@ -187,7 +164,7 @@ class YNAB():
     @classmethod
     async def get_category_summary(cls):
         category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
-        pydantic_categories_list = await cls.convert_to_pydantic('categories-list', category_list)
+        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
 
         result_json = []
 
