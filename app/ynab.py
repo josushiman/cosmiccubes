@@ -115,6 +115,7 @@ class YNAB():
                 return '/user'
     
     @classmethod
+    @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
     async def make_request(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None):
         ynab_route = await cls.get_route(action, param_1, param_2, since_date, month)
         ynab_url = dotenv_ynab_url + ynab_route
