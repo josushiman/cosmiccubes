@@ -4,7 +4,7 @@ import logging
 import json
 from async_lru import alru_cache
 from dotenv import load_dotenv
-from app.ynab_models import AccountsResponse, CategoriesResponse
+from app.ynab_models import AccountsResponse, CategoriesResponse, ScheduledTransactionsResponse, TransactionsResponse
 from fastapi import HTTPException
 
 load_dotenv()
@@ -195,10 +195,25 @@ class YNAB():
         return result_json
 
     # Get last X transactions
+    @classmethod
+    async def get_last_x_transactions(cls, count: int, since_date: str = None):
+        # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
+        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+
+        all_results = []
+
+        for transaction in pydantic_transactions_list.data.transactions:
+            all_results.append(transaction.model_dump())
+
+        result_json = sorted(all_results, key=lambda item: item['date'], reverse=True)
+        
+        return result_json[0:count]
+    
     # Get next X scheduled transactions
         # Filter out any transactions which do not have an import_id
-    
-    
+    # scheduled_transaction_list = await cls.make_request('schedule-transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO 
+    # pydantic_transactions_list = ScheduledTransactionsResponse.model_validate_json(json.dumps(scheduled_transaction_list))
     # Total Spent current month
     # Income, by month
     # Expenses, by month

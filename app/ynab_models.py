@@ -182,76 +182,76 @@ class CategoryGroupWithCategories(CategoryGroup):
 #         description='Whether or not the payee location has been deleted.  Deleted payee locations will only be included in delta requests.',
 #     )
 
-# class DebtTransactionTypeEnum(Enum):
-#     payment = 'payment'
-#     refund = 'refund'
-#     fee = 'fee'
-#     interest = 'interest'
-#     escrow = 'escrow'
-#     balanceAdjustment = 'balanceAdjustment'
-#     credit = 'credit'
-#     charge = 'charge'
+class DebtTransactionTypeEnum(Enum):
+    payment = 'payment'
+    refund = 'refund'
+    fee = 'fee'
+    interest = 'interest'
+    escrow = 'escrow'
+    balanceAdjustment = 'balanceAdjustment'
+    credit = 'credit'
+    charge = 'charge'
 
 # class Type(Enum):
 #     transaction = 'transaction'
 #     subtransaction = 'subtransaction'
 
-# class SubTransaction(BaseModel):
-#     id: str
-#     transaction_id: str
-#     amount: int = Field(
-#         ..., description='The subtransaction amount in milliunits format'
-#     )
-#     memo: Optional[str] = None
-#     payee_id: Optional[UUID] = None
-#     payee_name: Optional[str] = None
-#     category_id: Optional[UUID] = None
-#     category_name: Optional[str] = None
-#     transfer_account_id: Optional[UUID] = Field(
-#         None,
-#         description='If a transfer, the account_id which the subtransaction transfers to',
-#     )
-#     transfer_transaction_id: Optional[str] = Field(
-#         None,
-#         description='If a transfer, the id of transaction on the other side of the transfer',
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the subtransaction has been deleted.  Deleted subtransactions will only be included in delta requests.',
-#     )
+class SubTransaction(BaseModel):
+    id: str
+    transaction_id: str
+    amount: int = Field(
+        ..., description='The subtransaction amount in milliunits format'
+    )
+    memo: Optional[str] = None
+    payee_id: Optional[UUID] = None
+    payee_name: Optional[str] = None
+    category_id: Optional[UUID] = None
+    category_name: Optional[str] = None
+    transfer_account_id: Optional[UUID] = Field(
+        None,
+        description='If a transfer, the account_id which the subtransaction transfers to',
+    )
+    transfer_transaction_id: Optional[str] = Field(
+        None,
+        description='If a transfer, the id of transaction on the other side of the transfer',
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the subtransaction has been deleted.  Deleted subtransactions will only be included in delta requests.',
+    )
 
-# class Frequency(Enum):
-#     never = 'never'
-#     daily = 'daily'
-#     weekly = 'weekly'
-#     everyOtherWeek = 'everyOtherWeek'
-#     twiceAMonth = 'twiceAMonth'
-#     every4Weeks = 'every4Weeks'
-#     monthly = 'monthly'
-#     everyOtherMonth = 'everyOtherMonth'
-#     every3Months = 'every3Months'
-#     every4Months = 'every4Months'
-#     twiceAYear = 'twiceAYear'
-#     yearly = 'yearly'
-#     everyOtherYear = 'everyOtherYear'
+class Frequency(Enum):
+    never = 'never'
+    daily = 'daily'
+    weekly = 'weekly'
+    everyOtherWeek = 'everyOtherWeek'
+    twiceAMonth = 'twiceAMonth'
+    every4Weeks = 'every4Weeks'
+    monthly = 'monthly'
+    everyOtherMonth = 'everyOtherMonth'
+    every3Months = 'every3Months'
+    every4Months = 'every4Months'
+    twiceAYear = 'twiceAYear'
+    yearly = 'yearly'
+    everyOtherYear = 'everyOtherYear'
 
-# class ScheduledSubTransaction(BaseModel):
-#     id: UUID
-#     scheduled_transaction_id: UUID
-#     amount: int = Field(
-#         ..., description='The scheduled subtransaction amount in milliunits format'
-#     )
-#     memo: Optional[str] = None
-#     payee_id: Optional[UUID] = None
-#     category_id: Optional[UUID] = None
-#     transfer_account_id: Optional[UUID] = Field(
-#         None,
-#         description='If a transfer, the account_id which the scheduled subtransaction transfers to',
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the scheduled subtransaction has been deleted. Deleted scheduled subtransactions will only be included in delta requests.',
-#     )
+class ScheduledSubTransaction(BaseModel):
+    id: UUID
+    scheduled_transaction_id: UUID
+    amount: int = Field(
+        ..., description='The scheduled subtransaction amount in milliunits format'
+    )
+    memo: Optional[str] = None
+    payee_id: Optional[UUID] = None
+    category_id: Optional[UUID] = None
+    transfer_account_id: Optional[UUID] = Field(
+        None,
+        description='If a transfer, the account_id which the scheduled subtransaction transfers to',
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the scheduled subtransaction has been deleted. Deleted scheduled subtransactions will only be included in delta requests.',
+    )
 
 # class MonthSummary(BaseModel):
 #     month: str
@@ -282,18 +282,18 @@ class CategoryGroupWithCategories(CategoryGroup):
 #         description='The budget month categories.  Amounts (budgeted, activity, balance, etc.) are specific to the {month} parameter specified.',
 #     )
 
-# class TransactionFlagColorEnum(Enum):
-#     red = 'red'
-#     orange = 'orange'
-#     yellow = 'yellow'
-#     green = 'green'
-#     blue = 'blue'
-#     purple = 'purple'
+class TransactionFlagColorEnum(Enum):
+    red = 'red'
+    orange = 'orange'
+    yellow = 'yellow'
+    green = 'green'
+    blue = 'blue'
+    purple = 'purple'
 
-# class TransactionClearedStatus(Enum):
-#     cleared = 'cleared'
-#     uncleared = 'uncleared'
-#     reconciled = 'reconciled'
+class TransactionClearedStatus(Enum):
+    cleared = 'cleared'
+    uncleared = 'uncleared'
+    reconciled = 'reconciled'
 
 # class Data7(BaseModel):
 #     category: Category
@@ -315,62 +315,62 @@ class CategoryGroupWithCategories(CategoryGroup):
 # class PayeeResponse(BaseModel):
 #     data: Data10
 
-# class TransactionSummary(BaseModel):
-#     id: str
-#     date: date = Field(
-#         ..., description='The transaction date in ISO format (e.g. 2016-12-01)'
-#     )
-#     amount: int = Field(..., description='The transaction amount in milliunits format')
-#     memo: Optional[str] = None
-#     cleared: TransactionClearedStatus
-#     approved: bool = Field(
-#         ..., description='Whether or not the transaction is approved'
-#     )
-#     flag_color: Optional[TransactionFlagColorEnum] = None
-#     account_id: UUID
-#     payee_id: Optional[UUID] = None
-#     category_id: Optional[UUID] = None
-#     transfer_account_id: Optional[UUID] = Field(
-#         None, description='If a transfer transaction, the account to which it transfers'
-#     )
-#     transfer_transaction_id: Optional[str] = Field(
-#         None,
-#         description='If a transfer transaction, the id of transaction on the other side of the transfer',
-#     )
-#     matched_transaction_id: Optional[str] = Field(
-#         None, description='If transaction is matched, the id of the matched transaction'
-#     )
-#     import_id: Optional[str] = Field(
-#         None,
-#         description="If the transaction was imported, this field is a unique (by account) import identifier.  If this transaction was imported through File Based Import or Direct Import and not through the API, the import_id will have the format: 'YNAB:[milliunit_amount]:[iso_date]:[occurrence]'.  For example, a transaction dated 2015-12-30 in the amount of -$294.23 USD would have an import_id of 'YNAB:-294230:2015-12-30:1'.  If a second transaction on the same account was imported and had the same date and same amount, its import_id would be 'YNAB:-294230:2015-12-30:2'.",
-#     )
-#     import_payee_name: Optional[str] = Field(
-#         None,
-#         description='If the transaction was imported, the payee name that was used when importing and before applying any payee rename rules',
-#     )
-#     import_payee_name_original: Optional[str] = Field(
-#         None,
-#         description='If the transaction was imported, the original payee name as it appeared on the statement',
-#     )
-#     debt_transaction_type: Optional[DebtTransactionTypeEnum] = Field(
-#         None,
-#         description='If the transaction is a debt/loan account transaction, the type of transaction',
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the transaction has been deleted.  Deleted transactions will only be included in delta requests.',
-#     )
+class TransactionSummary(BaseModel):
+    id: str
+    date: str = Field(
+        ..., description='The transaction date in ISO format (e.g. 2016-12-01)'
+    )
+    amount: int = Field(..., description='The transaction amount in milliunits format')
+    memo: Optional[str] = None
+    cleared: TransactionClearedStatus
+    approved: bool = Field(
+        ..., description='Whether or not the transaction is approved'
+    )
+    flag_color: Optional[TransactionFlagColorEnum] = None
+    account_id: UUID
+    payee_id: Optional[UUID] = None
+    category_id: Optional[UUID] = None
+    transfer_account_id: Optional[UUID] = Field(
+        None, description='If a transfer transaction, the account to which it transfers'
+    )
+    transfer_transaction_id: Optional[str] = Field(
+        None,
+        description='If a transfer transaction, the id of transaction on the other side of the transfer',
+    )
+    matched_transaction_id: Optional[str] = Field(
+        None, description='If transaction is matched, the id of the matched transaction'
+    )
+    import_id: Optional[str] = Field(
+        None,
+        description="If the transaction was imported, this field is a unique (by account) import identifier.  If this transaction was imported through File Based Import or Direct Import and not through the API, the import_id will have the format: 'YNAB:[milliunit_amount]:[iso_date]:[occurrence]'.  For example, a transaction dated 2015-12-30 in the amount of -$294.23 USD would have an import_id of 'YNAB:-294230:2015-12-30:1'.  If a second transaction on the same account was imported and had the same date and same amount, its import_id would be 'YNAB:-294230:2015-12-30:2'.",
+    )
+    import_payee_name: Optional[str] = Field(
+        None,
+        description='If the transaction was imported, the payee name that was used when importing and before applying any payee rename rules',
+    )
+    import_payee_name_original: Optional[str] = Field(
+        None,
+        description='If the transaction was imported, the original payee name as it appeared on the statement',
+    )
+    debt_transaction_type: Optional[DebtTransactionTypeEnum] = Field(
+        None,
+        description='If the transaction is a debt/loan account transaction, the type of transaction',
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the transaction has been deleted.  Deleted transactions will only be included in delta requests.',
+    )
 
-# class TransactionDetail(TransactionSummary):
-#     account_name: str
-#     payee_name: Optional[str] = None
-#     category_name: Optional[str] = Field(
-#         None,
-#         description="The name of the category.  If a split transaction, this will be 'Split'.",
-#     )
-#     subtransactions: List[SubTransaction] = Field(
-#         ..., description='If a split transaction, the subtransactions.'
-#     )
+class TransactionDetail(TransactionSummary):
+    account_name: str
+    payee_name: Optional[str] = None
+    category_name: Optional[str] = Field(
+        None,
+        description="The name of the category.  If a split transaction, this will be 'Split'.",
+    )
+    subtransactions: List[SubTransaction] = Field(
+        ..., description='If a split transaction, the subtransactions.'
+    )
 
 # class HybridTransaction(TransactionSummary):
 #     type: Type = Field(
@@ -388,44 +388,44 @@ class CategoryGroupWithCategories(CategoryGroup):
 #         description="The name of the category.  If a split transaction, this will be 'Split'.",
 #     )
 
-# class ScheduledTransactionSummary(BaseModel):
-#     id: UUID
-#     date_first: str = Field(
-#         ...,
-#         description='The first date for which the Scheduled Transaction was scheduled.',
-#     )
-#     date_next: str = Field(
-#         ...,
-#         description='The next date for which the Scheduled Transaction is scheduled.',
-#     )
-#     frequency: Frequency
-#     amount: int = Field(
-#         ..., description='The scheduled transaction amount in milliunits format'
-#     )
-#     memo: Optional[str] = None
-#     flag_color: Optional[TransactionFlagColorEnum] = None
-#     account_id: UUID
-#     payee_id: Optional[UUID] = None
-#     category_id: Optional[UUID] = None
-#     transfer_account_id: Optional[UUID] = Field(
-#         None,
-#         description='If a transfer, the account_id which the scheduled transaction transfers to',
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the scheduled transaction has been deleted.  Deleted scheduled transactions will only be included in delta requests.',
-#     )
+class ScheduledTransactionSummary(BaseModel):
+    id: UUID
+    date_first: str = Field(
+        ...,
+        description='The first date for which the Scheduled Transaction was scheduled.',
+    )
+    date_next: str = Field(
+        ...,
+        description='The next date for which the Scheduled Transaction is scheduled.',
+    )
+    frequency: Frequency
+    amount: int = Field(
+        ..., description='The scheduled transaction amount in milliunits format'
+    )
+    memo: Optional[str] = None
+    flag_color: Optional[TransactionFlagColorEnum] = None
+    account_id: UUID
+    payee_id: Optional[UUID] = None
+    category_id: Optional[UUID] = None
+    transfer_account_id: Optional[UUID] = Field(
+        None,
+        description='If a transfer, the account_id which the scheduled transaction transfers to',
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the scheduled transaction has been deleted.  Deleted scheduled transactions will only be included in delta requests.',
+    )
 
-# class ScheduledTransactionDetail(ScheduledTransactionSummary):
-#     account_name: str
-#     payee_name: Optional[str] = None
-#     category_name: Optional[str] = Field(
-#         None,
-#         description="The name of the category.  If a split scheduled transaction, this will be 'Split'.",
-#     )
-#     subtransactions: List[ScheduledSubTransaction] = Field(
-#         ..., description='If a split scheduled transaction, the subtransactions.'
-#     )
+class ScheduledTransactionDetail(ScheduledTransactionSummary):
+    account_name: str
+    payee_name: Optional[str] = None
+    category_name: Optional[str] = Field(
+        None,
+        description="The name of the category.  If a split scheduled transaction, this will be 'Split'.",
+    )
+    subtransactions: List[ScheduledSubTransaction] = Field(
+        ..., description='If a split scheduled transaction, the subtransactions.'
+    )
 
 # class Data21(BaseModel):
 #     months: List[MonthSummary]
@@ -468,12 +468,12 @@ class CategoryGroupWithCategories(CategoryGroup):
 #     scheduled_transactions: Optional[List[ScheduledTransactionSummary]] = None
 #     scheduled_subtransactions: Optional[List[ScheduledSubTransaction]] = None
 
-# class Data13(BaseModel):
-#     transactions: List[TransactionDetail]
-#     server_knowledge: int = Field(..., description='The knowledge of the server')
+class Data13(BaseModel):
+    transactions: List[TransactionDetail]
+    server_knowledge: int = Field(..., description='The knowledge of the server')
 
-# class TransactionsResponse(BaseModel):
-#     data: Data13
+class TransactionsResponse(BaseModel):
+    data: Data13
 
 # class Data16(BaseModel):
 #     transaction: TransactionDetail
@@ -481,12 +481,12 @@ class CategoryGroupWithCategories(CategoryGroup):
 # class TransactionResponse(BaseModel):
 #     data: Data16
 
-# class Data19(BaseModel):
-#     scheduled_transactions: List[ScheduledTransactionDetail]
-#     server_knowledge: int = Field(..., description='The knowledge of the server')
+class Data19(BaseModel):
+    scheduled_transactions: List[ScheduledTransactionDetail]
+    server_knowledge: int = Field(..., description='The knowledge of the server')
 
-# class ScheduledTransactionsResponse(BaseModel):
-#     data: Data19
+class ScheduledTransactionsResponse(BaseModel):
+    data: Data19
 
 # class Data20(BaseModel):
 #     scheduled_transaction: ScheduledTransactionDetail

@@ -186,6 +186,10 @@ async def get_balance_info():
 async def get_category_summary():
     return await ynab.get_category_summary()
 
+@app.get("/ynab/last-x-transactions")
+async def get_last_x_transactions(count: int, since_date: str = None):
+    return await ynab.get_last_x_transactions(count, since_date)
+
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
     entity_model = await ra.get_entity_model('direct-debits')
