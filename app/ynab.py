@@ -225,14 +225,21 @@ class YNAB():
             return current_month.strftime('%Y-%m') + '-01'
         
         if specific_month and year:
-            logging.debug(f"Getting transactions for {specific_month.value}-{year.value}-01.")
+            logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
             return f'{year.value}-{specific_month.value}-01'
+        
+        if specific_month:
+            current_year = datetime.today().strftime('%Y')
+            logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
+            return f'{current_year}-{specific_month.value}-01'
         
         logging.debug("Getting transactions for this month only.")
         return datetime.today().strftime('%Y-%m') + '-01'
 
     @classmethod
-    async def transactions_by_filter_type(cls, filter_type: str, year: str = None, months: int = None, specific_month: str = None):
+    async def transactions_by_filter_type(cls, filter_type: str, year: str = None, months: int = None, \
+        specific_month: str = None, transaction_type: str = None):
+
         entities_raw = {}
         match filter_type.value:
             case 'account':
@@ -289,15 +296,23 @@ class YNAB():
 
         all_results = []
         for value in entities_raw.values():
-            if value['total'] >= 0: continue
+            if transaction_type.value == 'income':
+                if value['total'] < 0: continue
+            else:
+                if value['total'] >= 0: continue
+            
             value['total'] = await cls.convert_to_float(value['total'])
             all_results.append(value)
 
-        result_json['data'] = sorted(all_results, key=lambda item: item['total'])
+        if transaction_type.value == 'income':
+            remove_zero_totals = []
+            for value in all_results:
+                if value['total'] > 0: remove_zero_totals.append(value)
+            result_json['data'] = sorted(remove_zero_totals, key=lambda item: item['total'], reverse=True)
+        else:
+            result_json['data'] = sorted(all_results, key=lambda item: item['total'])
 
         return result_json
-    
-    # Income, by month, past 3,6.12 months
     
     # By year
     # By month

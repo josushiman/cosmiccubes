@@ -206,10 +206,20 @@ class SpecificYearOptions(Enum):
     YEAR_24 = '2024'
     YEAR_25 = '2025'
 
+class TransactionTypeOptions(Enum):
+    INCOME = 'income'
+    EXPENSES = 'expenses'
+
 @app.get("/ynab/transactions-by-filter-type")
 async def get_transactions_by_filter_type(filter_type: FilterTypes, year: SpecificYearOptions = None, \
-    months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
-    return await ynab.transactions_by_filter_type(filter_type=filter_type, year=year, months=months, specific_month=specific_month)
+    months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None, transaction_type: TransactionTypeOptions = None):
+    return await ynab.transactions_by_filter_type(
+        filter_type=filter_type,
+        year=year,
+        months=months,
+        specific_month=specific_month,
+        transaction_type=transaction_type
+    )
 
 @app.get("/ynab/last-x-transactions")
 async def get_last_x_transactions(count: int, since_date: str = None):
