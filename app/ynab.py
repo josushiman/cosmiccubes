@@ -211,7 +211,27 @@ class YNAB():
         
         return result_json[0:count]
     
-    # Total Spent current month
+    @classmethod
+    async def get_totals(cls, filter_type: str, year: str = None, months: int = None, \
+        specific_month: str = None, transaction_type: str = None):
+        
+        transactions = await cls.transactions_by_filter_type(
+            filter_type=filter_type,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type=transaction_type
+        )
+        
+        total_spent = 0.0
+
+        for account in transactions['data']:
+            total_spent += account['total']
+
+        return {
+            'since_date': transactions['since_date'],
+            'total': total_spent
+        }
     
     @classmethod
     async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None):
@@ -313,10 +333,7 @@ class YNAB():
             result_json['data'] = sorted(all_results, key=lambda item: item['total'])
 
         return result_json
-    
-    # By year
-    # By month
-    # ---
+
     # Top X expenses by category
     # Top X expenses by payee
 

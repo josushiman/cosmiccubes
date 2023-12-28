@@ -225,6 +225,17 @@ async def get_transactions_by_filter_type(filter_type: FilterTypes, year: Specif
 async def get_last_x_transactions(count: int, since_date: str = None):
     return await ynab.get_last_x_transactions(count, since_date)
 
+@app.get("/ynab/totals")
+async def get_totals(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None, \
+    transaction_type: TransactionTypeOptions = None):
+    return await ynab.get_totals(
+        filter_type=FilterTypes.ACCOUNT,
+        year=year,
+        months=months,
+        specific_month=specific_month,
+        transaction_type=transaction_type
+    )
+
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
     entity_model = await ra.get_entity_model('direct-debits')
