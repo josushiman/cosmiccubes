@@ -3,9 +3,10 @@ import httpx
 import logging
 import json
 from datetime import datetime
+from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
-from app.ynab_models import AccountsResponse, CategoriesResponse, ScheduledTransactionsResponse, TransactionsResponse
+from app.ynab_models import AccountsResponse, CategoriesResponse, PayeesResponse, TransactionsResponse
 from fastapi import HTTPException
 
 load_dotenv()
@@ -210,54 +211,97 @@ class YNAB():
         
         return result_json[0:count]
     
-    # Get next X scheduled transactions
-        # Filter out any transactions which do not have an import_id
-    # scheduled_transaction_list = await cls.make_request('schedule-transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO 
-    # pydantic_transactions_list = ScheduledTransactionsResponse.model_validate_json(json.dumps(scheduled_transaction_list))
     # Total Spent current month
     
-    # Income, by month, past 3,6.12 months
-    # Expenses, by month, past 3,6.12 months
     @classmethod
-    async def total_expenses_by_category(cls, year: bool):
-        category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
-        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+    async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None):
+        if year and not specific_month:
+            logging.debug("Getting transactions for the current year.")
+            return f'{year.value}-01-01'
+        
+        if months:
+            logging.debug(f"Getting transactions for the last {months.value} months.")
+            current_month = datetime.today() - DateOffset(months=months)
+            return current_month.strftime('%Y-%m') + '-01'
+        
+        if specific_month and year:
+            logging.debug(f"Getting transactions for {specific_month.value}-{year.value}-01.")
+            return f'{year.value}-{specific_month.value}-01'
+        
+        logging.debug("Getting transactions for this month only.")
+        return datetime.today().strftime('%Y-%m') + '-01'
 
+    @classmethod
+    async def transactions_by_filter_type(cls, filter_type: str, year: str = None, months: int = None, specific_month: str = None):
+        entities_raw = {}
+        match filter_type.value:
+            case 'account':
+                logging.debug("Getting accounts list.")
+                account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+                pydantic_categories_list = AccountsResponse.model_validate_json(json.dumps(account_list))
+                for account in pydantic_categories_list.data.accounts:
+                    entities_raw[f'{account.id}'] = {
+                        'id': account.id,
+                        'name': account.name,
+                        'total': 0
+                    }
+            case 'payee':
+                logging.debug("Getting payees list.")
+                payee_list = await cls.make_request('payees-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+                pydantic_categories_list = PayeesResponse.model_validate_json(json.dumps(payee_list))
+                for payee in pydantic_categories_list.data.payees:
+                    entities_raw[f'{payee.id}'] = {
+                        'id': payee.id,
+                        'name': payee.name,
+                        'total': 0
+                    }
+            case _:
+                if filter_type.value != 'category':
+                    logging.warn(f"Somehow filter_type was set to something that I can't handle. {filter_type.value}")
+                logging.debug("Getting categories list.")
+                category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+                pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+                for category_group in pydantic_categories_list.data.category_groups:
+                    for category in category_group.categories:
+                        entities_raw[f'{category.id}'] = {
+                            'id': category.id,
+                            'name': category.name,
+                            'category_group_name': category.category_group_name,
+                            'category_group_id': category.category_group_id,
+                            'total': 0
+                        }
+        
+        since_date = await cls.get_date_for_transactions(year, months, specific_month)
         result_json = {
-            'since_date': '',
-            'categories': {}
+            'since_date': since_date,
+            'data': []
         }
 
-        for category_group in pydantic_categories_list.data.category_groups:
-            for category in category_group.categories:
-                result_json['categories'][f'{category.id}'] = {
-                    'name': category.name,
-                    'category_group_name': category.category_group_name,
-                    'category_group_id': category.category_group_id,
-                    'total': 0
-                }
-
-        if year:
-            logging.debug("Getting transactions for the full year.")
-            since_date = datetime.today().strftime('%Y') + '-01-01'
-        else:
-            logging.debug("Getting transactions for this month only.")
-            since_date = datetime.today().strftime('%Y-%m') + '-01'
-        
-        result_json['since_date'] = since_date
         transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-
         for transaction in pydantic_transactions_list.data.transactions:
-            result_json['categories'][f'{transaction.category_id}']['total'] += transaction.amount
+            if filter_type.value == 'account':
+                entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
+            elif filter_type.value == 'category':
+                entities_raw[f'{transaction.category_id}']['total'] += transaction.amount
+            else:
+                entities_raw[f'{transaction.payee_id}']['total'] += transaction.amount
+
+        all_results = []
+        for value in entities_raw.values():
+            if value['total'] >= 0: continue
+            value['total'] = await cls.convert_to_float(value['total'])
+            all_results.append(value)
+
+        result_json['data'] = sorted(all_results, key=lambda item: item['total'])
 
         return result_json
+    
+    # Income, by month, past 3,6.12 months
+    
     # By year
     # By month
     # ---
-    # Total expenses by category
-    # Total expenses by account
-    # Total expenses by payee
     # Top X expenses by category
     # Top X expenses by payee
 

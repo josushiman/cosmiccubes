@@ -12,6 +12,7 @@ psycopg = "*"
 python-dotenv = "*"
 async-lru = "*"
 httpx = "*"
+pandas = "*"
 
 [dev-packages]
 

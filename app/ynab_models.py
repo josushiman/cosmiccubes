@@ -160,17 +160,17 @@ class CategoryGroupWithCategories(CategoryGroup):
 #     category: Category
 #     server_knowledge: int = Field(..., description='The knowledge of the server')
 
-# class Payee(BaseModel):
-#     id: UUID
-#     name: str
-#     transfer_account_id: Optional[str] = Field(
-#         None,
-#         description='If a transfer payee, the `account_id` to which this payee transfers to',
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the payee has been deleted.  Deleted payees will only be included in delta requests.',
-#     )
+class Payee(BaseModel):
+    id: UUID
+    name: str
+    transfer_account_id: Optional[str] = Field(
+        None,
+        description='If a transfer payee, the `account_id` to which this payee transfers to',
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the payee has been deleted.  Deleted payees will only be included in delta requests.',
+    )
 
 # class PayeeLocation(BaseModel):
 #     id: UUID
@@ -302,12 +302,12 @@ class TransactionClearedStatus(Enum):
 #     data: Data7
 
 
-# class Data9(BaseModel):
-#     payees: List[Payee]
-#     server_knowledge: int = Field(..., description='The knowledge of the server')
+class Data9(BaseModel):
+    payees: List[Payee]
+    server_knowledge: int = Field(..., description='The knowledge of the server')
 
-# class PayeesResponse(BaseModel):
-#     data: Data9
+class PayeesResponse(BaseModel):
+    data: Data9
 
 # class Data10(BaseModel):
 #     payee: Payee

@@ -1,5 +1,6 @@
 import os
 import logging
+from enum import Enum, IntEnum
 from tortoise import Tortoise
 from dotenv import load_dotenv
 from typing import List
@@ -175,9 +176,40 @@ async def get_balance_info():
 async def get_category_summary():
     return await ynab.get_category_summary()
 
-@app.get("/ynab/category-totals")
-async def get_category_totals(year: bool = False):
-    return await ynab.total_expenses_by_category(year=year)
+class FilterTypes(Enum):
+    ACCOUNT = 'account'
+    CATEGORY = 'category'
+    PAYEE = 'payee'
+
+class PeriodMonthOptions(IntEnum):
+    MONTHS_3 = 3
+    MONthS_6 = 6
+    MONTHS_9 = 9
+    MONTHS_12 = 12
+
+class SpecificMonthOptions(Enum):
+    JANUARY = '01'
+    FEBRUARY = '02'
+    MARCH = '03'
+    APRIL = '04'
+    MAY = '05'
+    JUNE = '06'
+    JULY = '07'
+    AUGUST = '08'
+    SEPTEMBER = '09'
+    OCTOBER = '10'
+    NOVEMBER = '11'
+    DECEMBER = '12'
+
+class SpecificYearOptions(Enum):
+    YEAR_23 = '2023'
+    YEAR_24 = '2024'
+    YEAR_25 = '2025'
+
+@app.get("/ynab/transactions-by-filter-type")
+async def get_transactions_by_filter_type(filter_type: FilterTypes, year: SpecificYearOptions = None, \
+    months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
+    return await ynab.transactions_by_filter_type(filter_type=filter_type, year=year, months=months, specific_month=specific_month)
 
 @app.get("/ynab/last-x-transactions")
 async def get_last_x_transactions(count: int, since_date: str = None):
