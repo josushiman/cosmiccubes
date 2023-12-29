@@ -21,6 +21,29 @@ class YNAB():
         return amount / 1000
 
     @classmethod
+    async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None):
+        if year and not specific_month:
+            logging.debug("Getting transactions for the current year.")
+            return f'{year.value}-01-01'
+        
+        if months:
+            logging.debug(f"Getting transactions for the last {months.value} months.")
+            current_month = datetime.today() - DateOffset(months=months)
+            return current_month.strftime('%Y-%m') + '-01'
+        
+        if specific_month and year:
+            logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
+            return f'{year.value}-{specific_month.value}-01'
+        
+        if specific_month:
+            current_year = datetime.today().strftime('%Y')
+            logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
+            return f'{current_year}-{specific_month.value}-01'
+        
+        logging.debug("Getting transactions for this month only.")
+        return datetime.today().strftime('%Y-%m') + '-01'
+
+    @classmethod
     async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
         '''
         Get the route of the YNAB endpoint you want to call. Passed as a string, returned as a string.
@@ -234,31 +257,8 @@ class YNAB():
         }
     
     @classmethod
-    async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None):
-        if year and not specific_month:
-            logging.debug("Getting transactions for the current year.")
-            return f'{year.value}-01-01'
-        
-        if months:
-            logging.debug(f"Getting transactions for the last {months.value} months.")
-            current_month = datetime.today() - DateOffset(months=months)
-            return current_month.strftime('%Y-%m') + '-01'
-        
-        if specific_month and year:
-            logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
-            return f'{year.value}-{specific_month.value}-01'
-        
-        if specific_month:
-            current_year = datetime.today().strftime('%Y')
-            logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
-            return f'{current_year}-{specific_month.value}-01'
-        
-        logging.debug("Getting transactions for this month only.")
-        return datetime.today().strftime('%Y-%m') + '-01'
-
-    @classmethod
     async def transactions_by_filter_type(cls, filter_type: str, year: str = None, months: int = None, \
-        specific_month: str = None, transaction_type: str = None):
+        specific_month: str = None, top_x: int = None, transaction_type: str = None):
 
         entities_raw = {}
         match filter_type.value:
@@ -307,12 +307,16 @@ class YNAB():
         transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
         for transaction in pydantic_transactions_list.data.transactions:
-            if filter_type.value == 'account':
-                entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
-            elif filter_type.value == 'category':
-                entities_raw[f'{transaction.category_id}']['total'] += transaction.amount
-            else:
-                entities_raw[f'{transaction.payee_id}']['total'] += transaction.amount
+            try:
+                if filter_type.value == 'account':
+                    entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
+                elif filter_type.value == 'category':
+                    entities_raw[f'{transaction.category_id}']['total'] += transaction.amount
+                else:
+                    entities_raw[f'{transaction.payee_id}']['total'] += transaction.amount
+            except KeyError:
+                logging.debug(f"Issue with trying to assign transaction amount to uncategorised transaction. {transaction.account_name} - {transaction.payee_name}")
+                continue
 
         all_results = []
         for value in entities_raw.values():
@@ -332,9 +336,20 @@ class YNAB():
         else:
             result_json['data'] = sorted(all_results, key=lambda item: item['total'])
 
+        if top_x:
+            result_json['data'] = result_json['data'][0:top_x]
+
         return result_json
 
-    # Top X expenses by category
-    # Top X expenses by payee
+    # Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
+    # {
+    # "month": "May",
+    # "total_spent": 1928,
+    # "total_earned": 1212
+    # },
 
+    # ---
     # Last paid date for account/credit cards
+    # Look for 'Transfer' in the payee_name, where the account_name is not HSBC Advance
+    # Get only one payment for each account_name, but the latest one
+    # Barclay Card, Amex, HSBC CC

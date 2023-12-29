@@ -160,12 +160,11 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 
 # @app.get("/dashboard/spent/totals")
 # async def get_spent_totals(months: int):
-#     # From todays date
-#     # Show the past 3 months total expenses on contactless payments
 #     # {
 #     #     "month": "May",
-#     #     "total_spent": 1928
-#     # }
+#     #     "total_spent": 1928,
+#     #     "total_earned": 1212
+#     # },
 #     return
 
 @app.get("/ynab/balance-info")
@@ -206,18 +205,24 @@ class SpecificYearOptions(Enum):
     YEAR_24 = '2024'
     YEAR_25 = '2025'
 
+class TopXOptions(IntEnum):
+    TOP_3 = 3
+    TOP_5 = 5
+    TOP_10 = 10
+
 class TransactionTypeOptions(Enum):
     INCOME = 'income'
     EXPENSES = 'expenses'
 
 @app.get("/ynab/transactions-by-filter-type")
-async def get_transactions_by_filter_type(filter_type: FilterTypes, year: SpecificYearOptions = None, \
+async def get_transactions_by_filter_type(filter_type: FilterTypes, year: SpecificYearOptions = None, top_x: TopXOptions = None, \
     months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None, transaction_type: TransactionTypeOptions = None):
     return await ynab.transactions_by_filter_type(
         filter_type=filter_type,
         year=year,
         months=months,
         specific_month=specific_month,
+        top_x=top_x,
         transaction_type=transaction_type
     )
 
