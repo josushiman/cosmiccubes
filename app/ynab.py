@@ -309,6 +309,9 @@ class YNAB():
         for transaction in pydantic_transactions_list.data.transactions:
             try:
                 if filter_type.value == 'account':
+                    # don't include transfers/payments
+                    if transaction_type.value == 'income' and transaction.amount <= 0 or \
+                    transaction_type.value == 'expenses' and transaction.amount >= 0: continue
                     entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
                 elif filter_type.value == 'category':
                     entities_raw[f'{transaction.category_id}']['total'] += transaction.amount
@@ -341,12 +344,136 @@ class YNAB():
 
         return result_json
 
+    @classmethod
+    async def transactions_by_month_for_year(cls, year: str = None): # do the same but for the last 12 months
+        since_date = f'{year.value}-01-01'
+        
+        january = {
+            "month": 1,
+            "month_long": "January",
+            "month_short": "J",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        february = {
+            "month": 2,
+            "month_long": "February",
+            "month_short": "F",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        march = {
+            "month": 3,
+            "month_long": "March",
+            "month_short": "M",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        april = {
+            "month": 4,
+            "month_long": "April",
+            "month_short": "A",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        may = {
+            "month": 5,
+            "month_long": "May",
+            "month_short": "M",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        june = {
+            "month": 6,
+            "month_long": "June",
+            "month_short": "J",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        july = {
+            "month": 7,
+            "month_long": "July",
+            "month_short": "J",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        august = {
+            "month": 8,
+            "month_long": "August",
+            "month_short": "A",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        september = {
+            "month": 9,
+            "month_long": "September",
+            "month_short": "S",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        october = {
+            "month": 10,
+            "month_long": "October",
+            "month_short": "O",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        november = {
+            "month": 11,
+            "month_long": "November",
+            "month_short": "N",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        december = {
+            "month": 12,
+            "month_long": "December",
+            "month_short": "D",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+
+        result_json = {
+            'since_date': since_date,
+            'data': [
+                january, february, march, april, may, june, july, august, september, october, november, december
+            ]
+        }
+
+        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+
+        skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
+        
+        month_match = {
+            '01': january,
+            '02': february,
+            '03': march,
+            '04': april,
+            '05': may,
+            '06': june,
+            '07': july,
+            '08': august,
+            '09': september,
+            '10': october,
+            '11': november,
+            '12': december
+        }
+
+        for transaction in pydantic_transactions_list.data.transactions:
+            if transaction.payee_name in skip_payees: continue
+            
+            transaction_month = transaction.date.split('-')[1]
+
+            if transaction.amount > 0:
+                month_match[transaction_month]['total_earned'] += await cls.convert_to_float(transaction.amount)
+            else:
+                month_match[transaction_month]['total_spent'] += await cls.convert_to_float(transaction.amount)
+            
+        return result_json
     # Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
-    # {
-    # "month": "May",
-    # "total_spent": 1928,
-    # "total_earned": 1212
-    # },
+    # Don't include transfers/payments for accounts
+    
 
     # ---
     # Last paid date for account/credit cards

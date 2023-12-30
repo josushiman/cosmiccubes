@@ -215,15 +215,15 @@ class TransactionTypeOptions(Enum):
     EXPENSES = 'expenses'
 
 @app.get("/ynab/transactions-by-filter-type")
-async def get_transactions_by_filter_type(filter_type: FilterTypes, year: SpecificYearOptions = None, top_x: TopXOptions = None, \
-    months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None, transaction_type: TransactionTypeOptions = None):
+async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_type: TransactionTypeOptions, \
+    year: SpecificYearOptions = None, top_x: TopXOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
     return await ynab.transactions_by_filter_type(
+        transaction_type=transaction_type,
         filter_type=filter_type,
         year=year,
         months=months,
         specific_month=specific_month,
         top_x=top_x,
-        transaction_type=transaction_type
     )
 
 @app.get("/ynab/last-x-transactions")
@@ -231,15 +231,19 @@ async def get_last_x_transactions(count: int, since_date: str = None):
     return await ynab.get_last_x_transactions(count, since_date)
 
 @app.get("/ynab/totals")
-async def get_totals(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None, \
-    transaction_type: TransactionTypeOptions = None):
+async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
+    specific_month: SpecificMonthOptions = None):
     return await ynab.get_totals(
+        transaction_type=transaction_type,
         filter_type=FilterTypes.ACCOUNT,
         year=year,
         months=months,
         specific_month=specific_month,
-        transaction_type=transaction_type
     )
+
+@app.get("/ynab/transaction-by-month-for-year")
+async def get_transactions_by_month_for_year(year: SpecificYearOptions):
+    return await ynab.transactions_by_month_for_year(year)
 
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
