@@ -620,9 +620,51 @@ class YNAB():
     # TODO Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
     # TODO Don't include transfers/payments for accounts
     
+    @classmethod
+    async def last_paid_date_for_accounts(cls, months: IntEnum):
+        # Look over the last month. If no payment, assume the bill has not been paid yet.
+        since_date = await cls.get_date_for_transactions(year=None, months=months, specific_month=None)
+        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
-    # ---
-    # Last paid date for account/credit cards
-    # Look for 'Transfer' in the payee_name, where the account_name is not HSBC Advance
-    # Get only one payment for each account_name, but the latest one
-    # Barclay Card, Amex, HSBC CC
+
+        amex = {
+            "id": None,
+            "date": None,
+            "amount": None,
+            "account_name": "BA AMEX"
+        }
+        barclays = {
+            "id": None,
+            "date": None,
+            "amount": None,
+            "account_name": "Barclays CC"
+        }
+        hsbc = {
+            "id": None,
+            "date": None,
+            "amount": None,
+            "account_name": "HSBC CC"
+        }
+
+        transfer_payments = [amex, barclays, hsbc]
+
+        account_match = {
+            'BA AMEX': amex,
+            'Barclays CC': barclays,
+            'HSBC CC': hsbc,
+        }
+
+        for transaction in pydantic_transactions_list.data.transactions:
+            if transaction.payee_name != 'Transfer : HSBC ADVANCE': continue
+
+            account_match[transaction.account_name]['id'] = transaction.id
+            account_match[transaction.account_name]['date'] = transaction.date
+            account_match[transaction.account_name]['amount'] = await cls.convert_to_float(transaction.amount)
+
+        result_json = {
+            'since_date': since_date,
+            'data': transfer_payments
+        }
+
+        return result_json

@@ -181,6 +181,7 @@ class FilterTypes(Enum):
     PAYEE = 'payee'
 
 class PeriodMonthOptions(IntEnum):
+    MONTHS_1 = 1
     MONTHS_3 = 3
     MONthS_6 = 6
     MONTHS_9 = 9
@@ -248,6 +249,10 @@ async def get_transactions_by_month_for_year(year: SpecificYearOptions):
 @app.get("/ynab/transaction-by-months")
 async def get_transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
+
+@app.get("/ynab/last-paid-date-for-accounts")
+async def last_paid_date_for_accounts():
+    return await ynab.last_paid_date_for_accounts(months=PeriodMonthOptions.MONTHS_1)
 
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
