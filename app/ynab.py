@@ -237,8 +237,8 @@ class YNAB():
         return result_json[0:count]
     
     @classmethod
-    async def get_totals(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, \
-        specific_month: Enum = None, transaction_type: Enum = None):
+    async def get_totals(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
+        transaction_type: Enum = None):
         
         transactions = await cls.transactions_by_filter_type(
             filter_type=filter_type,
@@ -259,8 +259,8 @@ class YNAB():
         }
     
     @classmethod
-    async def transactions_by_filter_type(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, \
-        specific_month: Enum = None, top_x: IntEnum = None, transaction_type: Enum = None):
+    async def transactions_by_filter_type(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
+        top_x: IntEnum = None, transaction_type: Enum = None):
 
         entities_raw = {}
         match filter_type.value:
@@ -603,7 +603,12 @@ class YNAB():
         for transaction in pydantic_transactions_list.data.transactions:
             if transaction.payee_name in skip_payees: continue
             
-            transaction_month = transaction.date.split('-')[1]
+            # Convert payment date from string to date.
+            date_format = '%Y-%m-%d'
+            transaction_date = datetime.strptime(transaction.date, date_format)
+            
+            # extract the month, and convert to string.
+            transaction_month = str(transaction_date.month)
 
             if transaction.amount > 0:
                 month_match[transaction_month]['total_earned'] += await cls.convert_to_float(transaction.amount)
@@ -612,8 +617,8 @@ class YNAB():
             
         return result_json
 
-    # Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
-    # Don't include transfers/payments for accounts
+    # TODO Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
+    # TODO Don't include transfers/payments for accounts
     
 
     # ---
