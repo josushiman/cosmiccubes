@@ -2,6 +2,8 @@ import os
 import httpx
 import logging
 import json
+from enum import Enum, IntEnum
+from time import localtime, mktime
 from datetime import datetime
 from pandas import DateOffset
 from async_lru import alru_cache
@@ -235,8 +237,8 @@ class YNAB():
         return result_json[0:count]
     
     @classmethod
-    async def get_totals(cls, filter_type: str, year: str = None, months: int = None, \
-        specific_month: str = None, transaction_type: str = None):
+    async def get_totals(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, \
+        specific_month: Enum = None, transaction_type: Enum = None):
         
         transactions = await cls.transactions_by_filter_type(
             filter_type=filter_type,
@@ -257,8 +259,8 @@ class YNAB():
         }
     
     @classmethod
-    async def transactions_by_filter_type(cls, filter_type: str, year: str = None, months: int = None, \
-        specific_month: str = None, top_x: int = None, transaction_type: str = None):
+    async def transactions_by_filter_type(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, \
+        specific_month: Enum = None, top_x: IntEnum = None, transaction_type: Enum = None):
 
         entities_raw = {}
         match filter_type.value:
@@ -345,7 +347,7 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def transactions_by_month_for_year(cls, year: str = None): # do the same but for the last 12 months
+    async def transactions_by_month_for_year(cls, year: Enum = None):
         since_date = f'{year.value}-01-01'
         
         january = {
@@ -471,6 +473,145 @@ class YNAB():
                 month_match[transaction_month]['total_spent'] += await cls.convert_to_float(transaction.amount)
             
         return result_json
+
+    @classmethod
+    async def transactions_by_months(cls, months: IntEnum = None):
+        since_date = await cls.get_date_for_transactions(year=None, months=months, specific_month=None)
+        now = localtime()
+        # Returns a tuple of year, month. e.g. [(2024, 1), (2023, 12), (2023, 11)]
+        months_to_get = [localtime(mktime((now.tm_year, now.tm_mon - n, 1, 0, 0, 0, 0, 0, 0)))[:2] for n in range(months.value)]
+        # Swap the results round so that the oldest month is the first index.
+        months_to_get.reverse()
+
+        january = {
+            "month": 1,
+            "month_long": "January",
+            "month_short": "J",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        february = {
+            "month": 2,
+            "month_long": "February",
+            "month_short": "F",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        march = {
+            "month": 3,
+            "month_long": "March",
+            "month_short": "M",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        april = {
+            "month": 4,
+            "month_long": "April",
+            "month_short": "A",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        may = {
+            "month": 5,
+            "month_long": "May",
+            "month_short": "M",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        june = {
+            "month": 6,
+            "month_long": "June",
+            "month_short": "J",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        july = {
+            "month": 7,
+            "month_long": "July",
+            "month_short": "J",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        august = {
+            "month": 8,
+            "month_long": "August",
+            "month_short": "A",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        september = {
+            "month": 9,
+            "month_long": "September",
+            "month_short": "S",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        october = {
+            "month": 10,
+            "month_long": "October",
+            "month_short": "O",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        november = {
+            "month": 11,
+            "month_long": "November",
+            "month_short": "N",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+        december = {
+            "month": 12,
+            "month_long": "December",
+            "month_short": "D",
+            "total_spent": 0,
+            "total_earned": 0
+        }
+
+        month_list = []
+        month_match = {
+            '1': january,
+            '2': february,
+            '3': march,
+            '4': april,
+            '5': may,
+            '6': june,
+            '7': july,
+            '8': august,
+            '9': september,
+            '10': october,
+            '11': november,
+            '12': december
+        }
+
+        result_json = {
+            'since_date': since_date,
+            'data': month_list
+        }
+
+        # add the months in order of oldest, the latest to the result_json
+        for index, (year, month) in enumerate(months_to_get):
+            add_month = month_match[str(month)]
+            add_month['year'] = str(year)
+            month_list.insert(index, add_month)
+
+        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+
+        skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
+        
+        for transaction in pydantic_transactions_list.data.transactions:
+            if transaction.payee_name in skip_payees: continue
+            
+            transaction_month = transaction.date.split('-')[1]
+
+            if transaction.amount > 0:
+                month_match[transaction_month]['total_earned'] += await cls.convert_to_float(transaction.amount)
+            else:
+                month_match[transaction_month]['total_spent'] += await cls.convert_to_float(transaction.amount)
+            
+        return result_json
+
     # Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
     # Don't include transfers/payments for accounts
     

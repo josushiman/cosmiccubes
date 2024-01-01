@@ -245,6 +245,10 @@ async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYea
 async def get_transactions_by_month_for_year(year: SpecificYearOptions):
     return await ynab.transactions_by_month_for_year(year)
 
+@app.get("/ynab/transaction-by-months")
+async def get_transactions_by_months(months: PeriodMonthOptions):
+    return await ynab.transactions_by_months(months)
+
 @app.get("/portal/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
     entity_model = await ra.get_entity_model('direct-debits')
