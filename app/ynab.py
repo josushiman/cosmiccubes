@@ -158,7 +158,7 @@ class YNAB():
                 raise HTTPException(status_code=500)
 
     @classmethod
-    async def get_balance_info(cls):
+    async def get_available_balance(cls):
         account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
@@ -189,6 +189,35 @@ class YNAB():
             "available": available_amount,
         }
     
+    @classmethod
+    async def get_card_balances(cls):
+        account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
+
+
+        result_json = {
+            "data": []
+        }
+
+        for account in pydantic_accounts_list.data.accounts:
+            if account.type.value == 'checking': continue
+            
+            result_json["data"].append({
+                "name": account.name,
+                "balance": await cls.convert_to_float(account.balance),
+                "cleared": await cls.convert_to_float(account.cleared_balance),
+                "uncleared": await cls.convert_to_float(account.uncleared_balance),
+            })
+
+            logging.debug(f'''
+            name: {account.name}
+            balance: {account.balance}
+            cleared: {account.cleared_balance}
+            uncleared: {account.uncleared_balance}
+            ''')
+
+        return result_json
+
     @classmethod
     async def get_category_summary(cls):
         category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO

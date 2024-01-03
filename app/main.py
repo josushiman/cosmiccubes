@@ -83,7 +83,7 @@ logging.info(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -167,9 +167,13 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 #     # },
 #     return
 
-@app.get("/ynab/balance-info")
-async def get_balance_info():
-    return await ynab.get_balance_info()
+@app.get("/ynab/available-balance")
+async def get_available_balance():
+    return await ynab.get_available_balance()
+
+@app.get("/ynab/card-balances")
+async def get_card_balances():
+    return await ynab.get_card_balances()
 
 @app.get("/ynab/category-summary")
 async def get_category_summary():
