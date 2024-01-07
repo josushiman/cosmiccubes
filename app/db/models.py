@@ -141,10 +141,34 @@ class ProjectItems(models.Model):
         computed = ["total"]
         unique_together=("name", "company", "category")
 
-# TODO change with YNAB
-# class Transactions(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     name = fields.CharField(max_length=150)
-#     date_time = fields.DatetimeField()
-#     amount = fields.FloatField(default=0.0)
-#     merchant = fields.CharField(max_length=150)
+class YnabServerKnowledge(models.Model):
+    id = fields.UUIDField(pk=True)
+    budget_id = fields.UUIDField()
+    route = fields.CharField(max_length=250, unique=True)
+    server_knowledge = fields.IntField()
+
+    class PydanticMeta:
+        unique_together=("budget_id", "route")
+
+class YnabTransactions(models.Model):
+    id = fields.UUIDField(pk=True)
+    date = fields.DateField()
+    amount = fields.FloatField(default=0.0)
+    memo = fields.CharField(max_length=150, null=True)
+    cleared = fields.CharField(max_length=150)
+    approved = fields.BooleanField(null=True)
+    flag_color = fields.CharField(max_length=150, null=True)
+    account_id = fields.UUIDField()
+    account_name = fields.CharField(max_length=150)
+    payee_id = fields.UUIDField(null=True)
+    payee_name = fields.CharField(max_length=150, null=True)
+    category_id = fields.UUIDField(null=True)
+    category_name = fields.CharField(max_length=150, null=True)
+    transfer_account_id = fields.UUIDField(null=True)
+    transfer_transaction_id = fields.UUIDField(null=True)
+    matched_transaction_id = fields.UUIDField(null=True)
+    import_id = fields.CharField(max_length=150, null=True)
+    import_payee_name = fields.CharField(max_length=150, null=True)
+    import_payee_name_original = fields.CharField(max_length=150, null=True)
+    debt_transaction_type = fields.CharField(max_length=150, null=True)
+    deleted = fields.BooleanField(null=True)

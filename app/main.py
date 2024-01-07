@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from enum import Enum, IntEnum
 from tortoise import Tortoise
 from dotenv import load_dotenv
@@ -10,6 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
 from app.ynab import YNAB as ynab
+from app.ynab_models import TransactionsResponse
+from app.db.models import YnabServerKnowledge, YnabTransactions
+from app.db.schemas import YnabServerKnowledge_Pydantic
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,8 +48,8 @@ async def lifespan(app: FastAPI):
     logging.info("Generating Schemas")
     await Tortoise.generate_schemas()
     yield
-    logging.info("Shutting down application.")
     # Close all connections when shutting down.
+    logging.info("Shutting down application.")
     await Tortoise.close_connections()
 
 async def get_token_header(request: Request, x_token: str = Header(...)):
@@ -79,11 +83,11 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
         logging.warning(f"Invalid token provided from Origin and/or Host")
         raise HTTPException(status_code=403)
 
-logging.info(f"{dotenv_docs}")
+logging.debug(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -152,32 +156,25 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
         "message": f"Deleted {rows_deleted} rows."
     }
 
-# Add specific endpoints for getting rechart data. e.g. /rechart/{resource}
-# Always has to be returned as follows
-# List[Object]
-# Object = key, value pairs
-# { "name": "a", "metric1": "value1", etc... }
+@app.get("/portal/dashboard/direct-debits/{type}")
+async def get_dd_totals(type: str):
+    entity_model = await ra.get_entity_model('direct-debits')
+    entity_schema = await ra.get_entity_schema('direct-debits')
 
-# @app.get("/dashboard/spent/totals")
-# async def get_spent_totals(months: int):
-#     # {
-#     #     "month": "May",
-#     #     "total_spent": 1928,
-#     #     "total_earned": 1212
-#     # },
-#     return
+    db_entities = await entity_schema.from_queryset(entity_model.all())
 
-@app.get("/ynab/available-balance")
-async def get_available_balance():
-    return await ynab.get_available_balance()
+    monthly_total = 0
+    annual_total = 0
 
-@app.get("/ynab/card-balances")
-async def get_card_balances():
-    return await ynab.get_card_balances()
+    for entity in db_entities:
+        if entity.period == "monthly":
+            monthly_total += entity.amount
+        annual_total += entity.annual_cost
 
-@app.get("/ynab/category-summary")
-async def get_category_summary():
-    return await ynab.get_category_summary()
+    return {
+        "monthly_total": monthly_total,
+        "annual_total": annual_total
+    }
 
 class FilterTypes(Enum):
     ACCOUNT = 'account'
@@ -219,17 +216,21 @@ class TransactionTypeOptions(Enum):
     INCOME = 'income'
     EXPENSES = 'expenses'
 
-@app.get("/ynab/transactions-by-filter-type")
-async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_type: TransactionTypeOptions, \
-    year: SpecificYearOptions = None, top_x: TopXOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
-    return await ynab.transactions_by_filter_type(
-        transaction_type=transaction_type,
-        filter_type=filter_type,
-        year=year,
-        months=months,
-        specific_month=specific_month,
-        top_x=top_x,
-    )
+@app.get("/ynab/available-balance")
+async def get_available_balance():
+    return await ynab.get_available_balance()
+
+@app.get("/ynab/card-balances")
+async def get_card_balances():
+    return await ynab.get_card_balances()
+
+@app.get("/ynab/category-summary")
+async def get_category_summary():
+    return await ynab.get_category_summary()
+
+@app.get("/ynab/last-paid-date-for-accounts")
+async def last_paid_date_for_accounts():
+    return await ynab.last_paid_date_for_accounts(months=PeriodMonthOptions.MONTHS_1)
 
 @app.get("/ynab/last-x-transactions")
 async def get_last_x_transactions(count: int, since_date: str = None):
@@ -254,26 +255,41 @@ async def get_transactions_by_month_for_year(year: SpecificYearOptions):
 async def get_transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
-@app.get("/ynab/last-paid-date-for-accounts")
-async def last_paid_date_for_accounts():
-    return await ynab.last_paid_date_for_accounts(months=PeriodMonthOptions.MONTHS_1)
+@app.get("/ynab/transactions-by-filter-type")
+async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_type: TransactionTypeOptions, \
+    year: SpecificYearOptions = None, top_x: TopXOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
+    return await ynab.transactions_by_filter_type(
+        transaction_type=transaction_type,
+        filter_type=filter_type,
+        year=year,
+        months=months,
+        specific_month=specific_month,
+        top_x=top_x,
+    )
 
-@app.get("/portal/dashboard/direct-debits/{type}")
-async def get_dd_totals(type: str):
-    entity_model = await ra.get_entity_model('direct-debits')
-    entity_schema = await ra.get_entity_schema('direct-debits')
+@app.get("/ynab/latest-transactions")
+async def get_latest_transactions():
+    # Check last server knowledge of route
+    route_url = "/budgets/25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2/transactions"
+    db_entity = await YnabServerKnowledge.get_or_none(route=route_url)
 
-    db_entities = await entity_schema.from_queryset(entity_model.all())
+    if db_entity:
+        server_knowledge = db_entity.server_knowledge        
+        transaction_list = await ynab.make_request(action='transactions-list', param_1="25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2", param_2=server_knowledge)
+    else:
+        transaction_list = await ynab.make_request(action='transactions-list', param_1="25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2")
 
-    monthly_total = 0
-    annual_total = 0
+    pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+    if server_knowledge == pydantic_transactions_list.data.server_knowledge or len(pydantic_transactions_list.data.transactions) == 0:
+        return { "message": "No new transactions to store."}
 
-    for entity in db_entities:
-        if entity.period == "monthly":
-            monthly_total += entity.amount
-        annual_total += entity.annual_cost
+    for transaction in pydantic_transactions_list.data.transactions:
+        await ra.create(resource="ynab-transaction", resp_body=transaction.model_dump())
 
-    return {
-        "monthly_total": monthly_total,
-        "annual_total": annual_total
+    server_knowledge_body = {
+        "budget_id": "25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2",
+        "route": "/budgets/25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2/transactions",
+        "server_knowledge": pydantic_transactions_list.data.server_knowledge
     }
+
+    return await ra.create(resource="ynab-server-knowledge", resp_body=server_knowledge_body)

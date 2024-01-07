@@ -8,11 +8,11 @@ logging.basicConfig(
 )
 
 from tortoise.models import Model
-from tortoise.exceptions import IntegrityError, OperationalError, FieldError
+from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError
 from fastapi import HTTPException
 from uuid import UUID
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
-    Mortgages, Projects, ProjectItems, ProjectItemCategories
+    Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabServerKnowledge, YnabTransactions
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
     CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
     ProjectItemCategories_Pydantic
@@ -33,6 +33,8 @@ class ReactAdmin():
             "projects": Projects,
             "project-item-categories": ProjectItemCategories,
             "project-items": ProjectItems,
+            "ynab-server-knowledge": YnabServerKnowledge,
+            "ynab-transaction": YnabTransactions
         }
 
         try:
@@ -102,11 +104,14 @@ class ReactAdmin():
 
         try:
             return await entity_model.create(**resp_body)
+        except ValidationError as e_val:
+            logging.info("Entity body failed validation.", exc_info=e_val)
+            raise HTTPException(status_code=422) from e_val
         except AttributeError as e_attr:
             logging.info("Body is missing key attributes.")
             raise HTTPException(status_code=400) from e_attr # May have missed adding '_id' at the end of any FK relations in the json. e.g. type = type_id
         except IntegrityError as e_dupe:
-            logging.info("Potentially trying to create a duplicate.")
+            logging.info("Potentially trying to create a duplicate.", exc_info=e_dupe)
             raise HTTPException(status_code=409) from e_dupe
 
     @classmethod

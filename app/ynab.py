@@ -112,6 +112,7 @@ class YNAB():
             
             case 'transactions-list':
                 # Returns budget transactions
+                if param_2: return f'/budgets/{param_1}/transactions?server_knowledge={param_2}'
                 # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
                 if not since_date: return f'/budgets/{param_1}/transactions'
                 return f'/budgets/{param_1}/transactions?since_date={since_date}'
@@ -645,9 +646,6 @@ class YNAB():
                 month_match[transaction_month]['total_spent'] += await cls.convert_to_float(transaction.amount)
             
         return result_json
-
-    # TODO Get amount of expenses & income by month, filter by the same things as transactions_by_filter_type
-    # TODO Don't include transfers/payments for accounts
     
     @classmethod
     async def last_paid_date_for_accounts(cls, months: IntEnum):
