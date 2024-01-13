@@ -87,7 +87,7 @@ logging.debug(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -181,6 +181,12 @@ class FilterTypes(Enum):
     CATEGORY = 'category'
     PAYEE = 'payee'
 
+class PeriodOptions(Enum):
+    TODAY = 'TODAY'
+    YESTERDAY = 'YESTERDAY'
+    THIS_WEEK = 'THIS_WEEK'
+    LAST_WEEK = 'LAST_WEEK'
+
 class PeriodMonthOptions(IntEnum):
     MONTHS_1 = 1
     MONTHS_3 = 3
@@ -236,6 +242,10 @@ async def last_paid_date_for_accounts():
 async def get_last_x_transactions(count: int, since_date: str = None):
     return await ynab.get_last_x_transactions(count, since_date)
 
+@app.get("/ynab/spent-in-period")
+async def spent_in_period(period: PeriodOptions):
+    return await ynab.spent_in_period(period)
+
 @app.get("/ynab/totals")
 async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
     specific_month: SpecificMonthOptions = None):
@@ -270,25 +280,27 @@ async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_
 @app.get("/ynab/latest-transactions")
 async def get_latest_transactions():
     # Check last server knowledge of route
-    route_url = "/budgets/25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2/transactions"
+    route_url = "/budgets/e473536e-1a6c-42b1-8c90-c780a36b5580/transactions"
     db_entity = await YnabServerKnowledge.get_or_none(route=route_url)
 
     if db_entity:
         server_knowledge = db_entity.server_knowledge        
-        transaction_list = await ynab.make_request(action='transactions-list', param_1="25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2", param_2=server_knowledge)
+        transaction_list = await ynab.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580", param_2=server_knowledge)
     else:
-        transaction_list = await ynab.make_request(action='transactions-list', param_1="25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2")
+        server_knowledge = None
+        transaction_list = await ynab.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580")
 
     pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
     if server_knowledge == pydantic_transactions_list.data.server_knowledge or len(pydantic_transactions_list.data.transactions) == 0:
         return { "message": "No new transactions to store."}
 
     for transaction in pydantic_transactions_list.data.transactions:
+        # TODO do somethign to handle updates to existing transactions.
         await ra.create(resource="ynab-transaction", resp_body=transaction.model_dump())
 
     server_knowledge_body = {
-        "budget_id": "25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2",
-        "route": "/budgets/25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2/transactions",
+        "budget_id": "e473536e-1a6c-42b1-8c90-c780a36b5580",
+        "route": "/budgets/e473536e-1a6c-42b1-8c90-c780a36b5580/transactions",
         "server_knowledge": pydantic_transactions_list.data.server_knowledge
     }
 

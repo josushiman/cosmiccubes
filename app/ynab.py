@@ -14,6 +14,7 @@ from fastapi import HTTPException
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
 dotenv_ynab_token = os.getenv("EXT_YNAB_TOKEN")
+dotenv_ynab_budget_id = os.getenv("YNAB_BUDGET_ID")
 
 class YNAB():
     @classmethod
@@ -142,6 +143,7 @@ class YNAB():
             case _:
                 return '/user'
     
+    # TODO only use this if i don't have the transaction stored on the pi.
     @classmethod
     @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
     async def make_request(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None):
@@ -160,7 +162,7 @@ class YNAB():
 
     @classmethod
     async def get_available_balance(cls):
-        account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
         total_amount = 0.00
@@ -192,7 +194,7 @@ class YNAB():
     
     @classmethod
     async def get_card_balances(cls):
-        account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
 
@@ -221,7 +223,7 @@ class YNAB():
 
     @classmethod
     async def get_category_summary(cls):
-        category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
         pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
 
         result_json = []
@@ -239,6 +241,9 @@ class YNAB():
                 if category.goal_percentage_complete:
                     total_goal += category.goal_percentage_complete
             
+            # Skip all the categories that have no budget associated to them.
+            if total_budgeted == 0.0: continue
+
             if category_group.name != 'Credit Card Payments':
                 total_goal = total_goal / count_categories
 
@@ -249,12 +254,15 @@ class YNAB():
                 'goal': total_goal,
             })
         
-        return result_json
+        # Show the categories with the higher goals first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['goal'], reverse=True)
+
+        return sorted_list
 
     @classmethod
     async def get_last_x_transactions(cls, count: int, since_date: str = None):
         # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
-        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
         all_results = []
@@ -296,7 +304,7 @@ class YNAB():
         match filter_type.value:
             case 'account':
                 logging.debug("Getting accounts list.")
-                account_list = await cls.make_request('accounts-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+                account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = AccountsResponse.model_validate_json(json.dumps(account_list))
                 for account in pydantic_categories_list.data.accounts:
                     entities_raw[f'{account.id}'] = {
@@ -306,7 +314,7 @@ class YNAB():
                     }
             case 'payee':
                 logging.debug("Getting payees list.")
-                payee_list = await cls.make_request('payees-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+                payee_list = await cls.make_request('payees-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = PayeesResponse.model_validate_json(json.dumps(payee_list))
                 for payee in pydantic_categories_list.data.payees:
                     entities_raw[f'{payee.id}'] = {
@@ -318,7 +326,7 @@ class YNAB():
                 if filter_type.value != 'category':
                     logging.warn(f"Somehow filter_type was set to something that I can't handle. {filter_type.value}")
                 logging.debug("Getting categories list.")
-                category_list = await cls.make_request('categories-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2') #TODO
+                category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
                 for category_group in pydantic_categories_list.data.category_groups:
                     for category in category_group.categories:
@@ -336,7 +344,7 @@ class YNAB():
             'data': []
         }
 
-        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
         for transaction in pydantic_transactions_list.data.transactions:
             try:
@@ -472,7 +480,7 @@ class YNAB():
             ]
         }
 
-        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
@@ -625,7 +633,7 @@ class YNAB():
             add_month['year'] = str(year)
             month_list.insert(index, add_month)
 
-        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
@@ -651,7 +659,7 @@ class YNAB():
     async def last_paid_date_for_accounts(cls, months: IntEnum):
         # Look over the last month. If no payment, assume the bill has not been paid yet.
         since_date = await cls.get_date_for_transactions(year=None, months=months, specific_month=None)
-        transaction_list = await cls.make_request('transactions-list', param_1='25c0c5c4-98fa-452c-9d31-ee3eaa50e1b2', since_date=since_date)
+        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
 
@@ -695,3 +703,56 @@ class YNAB():
         }
 
         return result_json
+
+    @classmethod
+    async def spent_in_period(cls, period: Enum):
+        # TODO add filters for whether I want to include bills or just things which do not come from a specific account (e.g. Current Account)
+        match period.value:
+            case 'TODAY':
+                current_date = datetime.today().strftime('%Y-%m-%d')
+                transaction_list = await cls.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+                
+                total_spent = 0.0
+                for transaction in pydantic_transactions_list.data.transactions:
+                    if transaction.amount > 0: continue
+                    total_spent += transaction.amount
+                
+                return {
+                    "spent": await cls.convert_to_float(total_spent)
+                }
+            case 'YESTERDAY':
+                current_date = datetime.today() - DateOffset(days=1)
+                current_date = current_date.strftime('%Y-%m-%d')
+                transaction_list = await cls.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+                
+                total_spent = 0.0
+                for transaction in pydantic_transactions_list.data.transactions:
+                    if transaction.amount > 0: continue
+                    total_spent += transaction.amount
+                
+                return {
+                    "spent": await cls.convert_to_float(total_spent)
+                }
+            case 'THIS_WEEK':
+                current_date = datetime.today()
+                days_to_monday =  current_date.weekday() - 0
+                current_date = datetime.today() - DateOffset(days=days_to_monday)
+                current_date = current_date.strftime('%Y-%m-%d')
+                transaction_list = await cls.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+                
+                total_spent = 0.0
+                for transaction in pydantic_transactions_list.data.transactions:
+                    if transaction.amount > 0 or transaction.category_name in ["Loans", "Monthly Bills", "Credit Card Payments", "Yearly Bills"]: continue
+                    total_spent += transaction.amount
+                
+                return {
+                    "spent": await cls.convert_to_float(total_spent)
+                }
+            case 'LAST_WEEK':
+                # TODO
+                return None
+            case _:
+                return None
