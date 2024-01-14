@@ -771,8 +771,7 @@ class YNAB():
         # So I should skip any category which does not have a budget assigned.
         for category_group in pydantic_categories_list.data.category_groups:
             count_categories = len(category_group.categories)
-            if count_categories < 1: continue
-            if category_group.name not in ["Frequent", "Giving", "Non-Monthly Expenses"]: continue
+            if category_group.name not in ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]: continue
 
             for category in category_group.categories:
                 total_spent += category.activity
