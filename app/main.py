@@ -247,6 +247,10 @@ async def get_last_x_transactions(count: int, since_date: str = None):
 async def spent_in_period(period: PeriodOptions):
     return await ynab.spent_in_period(period)
 
+@app.get("/ynab/spent-vs-budget")
+async def spent_vs_budget():
+    return await ynab.spent_vs_budget()
+
 @app.get("/ynab/totals")
 async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
     specific_month: SpecificMonthOptions = None):

@@ -762,32 +762,37 @@ class YNAB():
         category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
         pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
 
-        result_json = []
-
-        # TODO only categories that I care about for tracking the monthly target.
+        total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
+        total_budgeted = 0.0 # Budget assigned to the category
+        total_spent = 0.0
+        category_count = 0
+        # Only categories that I care about for tracking the monthly target.
+        # This is usually when I only have a budget assigned to a category.
+        # So I should skip any category which does not have a budget assigned.
         for category_group in pydantic_categories_list.data.category_groups:
             count_categories = len(category_group.categories)
             if count_categories < 1: continue
+            if category_group.name not in ["Frequent", "Giving", "Non-Monthly Expenses"]: continue
 
-            total_balance = 0.0
-            total_budgeted = 0.0
-            total_activity = 0.0
             for category in category_group.categories:
-                total_activity += category.activity
+                total_spent += category.activity
                 total_balance += category.balance
                 total_budgeted += category.budgeted
-            
-            # Skip all the categories that have no budget associated to them.
-            if total_budgeted == 0.0: continue
+                logging.debug(f'''
+                Category details:
+                    name: {category.name}
+                    activity: {category.activity}
+                    balance: {category.balance}
+                    budgeted: {category.budgeted}
+                ''')
+                category_count += 1
 
-            result_json.append({
-                'name': category_group.name,
-                'budgeted': await cls.convert_to_float(total_balance),
-                'activity': await cls.convert_to_float(total_activity),
-                'balance': await cls.convert_to_float(total_balance),
-            })
+        # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
+        total_goal = min((-total_spent / total_budgeted) * 100, 100)
 
         return {
-            "spent": 0.0,
-            "budget": 0.0
+            'balance': await cls.convert_to_float(total_balance),
+            'budget': await cls.convert_to_float(total_budgeted),
+            'spent': await cls.convert_to_float(-total_spent),
+            'progress': total_goal
         }
