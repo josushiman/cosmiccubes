@@ -756,3 +756,38 @@ class YNAB():
                 return None
             case _:
                 return None
+
+    @classmethod
+    async def spent_vs_budget(cls):
+        category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+
+        result_json = []
+
+        # TODO only categories that I care about for tracking the monthly target.
+        for category_group in pydantic_categories_list.data.category_groups:
+            count_categories = len(category_group.categories)
+            if count_categories < 1: continue
+
+            total_balance = 0.0
+            total_budgeted = 0.0
+            total_activity = 0.0
+            for category in category_group.categories:
+                total_activity += category.activity
+                total_balance += category.balance
+                total_budgeted += category.budgeted
+            
+            # Skip all the categories that have no budget associated to them.
+            if total_budgeted == 0.0: continue
+
+            result_json.append({
+                'name': category_group.name,
+                'budgeted': await cls.convert_to_float(total_balance),
+                'activity': await cls.convert_to_float(total_activity),
+                'balance': await cls.convert_to_float(total_balance),
+            })
+
+        return {
+            "spent": 0.0,
+            "budget": 0.0
+        }

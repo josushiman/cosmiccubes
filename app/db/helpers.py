@@ -114,6 +114,14 @@ class ReactAdmin():
             raise HTTPException(status_code=409) from e_dupe
 
     @classmethod
+    async def create_or_update(cls, resource: str, resp_body: dict, _id: UUID = None):
+        if resp_body["id"]:
+            resp_body.pop("id")
+            return await cls.update(resource, resp_body, _id)
+        else:
+            return await cls.create(resource, resp_body)
+
+    @classmethod
     async def process_raw_kwargs(cls, kwargs_raw: dict):
         # Only add values which exist from the request
         kwargs = {}
