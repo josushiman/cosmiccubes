@@ -3,6 +3,7 @@ import logging
 import json
 from enum import Enum, IntEnum
 from tortoise import Tortoise
+from tortoise.exceptions import IntegrityError
 from dotenv import load_dotenv
 from typing import List
 from contextlib import asynccontextmanager
@@ -294,9 +295,19 @@ async def get_latest_transactions():
     if server_knowledge == pydantic_transactions_list.data.server_knowledge or len(pydantic_transactions_list.data.transactions) == 0:
         return { "message": "No new transactions to store."}
 
+    # TODO make a create or update helper class for the two scenarios below.
     for transaction in pydantic_transactions_list.data.transactions:
-        # TODO do somethign to handle updates to existing transactions.
-        await ra.create(resource="ynab-transaction", resp_body=transaction.model_dump())
+        if transaction.deleted: continue
+        entity_model = await ra.get_entity_model("ynab-transaction")
+        model_dict = transaction.model_dump()
+        try:
+            await entity_model.create(**model_dict)
+        except IntegrityError:
+            logging.info("Transaction already exists, updating it instead.")
+            # Need to pop the ID from the model_dict.
+            model_dict.pop("id")
+            model_dict.pop("subtransactions")
+            await entity_model.filter(id=transaction.id).update(**model_dict)
 
     server_knowledge_body = {
         "budget_id": "e473536e-1a6c-42b1-8c90-c780a36b5580",
@@ -304,4 +315,10 @@ async def get_latest_transactions():
         "server_knowledge": pydantic_transactions_list.data.server_knowledge
     }
 
-    return await ra.create(resource="ynab-server-knowledge", resp_body=server_knowledge_body)
+    entity_model = await ra.get_entity_model("ynab-server-knowledge")
+
+    try:
+        return await entity_model.create(**server_knowledge_body)
+    except IntegrityError:
+        # TODO get the ID of the existing entity.
+        return await entity_model.filter(id="de596c1a-6e4a-44d6-84c5-716e50e18e03").update(**server_knowledge_body)

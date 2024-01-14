@@ -101,7 +101,6 @@ class ReactAdmin():
     @classmethod
     async def create(cls, resource: str, resp_body: dict):
         entity_model = await cls.get_entity_model(resource)
-
         try:
             return await entity_model.create(**resp_body)
         except ValidationError as e_val:
