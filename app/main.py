@@ -1,7 +1,6 @@
 import os
 import logging
 import json
-from enum import Enum, IntEnum
 from tortoise import Tortoise
 from dotenv import load_dotenv
 from typing import List
@@ -53,7 +52,7 @@ async def lifespan(app: FastAPI):
     logging.info("Shutting down application.")
     await Tortoise.close_connections()
 
-async def get_token_header(request: Request, x_token: str = Header(...)):
+async def get_token_header(request: Request, x_token: UUID = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
         logging.debug(request.headers.raw)
         try:
@@ -111,15 +110,15 @@ async def get_health():
         "status": "OK"
     }
 
-@app.post("/portal/{resource}", status_code=201)
+@app.post("/portal/admin/{resource}", status_code=201)
 async def create(resource: str, _body: dict):
     return await ra.create(resource, _body)
 
-@app.get("/portal/{resource}/{_id}")
+@app.get("/portal/admin/{resource}/{_id}")
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
-@app.get("/portal/{resource}")
+@app.get("/portal/admin/{resource}")
 async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_parameters), \
     _id: list[UUID] | None = Query(default=None, alias="id")):
     
@@ -141,15 +140,15 @@ async def get_list(request: Request, response: Response, resource: str, commons:
     response.headers["X-Total-Count"] = count
     return entities
 
-@app.put("/portal/{resource}/{_id}")
+@app.put("/portal/admin/{resource}/{_id}")
 async def update(resource: str, _body: dict, _id: UUID):
     return await ra.update(resource, _body, _id)
 
-@app.delete("/portal/{resource}/{_id}")
+@app.delete("/portal/admin/{resource}/{_id}")
 async def delete(resource: str, _id: UUID):
     return await ra.delete(resource, _id)
 
-@app.delete("/portal/{resource}")
+@app.delete("/portal/admin/{resource}")
 async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alias="ids")):
     for _id in _ids:
         rows_deleted = await ra.delete(resource, _id)
@@ -157,7 +156,7 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
         "message": f"Deleted {rows_deleted} rows."
     }
 
-@app.get("/portal/dashboard/direct-debits/{type}")
+@app.get("/portal/admin/dashboard/direct-debits/{type}")
 async def get_dd_totals(type: str):
     entity_model = await ra.get_entity_model('direct-debits')
     entity_schema = await ra.get_entity_schema('direct-debits')
@@ -208,7 +207,6 @@ async def get_last_x_transactions(count: int, since_date: str = None):
 @app.get("/ynab/spent-in-period")
 async def spent_in_period(period: PeriodOptions):
     return await ynab.spent_in_period(period)
-
 
 @app.get("/ynab/totals")
 async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
