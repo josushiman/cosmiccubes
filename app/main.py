@@ -3,7 +3,6 @@ import logging
 import json
 from enum import Enum, IntEnum
 from tortoise import Tortoise
-from tortoise.exceptions import IntegrityError
 from dotenv import load_dotenv
 from typing import List
 from contextlib import asynccontextmanager
@@ -13,8 +12,9 @@ from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
 from app.ynab import YNAB as ynab
 from app.ynab_models import TransactionsResponse
-from app.db.models import YnabServerKnowledge, YnabTransactions
-from app.db.schemas import YnabServerKnowledge_Pydantic
+from app.db.models import YnabServerKnowledge
+from app.enums import FilterTypes, PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions, TopXOptions, \
+    TransactionTypeOptions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -177,59 +177,21 @@ async def get_dd_totals(type: str):
         "annual_total": annual_total
     }
 
-class FilterTypes(Enum):
-    ACCOUNT = 'account'
-    CATEGORY = 'category'
-    PAYEE = 'payee'
-
-class PeriodOptions(Enum):
-    TODAY = 'TODAY'
-    YESTERDAY = 'YESTERDAY'
-    THIS_WEEK = 'THIS_WEEK'
-    LAST_WEEK = 'LAST_WEEK'
-
-class PeriodMonthOptions(IntEnum):
-    MONTHS_1 = 1
-    MONTHS_3 = 3
-    MONthS_6 = 6
-    MONTHS_9 = 9
-    MONTHS_12 = 12
-
-class SpecificMonthOptions(Enum):
-    JANUARY = '01'
-    FEBRUARY = '02'
-    MARCH = '03'
-    APRIL = '04'
-    MAY = '05'
-    JUNE = '06'
-    JULY = '07'
-    AUGUST = '08'
-    SEPTEMBER = '09'
-    OCTOBER = '10'
-    NOVEMBER = '11'
-    DECEMBER = '12'
-
-class SpecificYearOptions(Enum):
-    YEAR_23 = '2023'
-    YEAR_24 = '2024'
-    YEAR_25 = '2025'
-
-class TopXOptions(IntEnum):
-    TOP_3 = 3
-    TOP_5 = 5
-    TOP_10 = 10
-
-class TransactionTypeOptions(Enum):
-    INCOME = 'income'
-    EXPENSES = 'expenses'
-
 @app.get("/ynab/available-balance")
-async def get_available_balance():
-    return await ynab.get_available_balance()
+async def available_balance():
+    return await ynab.available_balance()
 
 @app.get("/ynab/card-balances")
-async def get_card_balances():
-    return await ynab.get_card_balances()
+async def card_balances():
+    return await ynab.card_balances()
+
+@app.get("/ynab/spent-vs-budget")
+async def spent_vs_budget():
+    return await ynab.spent_vs_budget()
+
+@app.get("/ynab/earned-vs-spent")
+async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/category-summary")
 async def get_category_summary():
@@ -247,9 +209,6 @@ async def get_last_x_transactions(count: int, since_date: str = None):
 async def spent_in_period(period: PeriodOptions):
     return await ynab.spent_in_period(period)
 
-@app.get("/ynab/spent-vs-budget")
-async def spent_vs_budget():
-    return await ynab.spent_vs_budget()
 
 @app.get("/ynab/totals")
 async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \

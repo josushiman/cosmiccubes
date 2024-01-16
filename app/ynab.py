@@ -10,6 +10,7 @@ from async_lru import alru_cache
 from dotenv import load_dotenv
 from app.ynab_models import AccountsResponse, CategoriesResponse, PayeesResponse, TransactionsResponse
 from fastapi import HTTPException
+from app.enums import TransactionTypeOptions, FilterTypes
 
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
@@ -161,7 +162,7 @@ class YNAB():
                 raise HTTPException(status_code=500)
 
     @classmethod
-    async def get_available_balance(cls):
+    async def available_balance(cls):
         account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
@@ -193,7 +194,7 @@ class YNAB():
         }
     
     @classmethod
-    async def get_card_balances(cls):
+    async def card_balances(cls):
         account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
@@ -794,4 +795,36 @@ class YNAB():
             'budget': await cls.convert_to_float(total_budgeted),
             'spent': await cls.convert_to_float(-total_spent),
             'progress': total_goal
+        }
+
+    @classmethod
+    async def earned_vs_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):        
+        transactions_income = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.ACCOUNT,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.INCOME
+        )
+        
+        total_earned = 0.0
+        for account in transactions_income['data']:
+            total_earned += account['total']
+
+        transactions_expense = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.ACCOUNT,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.EXPENSES
+        )
+
+        total_spent = 0.0
+        for account in transactions_expense['data']:
+            total_spent += account['total']
+
+        return {
+            'since_date': transactions_expense['since_date'],
+            'earned': total_earned,
+            'spent': total_spent
         }
