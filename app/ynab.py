@@ -835,15 +835,15 @@ class YNAB():
 
     @classmethod
     async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
+        # Can't get category limits for previous months
+        # Instead go through every transaction for the period and show the categories by amount spent, descending
+        # Only use the category endpoint when looking at the current month
         if year and specific_month:
             current_year_month = datetime.today().strftime('%Y-%m')
             if current_year_month == f'{year.value}-{specific_month.value}':
                 logging.info("Returning current month category info.")
                 return await cls.get_category_summary()
 
-        # Can't get category limits for previous months
-        # Instead go through every transaction for the period and show the categories by amount spent, descending
-        # Only use the category endpoint when looking at the current month
         transactions = await cls.transactions_by_filter_type(
             filter_type= FilterTypes.CATEGORY,
             year=year,
