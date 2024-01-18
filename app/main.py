@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
     # Generate the model schemas.
     logging.info("Generating Schemas")
     await Tortoise.generate_schemas()
+    logging.info("Schemas Generated")
     yield
     # Close all connections when shutting down.
     logging.info("Shutting down application.")
