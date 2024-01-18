@@ -224,6 +224,7 @@ class YNAB():
 
     @classmethod
     async def get_category_summary(cls):
+        current_date = datetime.today().strftime('%Y-%m') + '-01'
         category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
         pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
 
@@ -245,20 +246,23 @@ class YNAB():
             # Skip all the categories that have no budget associated to them.
             if total_budgeted == 0.0: continue
 
-            if category_group.name != 'Credit Card Payments':
+            if category_group.name != 'Credit Card Payments': # TODO doesnt like CC payments for calculating goals. Figure that out.
                 total_goal = total_goal / count_categories
 
             result_json.append({
                 'name': category_group.name,
-                'available': await cls.convert_to_float(total_balance),
-                'budgeted': await cls.convert_to_float(total_budgeted),
-                'goal': total_goal,
+                'spent': await cls.convert_to_float(total_budgeted - total_balance),
+                'budget': await cls.convert_to_float(total_budgeted),
+                'progress': total_goal,
             })
         
         # Show the categories with the higher goals first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['goal'], reverse=True)
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
 
-        return sorted_list
+        return {
+            'since_date': current_date,
+            'data': sorted_list
+        }
 
     @classmethod
     async def get_last_x_transactions(cls, count: int, since_date: str = None):
@@ -827,4 +831,55 @@ class YNAB():
             'since_date': transactions_expense['since_date'],
             'earned': total_earned,
             'spent': total_spent
+        }
+
+    @classmethod
+    async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
+        if year and specific_month:
+            current_year_month = datetime.today().strftime('%Y-%m')
+            if current_year_month == f'{year.value}-{specific_month.value}':
+                logging.info("Returning current month category info.")
+                return await cls.get_category_summary()
+
+        # Can't get category limits for previous months
+        # Instead go through every transaction for the period and show the categories by amount spent, descending
+        # Only use the category endpoint when looking at the current month
+        transactions = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.CATEGORY,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.EXPENSES
+        )
+
+        category_groups = {}
+        total_spent = 0.0
+
+        for transaction in transactions['data']:
+            category_group_id_str = str(transaction['category_group_id'])
+            
+            try:
+                # If the group name exists, add the sum to the existing value
+                category_groups[category_group_id_str]['spent'] += transaction['total']
+            except KeyError:
+                # Otherwise append it with the current value
+                category_groups[category_group_id_str] = {
+                    'name': transaction['category_group_name'],
+                    'spent': transaction['total']
+                }
+            
+            # Gather the total spent to calculate the overall spend for each category against the time period.
+            total_spent += transaction['total']
+        
+        result_json = []
+        for category in category_groups.values():
+            category['progress'] = (category['spent'] / total_spent) * 100
+            result_json.append(category)
+
+        # Show the categories with the higher spends first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+
+        return {
+            'since_date': transactions['since_date'],
+            'data': sorted_list
         }

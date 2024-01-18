@@ -87,7 +87,7 @@ logging.debug(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -184,13 +184,17 @@ async def available_balance():
 async def card_balances():
     return await ynab.card_balances()
 
-@app.get("/ynab/spent-vs-budget")
-async def spent_vs_budget():
-    return await ynab.spent_vs_budget()
+@app.get("/ynab/categories-spent")
+async def categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.categories_spent(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/earned-vs-spent")
 async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
+
+@app.get("/ynab/spent-vs-budget")
+async def spent_vs_budget():
+    return await ynab.spent_vs_budget()
 
 @app.get("/ynab/category-summary")
 async def get_category_summary():
