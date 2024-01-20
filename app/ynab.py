@@ -18,6 +18,8 @@ dotenv_ynab_token = os.getenv("EXT_YNAB_TOKEN")
 dotenv_ynab_budget_id = os.getenv("YNAB_BUDGET_ID")
 
 class YNAB():
+    CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
+
     @classmethod
     async def convert_to_float(cls, amount):
         # Amount comes in as a milliunit e.g. 21983290
@@ -333,7 +335,9 @@ class YNAB():
                 logging.debug("Getting categories list.")
                 category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+                logging.debug(f'Returned {len(pydantic_categories_list.data.category_groups)} category groups.')
                 for category_group in pydantic_categories_list.data.category_groups:
+                    if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
                     for category in category_group.categories:
                         entities_raw[f'{category.id}'] = {
                             'id': category.id,
@@ -351,12 +355,16 @@ class YNAB():
 
         transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+        logging.debug(f'Returned {len(pydantic_transactions_list.data.transactions)} transactions.')
+        skipped_transactions = 0
         for transaction in pydantic_transactions_list.data.transactions:
             try:
                 if filter_type.value == 'account':
                     # don't include transfers/payments
                     if transaction_type.value == 'income' and transaction.amount <= 0 or \
-                    transaction_type.value == 'expenses' and transaction.amount >= 0: continue
+                    transaction_type.value == 'expenses' and transaction.amount >= 0:
+                        skipped_transactions += 1
+                        continue
                     entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
                 elif filter_type.value == 'category':
                     entities_raw[f'{transaction.category_id}']['total'] += transaction.amount
@@ -364,7 +372,10 @@ class YNAB():
                     entities_raw[f'{transaction.payee_id}']['total'] += transaction.amount
             except KeyError:
                 logging.debug(f"Issue with trying to assign transaction amount to uncategorised transaction. {transaction.account_name} - {transaction.payee_name}")
+                skipped_transactions += 1
                 continue
+        
+        logging.debug(f'Skipped {skipped_transactions} transactions.')
 
         all_results = []
         for value in entities_raw.values():
@@ -775,8 +786,7 @@ class YNAB():
         # This is usually when I only have a budget assigned to a category.
         # So I should skip any category which does not have a budget assigned.
         for category_group in pydantic_categories_list.data.category_groups:
-            count_categories = len(category_group.categories)
-            if category_group.name not in ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]: continue
+            if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
 
             for category in category_group.categories:
                 total_spent += category.activity
@@ -875,6 +885,50 @@ class YNAB():
         for category in category_groups.values():
             category['progress'] = (category['spent'] / total_spent) * 100
             result_json.append(category)
+
+        # Show the categories with the higher spends first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+
+        return {
+            'since_date': transactions['since_date'],
+            'data': sorted_list
+        }
+
+    @classmethod
+    async def sub_categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
+        # Can't get category limits for previous months
+        # Instead go through every transaction for the period and show the categories by amount spent, descending
+        # Only use the category endpoint when looking at the current month
+        if year and specific_month:
+            current_year_month = datetime.today().strftime('%Y-%m')
+            if current_year_month == f'{year.value}-{specific_month.value}':
+                logging.info("Returning current month category info.")
+                return await cls.get_category_summary()
+
+        transactions = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.CATEGORY,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.EXPENSES,
+            top_x=5 # Only returning the top 5 due to page layout. TODO have a scrolly thingy on the UI.
+        )
+
+        total_spent = 0.0
+        result_json = []
+
+        for transaction in transactions['data']:
+            sub_category_name = transaction['name'] + ' / ' + transaction['category_group_name']
+            result_json.append({
+                'name': sub_category_name,
+                'spent': transaction['total'],
+            })
+            
+            # Gather the total spent to calculate the overall spend for each category against the time period.
+            total_spent += transaction['total']
+
+        for sub_category in result_json:
+            sub_category['progress'] = (sub_category['spent'] / total_spent) * 100
 
         # Show the categories with the higher spends first.
         sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
