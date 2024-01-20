@@ -88,7 +88,7 @@ logging.debug(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -259,7 +259,7 @@ async def get_latest_transactions():
 
     pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
     if server_knowledge == pydantic_transactions_list.data.server_knowledge or len(pydantic_transactions_list.data.transactions) == 0:
-        return { "message": "No new transactions to store."}
+        return { "message": "No new transactions to store or update."}
 
     for transaction in pydantic_transactions_list.data.transactions:
         if transaction.deleted: continue

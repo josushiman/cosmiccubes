@@ -8,14 +8,14 @@ logging.basicConfig(
 )
 
 from tortoise.models import Model
-from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError
+from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
 from uuid import UUID
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
     Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabServerKnowledge, YnabTransactions
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
     CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
-    ProjectItemCategories_Pydantic
+    ProjectItemCategories_Pydantic, YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
 
 class ReactAdmin():
     @classmethod
@@ -58,6 +58,8 @@ class ReactAdmin():
             "projects": Projects_Pydantic,
             "project-item-categories": ProjectItemCategories_Pydantic,
             "project-items": ProjectItems_Pydantic,
+            "ynab-server-knowledge": YnabServerKnowledge_Pydantic,
+            "ynab-transaction": YnabTransactions_Pydantic
         }
 
         try:
@@ -115,11 +117,21 @@ class ReactAdmin():
 
     @classmethod
     async def create_or_update(cls, resource: str, resp_body: dict, _id: UUID = None):
-        if resp_body["id"]:
+        try:
             resp_body.pop("id")
-            return await cls.update(resource, resp_body, _id)
-        else:
-            return await cls.create(resource, resp_body)
+            entity = await cls.update(resource, resp_body, _id)
+            logging.debug(f'Entity updated: {_id}')
+        except DoesNotExist:
+            # This error gets raised when trying to get an object which doesn't exist.
+            logging.debug(f"This entity doesn't exist, creating a new one: {resp_body}")
+            entity = await cls.create(resource, resp_body)
+            logging.debug(f'Entity created: {entity.id}')
+        except KeyError:
+            logging.debug(f"This entity doesn't have an ID: {resp_body}")
+            entity = await cls.create(resource, resp_body)
+            logging.debug(f'Entity created: {entity.id}')
+
+        return entity
 
     @classmethod
     async def process_raw_kwargs(cls, kwargs_raw: dict):
