@@ -88,7 +88,7 @@ logging.debug(f"{dotenv_docs}")
 
 app = FastAPI(
     lifespan=lifespan,
-    # dependencies=[Depends(get_token_header)], TODO
+    dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -201,13 +201,13 @@ async def spent_vs_budget():
 async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
 
-@app.get("/ynab/category-summary")
-async def get_category_summary():
-    return await ynab.get_category_summary()
-
 @app.get("/ynab/last-x-transactions")
 async def last_x_transactions(count: int, since_date: str = None):
     return await ynab.last_x_transactions(count, since_date)
+
+@app.get("/ynab/income-vs-expenses")
+async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.income_vs_expenses(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/last-paid-date-for-accounts")
 async def last_paid_date_for_accounts():
@@ -250,6 +250,7 @@ async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_
 
 @app.get("/ynab/latest-transactions")
 async def get_latest_transactions():
+    # TODO setup a cron job on the server to run this on a daily basis.
     # Check last server knowledge of route
     route_url = "/budgets/e473536e-1a6c-42b1-8c90-c780a36b5580/transactions"
     db_entity = await YnabServerKnowledge.get_or_none(route=route_url)

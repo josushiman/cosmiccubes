@@ -4,7 +4,7 @@ import logging
 import json
 from enum import Enum, IntEnum
 from time import localtime, mktime
-from datetime import datetime
+from datetime import datetime, timedelta
 from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
@@ -928,4 +928,41 @@ class YNAB():
         return {
             'since_date': transactions['since_date'],
             'data': sorted_list
+        }
+
+    @classmethod
+    async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
+        since_date = await cls.get_date_for_transactions(year, months, specific_month)
+        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+
+        # From the since date, go through each month and add it to the data
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+        current_date = datetime.now()
+
+        result_json = []
+        while since_date_dt <= current_date:
+            since_date_dt += timedelta(days=30)  # Assuming an average month length of 30 days
+            month_year_match = since_date_dt.strftime("%Y-%m")
+            month_year = {
+                'month': since_date_dt.strftime("%B"), # Full month name
+                'year': since_date_dt.strftime("%Y"), # Four-digit year
+                'income': 0.0,
+                'expenses': 0.0
+            }
+            # Short term: go through each transaction and add them to the month if the year and month match.
+            # TODO long term: make DB queries to add transactions from those months/year
+            for transaction in pydantic_transactions_list.data.transactions:
+                transaction_date = datetime.strptime(transaction.date, '%Y-%m-%d')
+                if transaction_date.strftime("%Y-%m") == month_year_match:
+                    if transaction.amount > 0:
+                        month_year['income'] += await cls.convert_to_float(transaction.amount)
+                    else:
+                        month_year['expenses'] += await cls.convert_to_float(-transaction.amount)
+            
+            result_json.append(month_year)
+
+        return {
+            'since_date': since_date,
+            'data': result_json
         }
