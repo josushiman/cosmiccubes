@@ -225,19 +225,30 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def get_last_x_transactions(cls, count: int, since_date: str = None):
+    async def last_x_transactions(cls, count: int, since_date: str = None):
         # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
+        # TODO Replace this a call out to the YNAB Transacitons in the DB instead.
         transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+        transaction_data = pydantic_transactions_list.data.transactions
 
-        all_results = []
+        # reverse the transaction list as it will always be returned with the oldest transactions first.
+        transaction_data.reverse()
 
-        for transaction in pydantic_transactions_list.data.transactions:
-            all_results.append(transaction.model_dump())
-
-        result_json = sorted(all_results, key=lambda item: item['date'], reverse=True)
+        result_json = []
+        for index, transaction in enumerate(pydantic_transactions_list.data.transactions):
+            if index == count: break
+            result_json.append({
+                'payee': transaction.payee_name,
+                'amount': await cls.convert_to_float(transaction.amount),
+                'date': transaction.date,
+                'subcategory': transaction.category_name
+            })
         
-        return result_json[0:count]
+        return {
+            'since_date': '01/11/2023',
+            'data': result_json
+        }
     
     @classmethod
     async def get_totals(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \

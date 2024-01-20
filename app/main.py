@@ -205,13 +205,13 @@ async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodM
 async def get_category_summary():
     return await ynab.get_category_summary()
 
+@app.get("/ynab/last-x-transactions")
+async def last_x_transactions(count: int, since_date: str = None):
+    return await ynab.last_x_transactions(count, since_date)
+
 @app.get("/ynab/last-paid-date-for-accounts")
 async def last_paid_date_for_accounts():
     return await ynab.last_paid_date_for_accounts(months=PeriodMonthOptions.MONTHS_1)
-
-@app.get("/ynab/last-x-transactions")
-async def get_last_x_transactions(count: int, since_date: str = None):
-    return await ynab.get_last_x_transactions(count, since_date)
 
 @app.get("/ynab/spent-in-period")
 async def spent_in_period(period: PeriodOptions):
