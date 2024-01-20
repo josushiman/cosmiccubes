@@ -225,48 +225,6 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def get_category_summary(cls):
-        current_date = datetime.today().strftime('%Y-%m') + '-01'
-        category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
-        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
-
-        result_json = []
-
-        for category_group in pydantic_categories_list.data.category_groups:
-            count_categories = len(category_group.categories)
-            if count_categories < 1: continue
-
-            total_balance = 0.0
-            total_budgeted = 0.0
-            total_goal = 0
-            for category in category_group.categories:
-                total_balance += category.balance
-                total_budgeted += category.budgeted
-                if category.goal_percentage_complete:
-                    total_goal += category.goal_percentage_complete
-            
-            # Skip all the categories that have no budget associated to them.
-            if total_budgeted == 0.0: continue
-
-            if category_group.name != 'Credit Card Payments': # TODO doesnt like CC payments for calculating goals. Figure that out.
-                total_goal = total_goal / count_categories
-
-            result_json.append({
-                'name': category_group.name,
-                'spent': await cls.convert_to_float(total_budgeted - total_balance),
-                'budget': await cls.convert_to_float(total_budgeted),
-                'progress': total_goal,
-            })
-        
-        # Show the categories with the higher goals first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
-
-        return {
-            'since_date': current_date,
-            'data': sorted_list
-        }
-
-    @classmethod
     async def get_last_x_transactions(cls, count: int, since_date: str = None):
         # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
         transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id)
@@ -844,13 +802,45 @@ class YNAB():
         }
 
     @classmethod
+    async def get_category_summary(cls):
+        current_date = datetime.today().strftime('%Y-%m') + '-01'
+        category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+
+        result_json = []
+
+        for category_group in pydantic_categories_list.data.category_groups:
+            if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
+            total_balance = 0.0
+            total_budgeted = 0.0
+            for category in category_group.categories:
+                total_balance += category.balance
+                total_budgeted += category.budgeted
+            
+            total_spent = total_budgeted - total_balance
+
+            result_json.append({
+                'name': category_group.name,
+                'spent': await cls.convert_to_float(total_spent),
+                'budget': await cls.convert_to_float(total_budgeted),
+                'progress': (total_spent / total_budgeted) * 100,
+            })
+        
+        # Show the categories with the higher goals first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+
+        return {
+            'since_date': current_date,
+            'data': sorted_list
+        }
+
+    @classmethod
     async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
         # Can't get category limits for previous months, only use the category endpoint when looking at the current month
         if year and specific_month:
-            # TODO only return the same categories as the rest.
             current_year_month = datetime.today().strftime('%Y-%m')
             if current_year_month == f'{year.value}-{specific_month.value}':
-                logging.info("Returning current month category info.")
+                logging.debug("Returning current month category info.")
                 return await cls.get_category_summary()
 
         # Instead go through every transaction for the period and show the categories by amount spent, descending
