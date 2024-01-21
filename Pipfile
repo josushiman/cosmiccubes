@@ -13,6 +13,7 @@ python-dotenv = "*"
 async-lru = "*"
 httpx = "*"
 pandas = "*"
+colorlog = "*"
 
 [dev-packages]
 

@@ -15,16 +15,10 @@ from app.db.models import YnabServerKnowledge
 from app.enums import FilterTypes, PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions, TopXOptions, \
     TransactionTypeOptions
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(filename)s %(asctime)s %(message)s",
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
 
 load_dotenv()
 dotenv_db_url = os.getenv("DB_URL")
+dotenv_logging_level = os.getenv("LOGGING_LEVEL", "INFO")
 dotenv_token = os.getenv("ENV_TOKEN")
 raw_hosts = os.getenv("ENV_HOSTS")
 raw_origins = os.getenv("ENV_ORIGINS")
@@ -34,8 +28,6 @@ dotenv_hosts = raw_hosts if raw_hosts != 'None' else ["*"]
 dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
 dotenv_referer = raw_referer if raw_referer != 'None' else ["*"]
 dotenv_docs = raw_docs if raw_docs != 'None' else None
-
-logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -85,6 +77,7 @@ async def get_token_header(request: Request, x_token: str = Header(...)):
         raise HTTPException(status_code=403)
 
 logging.debug(f"{dotenv_docs}")
+logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
@@ -191,6 +184,7 @@ async def categories_spent(year: SpecificYearOptions = None, months: PeriodMonth
 
 @app.get("/ynab/earned-vs-spent")
 async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    logging.debug("test")
     return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/spent-vs-budget")

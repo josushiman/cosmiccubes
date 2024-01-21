@@ -1,12 +1,4 @@
 import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(filename)s %(asctime)s %(message)s",
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-
 from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
@@ -16,6 +8,8 @@ from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
     CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
     ProjectItemCategories_Pydantic, YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
+
+logger = logging.getLogger("app")
 
 class ReactAdmin():
     @classmethod

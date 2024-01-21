@@ -1,0 +1,54 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+    simple:
+        (): colorlog.ColoredFormatter
+        format: '%(log_color)s[%(levelname)s] [%(name)s] %(filename)s %(asctime)s %(message)s'
+        datefmt: '%Y-%m-%d %H:%M:%S'
+        reset: true
+        log_colors:
+            DEBUG: 'blue'
+            INFO: 'green'
+            WARNING: 'yellow'
+            ERROR: 'red'
+            CRITICAL: 'red,bg_white'
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: simple
+        stream: ext://sys.stdout
+loggers:
+    httpx:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
+    uvicorn:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
+    httpcore:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
+    gunicorn:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
+    tortoise:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
+    watchfiles:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
+root:
+    level: INFO
+    handlers: [console]
