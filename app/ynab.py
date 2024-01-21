@@ -327,6 +327,10 @@ class YNAB():
         logging.debug(f'Returned {len(pydantic_transactions_list.data.transactions)} transactions.')
         skipped_transactions = 0
         for transaction in pydantic_transactions_list.data.transactions:
+            # Skip all inflow values.
+            if transaction.category_name == 'Inflow: Ready to Assign':
+                skipped_transactions += 1
+                continue
             try:
                 if filter_type.value == 'account':
                     # don't include transfers/payments
@@ -952,7 +956,10 @@ class YNAB():
             }
             # Short term: go through each transaction and add them to the month if the year and month match.
             # TODO long term: make DB queries to add transactions from those months/year
+            # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
             for transaction in pydantic_transactions_list.data.transactions:
+                # Skip all inflow values.
+                if transaction.category_name == 'Inflow: Ready to Assign': continue
                 transaction_date = datetime.strptime(transaction.date, '%Y-%m-%d')
                 if transaction_date.strftime("%Y-%m") == month_year_match:
                     if transaction.amount > 0:
