@@ -974,3 +974,30 @@ class YNAB():
             'since_date': since_date,
             'data': result_json
         }
+
+class YnabHelpers():
+    @classmethod
+    async def convert_to_float():
+        return
+    
+    @classmethod
+    async def get_date_for_transactions():
+        return
+
+    @classmethod
+    async def make_request():
+        return
+
+class YnabServerKnowledge():
+    @classmethod
+    async def check_if_exists():
+        return
+
+    @classmethod
+    async def create_new():
+        return
+    
+    @classmethod
+    async def update_existing():
+        return
+    

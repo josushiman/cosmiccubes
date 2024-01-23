@@ -15,7 +15,6 @@ from app.db.models import YnabServerKnowledge
 from app.enums import FilterTypes, PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions, TopXOptions, \
     TransactionTypeOptions
 
-
 load_dotenv()
 dotenv_db_url = os.getenv("DB_URL")
 dotenv_logging_level = os.getenv("LOGGING_LEVEL", "INFO")
