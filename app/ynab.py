@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
-from app.ynab_models import AccountsResponse, CategoriesResponse, PayeesResponse, TransactionsResponse
+from app.ynab_models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
+    TransactionsResponse
 from fastapi import HTTPException
 from app.enums import TransactionTypeOptions, FilterTypes
 

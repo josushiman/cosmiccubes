@@ -13,7 +13,8 @@ logging.info("Initialising Models")
 Tortoise.init_models(["app.db.models"], "models")
 
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
-    Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabServerKnowledge, YnabTransactions
+    Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, \
+    YnabServerKnowledge, YnabTransactions
 
 Accounts_Pydantic = pydantic_model_creator(Accounts, name="Accounts")
 AccountTypes_Pydantic = pydantic_model_creator(AccountTypes, name="AccountTypes", exclude="accounts")
@@ -27,5 +28,9 @@ Mortgages_Pydantic = pydantic_model_creator(Mortgages, name="Mortgages")
 Projects_Pydantic = pydantic_model_creator(Projects, name="Projects")
 ProjectItems_Pydantic = pydantic_model_creator(ProjectItems, name="ProjectItems")
 ProjectItemCategories_Pydantic = pydantic_model_creator(ProjectItemCategories, name="ProjectItemCategories")
+YnabAccounts_Pydantic = pydantic_model_creator(YnabAccounts, name="YnabAccounts")
+YnabCategories_Pydantic = pydantic_model_creator(YnabCategories, name="YnabCategories")
+YnabMonthSummaries_Pydantic = pydantic_model_creator(YnabMonthSummaries, name="YnabMonthSummaries")
+YnabPayees_Pydantic = pydantic_model_creator(YnabPayees, name="YnabPayees")
 YnabServerKnowledge_Pydantic = pydantic_model_creator(YnabServerKnowledge, name="YnabServerKnowledge")
 YnabTransactions_Pydantic = pydantic_model_creator(YnabTransactions, name="YnabTransactions")

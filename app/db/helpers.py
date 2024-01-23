@@ -4,10 +4,12 @@ from tortoise.exceptions import IntegrityError, OperationalError, FieldError, Va
 from fastapi import HTTPException
 from uuid import UUID
 from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
-    Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabServerKnowledge, YnabTransactions
+    Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, \
+    YnabServerKnowledge, YnabTransactions
 from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
     CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
-    ProjectItemCategories_Pydantic, YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
+    ProjectItemCategories_Pydantic, YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
+    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
 
 logger = logging.getLogger("app")
 
@@ -27,6 +29,10 @@ class ReactAdmin():
             "projects": Projects,
             "project-item-categories": ProjectItemCategories,
             "project-items": ProjectItems,
+            "ynab-accounts": YnabAccounts,
+            "ynab-categories": YnabCategories,
+            "ynab-month-summaries": YnabMonthSummaries,
+            "ynab-payees": YnabPayees,
             "ynab-server-knowledge": YnabServerKnowledge,
             "ynab-transaction": YnabTransactions
         }
@@ -52,6 +58,10 @@ class ReactAdmin():
             "projects": Projects_Pydantic,
             "project-item-categories": ProjectItemCategories_Pydantic,
             "project-items": ProjectItems_Pydantic,
+            "ynab-accounts": YnabAccounts_Pydantic,
+            "ynab-categories": YnabCategories_Pydantic,
+            "ynab-month-summaries": YnabMonthSummaries_Pydantic,
+            "ynab-payees": YnabPayees_Pydantic,
             "ynab-server-knowledge": YnabServerKnowledge_Pydantic,
             "ynab-transaction": YnabTransactions_Pydantic
         }

@@ -172,15 +172,15 @@ class Payee(BaseModel):
         description='Whether or not the payee has been deleted.  Deleted payees will only be included in delta requests.',
     )
 
-# class PayeeLocation(BaseModel):
-#     id: UUID
-#     payee_id: UUID
-#     latitude: str
-#     longitude: str
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the payee location has been deleted.  Deleted payee locations will only be included in delta requests.',
-#     )
+class PayeeLocation(BaseModel):
+    id: UUID
+    payee_id: UUID
+    latitude: str
+    longitude: str
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the payee location has been deleted.  Deleted payee locations will only be included in delta requests.',
+    )
 
 class DebtTransactionTypeEnum(Enum):
     payment = 'payment'
@@ -192,9 +192,9 @@ class DebtTransactionTypeEnum(Enum):
     credit = 'credit'
     charge = 'charge'
 
-# class Type(Enum):
-#     transaction = 'transaction'
-#     subtransaction = 'subtransaction'
+class Type(Enum):
+    transaction = 'transaction'
+    subtransaction = 'subtransaction'
 
 class SubTransaction(BaseModel):
     id: str
@@ -253,34 +253,34 @@ class ScheduledSubTransaction(BaseModel):
         description='Whether or not the scheduled subtransaction has been deleted. Deleted scheduled subtransactions will only be included in delta requests.',
     )
 
-# class MonthSummary(BaseModel):
-#     month: str
-#     note: Optional[str] = None
-#     income: int = Field(
-#         ...,
-#         description="The total amount of transactions categorized to 'Inflow: Ready to Assign' in the month",
-#     )
-#     budgeted: int = Field(..., description='The total amount budgeted in the month')
-#     activity: int = Field(
-#         ...,
-#         description="The total amount of transactions in the month, excluding those categorized to 'Inflow: Ready to Assign'",
-#     )
-#     to_be_budgeted: int = Field(
-#         ..., description="The available amount for 'Ready to Assign'"
-#     )
-#     age_of_money: Optional[int] = Field(
-#         None, description='The Age of Money as of the month'
-#     )
-#     deleted: bool = Field(
-#         ...,
-#         description='Whether or not the month has been deleted.  Deleted months will only be included in delta requests.',
-#     )
+class MonthSummary(BaseModel):
+    month: str
+    note: Optional[str] = None
+    income: int = Field(
+        ...,
+        description="The total amount of transactions categorized to 'Inflow: Ready to Assign' in the month",
+    )
+    budgeted: int = Field(..., description='The total amount budgeted in the month')
+    activity: int = Field(
+        ...,
+        description="The total amount of transactions in the month, excluding those categorized to 'Inflow: Ready to Assign'",
+    )
+    to_be_budgeted: int = Field(
+        ..., description="The available amount for 'Ready to Assign'"
+    )
+    age_of_money: Optional[int] = Field(
+        None, description='The Age of Money as of the month'
+    )
+    deleted: bool = Field(
+        ...,
+        description='Whether or not the month has been deleted.  Deleted months will only be included in delta requests.',
+    )
 
-# class MonthDetail(MonthSummary):
-#     categories: List[Category] = Field(
-#         ...,
-#         description='The budget month categories.  Amounts (budgeted, activity, balance, etc.) are specific to the {month} parameter specified.',
-#     )
+class MonthDetail(MonthSummary):
+    categories: List[Category] = Field(
+        ...,
+        description='The budget month categories.  Amounts (budgeted, activity, balance, etc.) are specific to the {month} parameter specified.',
+    )
 
 class TransactionFlagColorEnum(Enum):
     red = 'red'
@@ -295,11 +295,11 @@ class TransactionClearedStatus(Enum):
     uncleared = 'uncleared'
     reconciled = 'reconciled'
 
-# class Data7(BaseModel):
-#     category: Category
+class Data7(BaseModel):
+    category: Category
 
-# class CategoryResponse(BaseModel):
-#     data: Data7
+class CategoryResponse(BaseModel):
+    data: Data7
 
 
 class Data9(BaseModel):
@@ -309,11 +309,11 @@ class Data9(BaseModel):
 class PayeesResponse(BaseModel):
     data: Data9
 
-# class Data10(BaseModel):
-#     payee: Payee
+class Data10(BaseModel):
+    payee: Payee
 
-# class PayeeResponse(BaseModel):
-#     data: Data10
+class PayeeResponse(BaseModel):
+    data: Data10
 
 class TransactionSummary(BaseModel):
     id: str
@@ -372,21 +372,21 @@ class TransactionDetail(TransactionSummary):
         ..., description='If a split transaction, the subtransactions.'
     )
 
-# class HybridTransaction(TransactionSummary):
-#     type: Type = Field(
-#         ...,
-#         description='Whether the hybrid transaction represents a regular transaction or a subtransaction',
-#     )
-#     parent_transaction_id: Optional[str] = Field(
-#         None,
-#         description='For subtransaction types, this is the id of the parent transaction.  For transaction types, this id will be always be null.',
-#     )
-#     account_name: str
-#     payee_name: Optional[str] = None
-#     category_name: Optional[str] = Field(
-#         None,
-#         description="The name of the category.  If a split transaction, this will be 'Split'.",
-#     )
+class HybridTransaction(TransactionSummary):
+    type: Type = Field(
+        ...,
+        description='Whether the hybrid transaction represents a regular transaction or a subtransaction',
+    )
+    parent_transaction_id: Optional[str] = Field(
+        None,
+        description='For subtransaction types, this is the id of the parent transaction.  For transaction types, this id will be always be null.',
+    )
+    account_name: str
+    payee_name: Optional[str] = None
+    category_name: Optional[str] = Field(
+        None,
+        description="The name of the category.  If a split transaction, this will be 'Split'.",
+    )
 
 class ScheduledTransactionSummary(BaseModel):
     id: UUID
@@ -427,46 +427,46 @@ class ScheduledTransactionDetail(ScheduledTransactionSummary):
         ..., description='If a split scheduled transaction, the subtransactions.'
     )
 
-# class Data21(BaseModel):
-#     months: List[MonthSummary]
-#     server_knowledge: int = Field(..., description='The knowledge of the server')
+class Data21(BaseModel):
+    months: List[MonthSummary]
+    server_knowledge: int = Field(..., description='The knowledge of the server')
 
-# class MonthSummariesResponse(BaseModel):
-#     data: Data21
+class MonthSummariesResponse(BaseModel):
+    data: Data21
 
-# class Data22(BaseModel):
-#     month: MonthDetail
+class Data22(BaseModel):
+    month: MonthDetail
 
-# class MonthDetailResponse(BaseModel):
-#     data: Data22
+class MonthDetailResponse(BaseModel):
+    data: Data22
 
-# class BudgetSummary(BaseModel):
-#     id: UUID
-#     name: str
-#     last_modified_on: Optional[str] = Field(
-#         None,
-#         description='The last time any changes were made to the budget from either a web or mobile client',
-#     )
-#     first_month: Optional[str] = Field(None, description='The earliest budget month')
-#     last_month: Optional[str] = Field(None, description='The latest budget month')
-#     date_format: Optional[str] = None
-#     currency_format: Optional[CurrencyFormat] = None
-#     accounts: Optional[List[Account]] = Field(
-#         None,
-#         description='The budget accounts (only included if `include_accounts=true` specified as query parameter)',
-#     )
+class BudgetSummary(BaseModel):
+    id: UUID
+    name: str
+    last_modified_on: Optional[str] = Field(
+        None,
+        description='The last time any changes were made to the budget from either a web or mobile client',
+    )
+    first_month: Optional[str] = Field(None, description='The earliest budget month')
+    last_month: Optional[str] = Field(None, description='The latest budget month')
+    date_format: Optional[str] = None
+    currency_format: Optional[CurrencyFormat] = None
+    accounts: Optional[List[Account]] = Field(
+        None,
+        description='The budget accounts (only included if `include_accounts=true` specified as query parameter)',
+    )
 
-# class BudgetDetail(BudgetSummary):
-#     accounts: Optional[List[Account]] = None
-#     payees: Optional[List[Payee]] = None
-#     payee_locations: Optional[List[PayeeLocation]] = None
-#     category_groups: Optional[List[CategoryGroup]] = None
-#     categories: Optional[List[Category]] = None
-#     months: Optional[List[MonthDetail]] = None
-#     transactions: Optional[List[TransactionSummary]] = None
-#     subtransactions: Optional[List[SubTransaction]] = None
-#     scheduled_transactions: Optional[List[ScheduledTransactionSummary]] = None
-#     scheduled_subtransactions: Optional[List[ScheduledSubTransaction]] = None
+class BudgetDetail(BudgetSummary):
+    accounts: Optional[List[Account]] = None
+    payees: Optional[List[Payee]] = None
+    payee_locations: Optional[List[PayeeLocation]] = None
+    category_groups: Optional[List[CategoryGroup]] = None
+    categories: Optional[List[Category]] = None
+    months: Optional[List[MonthDetail]] = None
+    transactions: Optional[List[TransactionSummary]] = None
+    subtransactions: Optional[List[SubTransaction]] = None
+    scheduled_transactions: Optional[List[ScheduledTransactionSummary]] = None
+    scheduled_subtransactions: Optional[List[ScheduledSubTransaction]] = None
 
 class Data13(BaseModel):
     transactions: List[TransactionDetail]
@@ -475,11 +475,11 @@ class Data13(BaseModel):
 class TransactionsResponse(BaseModel):
     data: Data13
 
-# class Data16(BaseModel):
-#     transaction: TransactionDetail
+class Data16(BaseModel):
+    transaction: TransactionDetail
 
-# class TransactionResponse(BaseModel):
-#     data: Data16
+class TransactionResponse(BaseModel):
+    data: Data16
 
 class Data19(BaseModel):
     scheduled_transactions: List[ScheduledTransactionDetail]
@@ -488,18 +488,18 @@ class Data19(BaseModel):
 class ScheduledTransactionsResponse(BaseModel):
     data: Data19
 
-# class Data20(BaseModel):
-#     scheduled_transaction: ScheduledTransactionDetail
+class Data20(BaseModel):
+    scheduled_transaction: ScheduledTransactionDetail
 
-# class ScheduledTransactionResponse(BaseModel):
-#     data: Data20
+class ScheduledTransactionResponse(BaseModel):
+    data: Data20
 
-# class Data1(BaseModel):
-#     budgets: List[BudgetSummary]
-#     default_budget: Optional[BudgetSummary] = None
+class Data1(BaseModel):
+    budgets: List[BudgetSummary]
+    default_budget: Optional[BudgetSummary] = None
 
-# class BudgetSummaryResponse(BaseModel):
-#     data: Data1
+class BudgetSummaryResponse(BaseModel):
+    data: Data1
 
 class Data4(BaseModel):
     accounts: List[Account]
