@@ -146,6 +146,7 @@ class YnabServerKnowledge(models.Model):
     budget_id = fields.UUIDField()
     route = fields.CharField(max_length=250, unique=True)
     server_knowledge = fields.IntField()
+    last_updated = fields.DatetimeField(auto_now=True)
 
     class PydanticMeta:
         unique_together=("budget_id", "route")

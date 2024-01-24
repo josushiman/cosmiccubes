@@ -9,7 +9,7 @@ from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPExce
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.db.helpers import ReactAdmin as ra
-from app.ynab import YNAB as ynab
+from app.ynab import YNAB as ynab, YnabHelpers as ynah_help
 from app.ynab_models import TransactionsResponse
 from app.db.models import YnabServerKnowledge
 from app.enums import FilterTypes, PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions, TopXOptions, \
@@ -80,7 +80,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -250,10 +250,10 @@ async def get_latest_transactions():
 
     if db_entity:
         server_knowledge = db_entity.server_knowledge        
-        transaction_list = await ynab.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580", param_2=server_knowledge)
+        transaction_list = await ynah_help.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580", param_2=server_knowledge)
     else:
         server_knowledge = None
-        transaction_list = await ynab.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580")
+        transaction_list = await ynah_help.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580")
 
     pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
     if server_knowledge == pydantic_transactions_list.data.server_knowledge or len(pydantic_transactions_list.data.transactions) == 0:

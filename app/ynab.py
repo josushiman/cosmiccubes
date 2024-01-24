@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
+from fastapi import HTTPException
 from app.ynab_models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse
-from fastapi import HTTPException
+from app.db.models import YnabServerKnowledge
 from app.enums import TransactionTypeOptions, FilterTypes
 
 load_dotenv()
@@ -22,151 +23,8 @@ class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
 
     @classmethod
-    async def convert_to_float(cls, amount):
-        # Amount comes in as a milliunit e.g. 21983290
-        # It needs to be returned as 21983.29
-        return amount / 1000
-
-    @classmethod
-    async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None):
-        if year and not specific_month:
-            logging.debug("Getting transactions for the current year.")
-            return f'{year.value}-01-01'
-        
-        if months:
-            logging.debug(f"Getting transactions for the last {months.value} months.")
-            current_month = datetime.today() - DateOffset(months=months)
-            return current_month.strftime('%Y-%m') + '-01'
-        
-        if specific_month and year:
-            logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
-            return f'{year.value}-{specific_month.value}-01'
-        
-        if specific_month:
-            current_year = datetime.today().strftime('%Y')
-            logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
-            return f'{current_year}-{specific_month.value}-01'
-        
-        logging.debug("Getting transactions for this month only.")
-        return datetime.today().strftime('%Y-%m') + '-01'
-
-    @classmethod
-    async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
-        '''
-        Get the route of the YNAB endpoint you want to call. Passed as a string, returned as a string.
-        action = a friendly string of the action needed to be made
-        param_1 = budget_id
-        param_2 = the section your are calling id (e.g. account_id, or category_id)
-        since_date = used for the transactions-list route to get transactions since a specific date. provided in ISO format (e.g. 2016-12-01)
-        month = only used when getting categories for a single month. provided in ISO format (e.g. 2016-12-01)
-
-        Source: https://api.ynab.com/v1
-        Rate limit: 200 requests per hour
-        '''
-        match action:
-            case 'accounts-list':
-                # Returns all accounts
-                return f'/budgets/{param_1}/accounts'
-            
-            case 'accounts-single':
-                # Returns a single account
-                return f'/budgets/{param_1}/accounts/{param_2}'
-            
-            case 'budgets-list':
-                # Returns budgets list with summary information
-                return '/budgets'
-            
-            case 'budgets-single':
-                # Returns a single budget with all related entities. This resource is effectively a full budget export.
-                return f'/budgets/{param_1}'
-            
-            case 'categories-list':
-                # Returns all categories grouped by category group. 
-                # Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).
-                return f'/budgets/{param_1}/categories'
-            
-            case 'categories-single':
-                # Returns a single category. Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).
-                return f'/budgets/{param_1}/categories/{param_2}'
-            
-            case 'categories-single-month':
-                # Returns a single category for a specific budget month. 
-                # Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).
-                # month -> The budget month in ISO format (e.g. 2016-12-01)
-                return f'/budgets/{param_1}/months/{month}/categories/{param_2}'
-            
-            case 'months-list':
-                # Returns all budget months
-                return f'/budgets/{param_1}/months'
-            
-            case 'months-single':
-                # Returns all budget months
-                return f'/budgets/{param_1}/months/{month}'
-            
-            case 'payees-list':
-                # Returns all payees/merchants
-                return f'/budgets/{param_1}/payees'
-            
-            case 'schedule-transactions-list':
-                # Returns all scheduled transactions
-                return f'/budgets/{param_1}/scheduled_transactions'
-            
-            case 'schedule-transactions-single':
-                # Returns a single scheduled transaction
-                return f'/budgets/{param_1}/scheduled_transactions/{param_2}'
-            
-            case 'transactions-list':
-                # Returns budget transactions
-                if param_2: return f'/budgets/{param_1}/transactions?server_knowledge={param_2}'
-                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
-                if not since_date: return f'/budgets/{param_1}/transactions'
-                return f'/budgets/{param_1}/transactions?since_date={since_date}'
-            
-            case 'transactions-single':
-                # Returns a single transaction
-                return f'/budgets/{param_1}/transactions/{param_2}'
-            
-            case 'transactions-list-account':
-                # Returns all transactions for a specified account
-                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
-                if not since_date: return f'/budgets/{param_1}/accounts/{param_2}/transactions'
-                return f'/budgets/{param_1}/accounts/{param_2}/transactions?since_date={since_date}'
-            
-            case 'transactions-list-category':
-                # Returns all transactions for a specified category
-                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
-                if not since_date: return f'/budgets/{param_1}/categories/{param_2}/transactions'
-                return f'/budgets/{param_1}/categories/{param_2}/transactions?since_date={since_date}'
-            
-            case 'transactions-list-payee':
-                # Returns all transactions for a specified payee
-                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
-                if not since_date: return f'/budgets/{param_1}/payees/{param_2}/transactions'
-                return f'/budgets/{param_1}/payees/{param_2}/transactions?since_date={since_date}'
-            
-            case _:
-                return '/user'
-    
-    # TODO only use this if i don't have the transaction stored on the pi.
-    @classmethod
-    @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
-    async def make_request(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None):
-        ynab_route = await cls.get_route(action, param_1, param_2, since_date, month)
-        ynab_url = dotenv_ynab_url + ynab_route
-
-        logging.debug(f'Attempting to call YNAB with {ynab_url}')
-
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(ynab_url, headers={'Authorization': f"Bearer {dotenv_ynab_token}"})
-                return response.json()
-            except httpx.HTTPError as exc:
-                logging.debug(exc)
-                raise HTTPException(status_code=500)
-
-    @classmethod
     async def available_balance(cls):
-        account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
+        account_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
         total_amount = 0.00
@@ -186,9 +44,9 @@ class YNAB():
             ''')
 
         # Units are returned as milliunits.
-        available_amount = await cls.convert_to_float(total_amount -- spent_amount)
-        total_amount = await cls.convert_to_float(total_amount)
-        spent_amount = await cls.convert_to_float(spent_amount)
+        available_amount = await YnabHelpers.convert_to_float(total_amount -- spent_amount)
+        total_amount = await YnabHelpers.convert_to_float(total_amount)
+        spent_amount = await YnabHelpers.convert_to_float(spent_amount)
 
         return {
             "total": total_amount,
@@ -198,7 +56,7 @@ class YNAB():
     
     @classmethod
     async def card_balances(cls):
-        account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
+        account_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
         pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
 
 
@@ -211,9 +69,9 @@ class YNAB():
             
             result_json["data"].append({
                 "name": account.name,
-                "balance": await cls.convert_to_float(account.balance),
-                "cleared": await cls.convert_to_float(account.cleared_balance),
-                "uncleared": await cls.convert_to_float(account.uncleared_balance),
+                "balance": await YnabHelpers.convert_to_float(account.balance),
+                "cleared": await YnabHelpers.convert_to_float(account.cleared_balance),
+                "uncleared": await YnabHelpers.convert_to_float(account.uncleared_balance),
             })
 
             logging.debug(f'''
@@ -229,7 +87,7 @@ class YNAB():
     async def last_x_transactions(cls, count: int, since_date: str = None):
         # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
         # TODO Replace this a call out to the YNAB Transacitons in the DB instead.
-        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id)
+        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
         transaction_data = pydantic_transactions_list.data.transactions
 
@@ -241,7 +99,7 @@ class YNAB():
             if index == count: break
             result_json.append({
                 'payee': transaction.payee_name,
-                'amount': await cls.convert_to_float(transaction.amount),
+                'amount': await YnabHelpers.convert_to_float(transaction.amount),
                 'date': transaction.date,
                 'subcategory': transaction.category_name
             })
@@ -264,6 +122,7 @@ class YNAB():
         )
         
         total_spent = 0.0
+        logging.debug(transactions)
 
         for account in transactions['data']:
             total_spent += account['total']
@@ -281,8 +140,9 @@ class YNAB():
         match filter_type.value:
             case 'account':
                 logging.debug("Getting accounts list.")
-                account_list = await cls.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
+                account_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = AccountsResponse.model_validate_json(json.dumps(account_list))
+                logging.debug(f"Returned {len(pydantic_categories_list.data.accounts)} accounts.")
                 for account in pydantic_categories_list.data.accounts:
                     entities_raw[f'{account.id}'] = {
                         'id': account.id,
@@ -291,7 +151,7 @@ class YNAB():
                     }
             case 'payee':
                 logging.debug("Getting payees list.")
-                payee_list = await cls.make_request('payees-list', param_1=dotenv_ynab_budget_id)
+                payee_list = await YnabHelpers.make_request('payees-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = PayeesResponse.model_validate_json(json.dumps(payee_list))
                 for payee in pydantic_categories_list.data.payees:
                     entities_raw[f'{payee.id}'] = {
@@ -303,7 +163,7 @@ class YNAB():
                 if filter_type.value != 'category':
                     logging.warn(f"Somehow filter_type was set to something that I can't handle. {filter_type.value}")
                 logging.debug("Getting categories list.")
-                category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+                category_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
                 pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
                 logging.debug(f'Returned {len(pydantic_categories_list.data.category_groups)} category groups.')
                 for category_group in pydantic_categories_list.data.category_groups:
@@ -317,19 +177,20 @@ class YNAB():
                             'total': 0
                         }
         
-        since_date = await cls.get_date_for_transactions(year, months, specific_month)
+        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
         result_json = {
             'since_date': since_date,
             'data': []
         }
 
-        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
         logging.debug(f'Returned {len(pydantic_transactions_list.data.transactions)} transactions.')
         skipped_transactions = 0
         for transaction in pydantic_transactions_list.data.transactions:
             # Skip all inflow values.
             if transaction.category_name == 'Inflow: Ready to Assign':
+                logging.debug("Skipped inflow transaction.")
                 skipped_transactions += 1
                 continue
             try:
@@ -337,6 +198,8 @@ class YNAB():
                     # don't include transfers/payments
                     if transaction_type.value == 'income' and transaction.amount <= 0 or \
                     transaction_type.value == 'expenses' and transaction.amount >= 0:
+                        logging.debug(f"Skipped transaction which may have been a transfer or payment to another account. Transaction Type being filtered: {transaction_type.value}")
+                        logging.debug(f"Transaction amount: {transaction.amount}")
                         skipped_transactions += 1
                         continue
                     entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
@@ -345,7 +208,7 @@ class YNAB():
                 else:
                     entities_raw[f'{transaction.payee_id}']['total'] += transaction.amount
             except KeyError:
-                logging.debug(f"Issue with trying to assign transaction amount to uncategorised transaction. {transaction.account_name} - {transaction.payee_name}")
+                logging.warning(f"Issue with trying to assign transaction amount to uncategorised transaction. {transaction.account_name} - {transaction.payee_name}")
                 skipped_transactions += 1
                 continue
         
@@ -358,7 +221,7 @@ class YNAB():
             else:
                 if value['total'] >= 0: continue
             
-            value['total'] = await cls.convert_to_float(value['total'])
+            value['total'] = await YnabHelpers.convert_to_float(value['total'])
             all_results.append(value)
 
         if transaction_type.value == 'income':
@@ -470,7 +333,7 @@ class YNAB():
             ]
         }
 
-        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
@@ -496,15 +359,15 @@ class YNAB():
             transaction_month = transaction.date.split('-')[1]
 
             if transaction.amount > 0:
-                month_match[transaction_month]['total_earned'] += await cls.convert_to_float(transaction.amount)
+                month_match[transaction_month]['total_earned'] += await YnabHelpers.convert_to_float(transaction.amount)
             else:
-                month_match[transaction_month]['total_spent'] += await cls.convert_to_float(transaction.amount)
+                month_match[transaction_month]['total_spent'] += await YnabHelpers.convert_to_float(transaction.amount)
             
         return result_json
 
     @classmethod
     async def transactions_by_months(cls, months: IntEnum = None):
-        since_date = await cls.get_date_for_transactions(year=None, months=months, specific_month=None)
+        since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
         now = localtime()
         # Returns a tuple of year, month. e.g. [(2024, 1), (2023, 12), (2023, 11)]
         months_to_get = [localtime(mktime((now.tm_year, now.tm_mon - n, 1, 0, 0, 0, 0, 0, 0)))[:2] for n in range(months.value)]
@@ -623,7 +486,7 @@ class YNAB():
             add_month['year'] = str(year)
             month_list.insert(index, add_month)
 
-        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
@@ -639,17 +502,17 @@ class YNAB():
             transaction_month = str(transaction_date.month)
 
             if transaction.amount > 0:
-                month_match[transaction_month]['total_earned'] += await cls.convert_to_float(transaction.amount)
+                month_match[transaction_month]['total_earned'] += await YnabHelpers.convert_to_float(transaction.amount)
             else:
-                month_match[transaction_month]['total_spent'] += await cls.convert_to_float(transaction.amount)
+                month_match[transaction_month]['total_spent'] += await YnabHelpers.convert_to_float(transaction.amount)
             
         return result_json
     
     @classmethod
     async def last_paid_date_for_accounts(cls, months: IntEnum):
         # Look over the last month. If no payment, assume the bill has not been paid yet.
-        since_date = await cls.get_date_for_transactions(year=None, months=months, specific_month=None)
-        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
+        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
 
@@ -685,7 +548,7 @@ class YNAB():
 
             account_match[transaction.account_name]['id'] = transaction.id
             account_match[transaction.account_name]['date'] = transaction.date
-            account_match[transaction.account_name]['amount'] = await cls.convert_to_float(transaction.amount)
+            account_match[transaction.account_name]['amount'] = await YnabHelpers.convert_to_float(transaction.amount)
 
         result_json = {
             'since_date': since_date,
@@ -700,7 +563,7 @@ class YNAB():
         match period.value:
             case 'TODAY':
                 current_date = datetime.today().strftime('%Y-%m-%d')
-                transaction_list = await cls.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                transaction_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
                 pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
                 
                 total_spent = 0.0
@@ -709,12 +572,12 @@ class YNAB():
                     total_spent += transaction.amount
                 
                 return {
-                    "spent": await cls.convert_to_float(total_spent)
+                    "spent": await YnabHelpers.convert_to_float(total_spent)
                 }
             case 'YESTERDAY':
                 current_date = datetime.today() - DateOffset(days=1)
                 current_date = current_date.strftime('%Y-%m-%d')
-                transaction_list = await cls.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                transaction_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
                 pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
                 
                 total_spent = 0.0
@@ -723,14 +586,14 @@ class YNAB():
                     total_spent += transaction.amount
                 
                 return {
-                    "spent": await cls.convert_to_float(total_spent)
+                    "spent": await YnabHelpers.convert_to_float(total_spent)
                 }
             case 'THIS_WEEK':
                 current_date = datetime.today()
                 days_to_monday =  current_date.weekday() - 0
                 current_date = datetime.today() - DateOffset(days=days_to_monday)
                 current_date = current_date.strftime('%Y-%m-%d')
-                transaction_list = await cls.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                transaction_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
                 pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
                 
                 total_spent = 0.0
@@ -739,7 +602,7 @@ class YNAB():
                     total_spent += transaction.amount
                 
                 return {
-                    "spent": await cls.convert_to_float(total_spent)
+                    "spent": await YnabHelpers.convert_to_float(total_spent)
                 }
             case 'LAST_WEEK':
                 # TODO
@@ -749,7 +612,7 @@ class YNAB():
 
     @classmethod
     async def spent_vs_budget(cls):
-        category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+        category_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
         pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
 
         total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
@@ -779,9 +642,9 @@ class YNAB():
         total_goal = min((-total_spent / total_budgeted) * 100, 100)
 
         return {
-            'balance': await cls.convert_to_float(total_balance),
-            'budget': await cls.convert_to_float(total_budgeted),
-            'spent': await cls.convert_to_float(-total_spent),
+            'balance': await YnabHelpers.convert_to_float(total_balance),
+            'budget': await YnabHelpers.convert_to_float(total_budgeted),
+            'spent': await YnabHelpers.convert_to_float(-total_spent),
             'progress': total_goal
         }
 
@@ -820,7 +683,7 @@ class YNAB():
     @classmethod
     async def get_category_summary(cls):
         current_date = datetime.today().strftime('%Y-%m') + '-01'
-        category_list = await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+        category_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
         pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
 
         result_json = []
@@ -837,8 +700,8 @@ class YNAB():
 
             result_json.append({
                 'name': category_group.name,
-                'spent': await cls.convert_to_float(total_spent),
-                'budget': await cls.convert_to_float(total_budgeted),
+                'spent': await YnabHelpers.convert_to_float(total_spent),
+                'budget': await YnabHelpers.convert_to_float(total_budgeted),
                 'progress': (total_spent / total_budgeted) * 100,
             })
         
@@ -937,8 +800,8 @@ class YNAB():
 
     @classmethod
     async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
-        since_date = await cls.get_date_for_transactions(year, months, specific_month)
-        transaction_list = await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
+        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
         pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
 
         # From the since date, go through each month and add it to the data
@@ -964,9 +827,9 @@ class YNAB():
                 transaction_date = datetime.strptime(transaction.date, '%Y-%m-%d')
                 if transaction_date.strftime("%Y-%m") == month_year_match:
                     if transaction.amount > 0:
-                        month_year['income'] += await cls.convert_to_float(transaction.amount)
+                        month_year['income'] += await YnabHelpers.convert_to_float(transaction.amount)
                     else:
-                        month_year['expenses'] += await cls.convert_to_float(-transaction.amount)
+                        month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
             
             result_json.append(month_year)
 
@@ -977,27 +840,177 @@ class YNAB():
 
 class YnabHelpers():
     @classmethod
-    async def convert_to_float():
+    async def convert_to_float(cls, amount) -> float:
+        # Amount comes in as a milliunit e.g. 21983290
+        # It needs to be returned as 21983.29
+        return amount / 1000
+    
+    @classmethod
+    async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None) -> str:
+        if year and not specific_month:
+            logging.debug("Getting transactions for the current year.")
+            return f'{year.value}-01-01'
+        
+        if months:
+            logging.debug(f"Getting transactions for the last {months.value} months.")
+            current_month = datetime.today() - DateOffset(months=months)
+            return current_month.strftime('%Y-%m') + '-01'
+        
+        if specific_month and year:
+            logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
+            return f'{year.value}-{specific_month.value}-01'
+        
+        if specific_month:
+            current_year = datetime.today().strftime('%Y')
+            logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
+            return f'{current_year}-{specific_month.value}-01'
+        
+        logging.debug("Getting transactions for this month only.")
+        return datetime.today().strftime('%Y-%m') + '-01'
+
+    @classmethod
+    async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
+        '''
+        Get the route of the YNAB endpoint you want to call. Passed as a string, returned as a string.
+        action = a friendly string of the action needed to be made
+        param_1 = budget_id
+        param_2 = the section your are calling id (e.g. account_id, or category_id)
+        since_date = used for the transactions-list route to get transactions since a specific date. provided in ISO format (e.g. 2016-12-01)
+        month = only used when getting categories for a single month. provided in ISO format (e.g. 2016-12-01)
+
+        Source: https://api.ynab.com/v1
+        Rate limit: 200 requests per hour
+        '''
+        match action:
+            case 'accounts-list':
+                # Returns all accounts
+                return f'/budgets/{param_1}/accounts'
+            
+            case 'accounts-single':
+                # Returns a single account
+                return f'/budgets/{param_1}/accounts/{param_2}'
+            
+            case 'budgets-list':
+                # Returns budgets list with summary information
+                return '/budgets'
+            
+            case 'budgets-single':
+                # Returns a single budget with all related entities. This resource is effectively a full budget export.
+                return f'/budgets/{param_1}'
+            
+            case 'categories-list':
+                # Returns all categories grouped by category group. 
+                # Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).
+                return f'/budgets/{param_1}/categories'
+            
+            case 'categories-single':
+                # Returns a single category. Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).
+                return f'/budgets/{param_1}/categories/{param_2}'
+            
+            case 'categories-single-month':
+                # Returns a single category for a specific budget month. 
+                # Amounts (budgeted, activity, balance, etc.) are specific to the current budget month (UTC).
+                # month -> The budget month in ISO format (e.g. 2016-12-01)
+                return f'/budgets/{param_1}/months/{month}/categories/{param_2}'
+            
+            case 'months-list':
+                # Returns all budget months
+                return f'/budgets/{param_1}/months'
+            
+            case 'months-single':
+                # Returns all budget months
+                return f'/budgets/{param_1}/months/{month}'
+            
+            case 'payees-list':
+                # Returns all payees/merchants
+                return f'/budgets/{param_1}/payees'
+            
+            case 'schedule-transactions-list':
+                # Returns all scheduled transactions
+                return f'/budgets/{param_1}/scheduled_transactions'
+            
+            case 'schedule-transactions-single':
+                # Returns a single scheduled transaction
+                return f'/budgets/{param_1}/scheduled_transactions/{param_2}'
+            
+            case 'transactions-list':
+                # Returns budget transactions
+                if param_2: return f'/budgets/{param_1}/transactions?server_knowledge={param_2}'
+                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
+                if not since_date: return f'/budgets/{param_1}/transactions'
+                return f'/budgets/{param_1}/transactions?since_date={since_date}'
+            
+            case 'transactions-single':
+                # Returns a single transaction
+                return f'/budgets/{param_1}/transactions/{param_2}'
+            
+            case 'transactions-list-account':
+                # Returns all transactions for a specified account
+                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
+                if not since_date: return f'/budgets/{param_1}/accounts/{param_2}/transactions'
+                return f'/budgets/{param_1}/accounts/{param_2}/transactions?since_date={since_date}'
+            
+            case 'transactions-list-category':
+                # Returns all transactions for a specified category
+                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
+                if not since_date: return f'/budgets/{param_1}/categories/{param_2}/transactions'
+                return f'/budgets/{param_1}/categories/{param_2}/transactions?since_date={since_date}'
+            
+            case 'transactions-list-payee':
+                # Returns all transactions for a specified payee
+                # since_date -> If specified, only transactions on or after this date will be included. (e.g. 2016-12-01)
+                if not since_date: return f'/budgets/{param_1}/payees/{param_2}/transactions'
+                return f'/budgets/{param_1}/payees/{param_2}/transactions?since_date={since_date}'
+            
+            case _:
+                return '/user'
+
+    # TODO only use this if i don't have the transaction stored on the pi.
+    @classmethod
+    @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
+    async def make_request(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None):
+        ynab_route = await cls.get_route(action, param_1, param_2, since_date, month)
+        ynab_url = dotenv_ynab_url + ynab_route
+
+        # Check if the route exists in YnabServerKnowledge
+        # If it does, check if the current date is todays date
+            # If it is, return the DB entries
+            # Otherwise, update the existing entries
+        # If it isn't, make the Ynab request, and finally save the new entries to the DB
+
+        logging.debug(f'Attempting to call YNAB with {ynab_url}')
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(ynab_url, headers={'Authorization': f"Bearer {dotenv_ynab_token}"})
+                return response.json()
+            except httpx.HTTPError as exc:
+                logging.debug(exc)
+                raise HTTPException(status_code=500)
+
+class YnabServerKnowledgeHelper():
+    @classmethod
+    async def check_if_exists(route_url: str) -> YnabServerKnowledge | None:
+        return await YnabServerKnowledge.get_or_none(route=route_url)
+
+    @classmethod
+    async def create_new_route_entities():
+        return
+
+    @classmethod
+    async def create_new_server_knowledge():
         return
     
     @classmethod
-    async def get_date_for_transactions():
-        return
-
+    async def current_date_check(date_to_check) -> bool:
+        current_date = datetime.today().strftime('%Y-%m-%d')
+        return current_date == date_to_check
+    
     @classmethod
-    async def make_request():
-        return
-
-class YnabServerKnowledge():
-    @classmethod
-    async def check_if_exists():
-        return
-
-    @classmethod
-    async def create_new():
+    async def update_existing_route_entities():
         return
     
     @classmethod
-    async def update_existing():
+    async def update_existing_server_knowledge():
         return
     
