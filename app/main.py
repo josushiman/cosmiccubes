@@ -1,6 +1,5 @@
 import os
 import logging
-import json
 from tortoise import Tortoise
 from dotenv import load_dotenv
 from typing import List
@@ -8,13 +7,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
-from datetime import datetime
 from app.db.helpers import ReactAdmin as ra
-from app.ynab import YNAB as ynab, YnabHelpers as ynab_help
-from app.ynab_models import TransactionsResponse
-from app.db.models import YnabServerKnowledge
 from app.enums import FilterTypes, PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions, TopXOptions, \
     TransactionTypeOptions
+from app.ynab.main import YNAB as ynab, YnabHelpers as ynab_help
 
 load_dotenv()
 dotenv_db_url = os.getenv("DB_URL")

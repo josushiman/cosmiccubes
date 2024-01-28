@@ -13,11 +13,11 @@ from fastapi import HTTPException
 from tortoise.models import Model
 from tortoise.exceptions import FieldError, IntegrityError
 from pydantic import TypeAdapter
-from app.ynab_models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
+from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse, Account, Category, MonthSummary, Payee, TransactionDetail
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabTransactions
 from app.enums import TransactionTypeOptions, FilterTypes
-from app.db.helpers import ReactAdmin as ra
+from app.ynab.schemas import AvailableBalance, CardBalances, LastXTransactions, TotalSpent
 
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
@@ -27,9 +27,8 @@ dotenv_ynab_budget_id = os.getenv("YNAB_BUDGET_ID")
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
 
-    # TODO create schemas for each of the returns.
     @classmethod
-    async def available_balance(cls) -> dict:
+    async def available_balance(cls) -> AvailableBalance:
         pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         total_amount = 0.00
@@ -54,14 +53,14 @@ class YNAB():
         total_amount = await YnabHelpers.convert_to_float(total_amount)
         spent_amount = await YnabHelpers.convert_to_float(spent_amount)
 
-        return {
-            "total": total_amount,
-            "spent": spent_amount,
-            "available": available_amount,
-        }
+        return AvailableBalance(
+            total=total_amount,
+            spent=spent_amount,
+            available=available_amount
+        )
     
     @classmethod
-    async def card_balances(cls) -> dict:
+    async def card_balances(cls) -> CardBalances:
         pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         result_json = {
@@ -89,7 +88,7 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def last_x_transactions(cls, count: int, since_date: str = None, year: Enum = None, specific_month: Enum = None):
+    async def last_x_transactions(cls, count: int, since_date: str = None, year: Enum = None, specific_month: Enum = None) -> LastXTransactions:
         pydantic_transactions_list = await YnabHelpers.make_request(
             action='transactions-list',
             param_1=dotenv_ynab_budget_id,
@@ -117,7 +116,7 @@ class YNAB():
     
     @classmethod
     async def get_totals(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
-        transaction_type: Enum = None):
+        transaction_type: Enum = None) -> TotalSpent:
         
         transactions = await cls.transactions_by_filter_type(
             filter_type=filter_type,
@@ -1040,7 +1039,6 @@ class YnabHelpers():
                     logging.debug("Updating/creating new entities")
                     action_data_name = await YnabServerKnowledgeHelper.get_route_data_name(action)
                     resp_entity_list = response.json()["data"][action_data_name]
-                    # logging.debug(f"Entities to process: {resp_entity_list}")
                     await YnabServerKnowledgeHelper.process_entities(action=action, entities=resp_entity_list)
                     resp_server_knowledge = response.json()["data"]["server_knowledge"]
                     await YnabServerKnowledgeHelper.create_update_server_knowledge(
