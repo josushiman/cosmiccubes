@@ -27,21 +27,23 @@ dotenv_ynab_budget_id = os.getenv("YNAB_BUDGET_ID")
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
 
+    # TODO create schemas for each of the returns.
     @classmethod
-    async def available_balance(cls):
+    async def available_balance(cls) -> dict:
         pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         total_amount = 0.00
         spent_amount = 0.00
 
         for account in pydantic_accounts_list:
-            if account.type == 'checking':
+            if account.type.value == 'checking':
                 total_amount += account.balance
             else:
                 spent_amount += account.balance
 
             logging.debug(f'''
             name: {account.name}
+            type: {account.type.value}
             balance: {account.balance}
             cleared: {account.cleared_balance}
             uncleared: {account.uncleared_balance}
@@ -59,7 +61,7 @@ class YNAB():
         }
     
     @classmethod
-    async def card_balances(cls):
+    async def card_balances(cls) -> dict:
         pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         result_json = {
@@ -67,7 +69,7 @@ class YNAB():
         }
 
         for account in pydantic_accounts_list:
-            if account.type == 'checking': continue
+            if account.type.value == 'checking': continue
             
             result_json["data"].append({
                 "name": account.name,
@@ -78,6 +80,7 @@ class YNAB():
 
             logging.debug(f'''
             name: {account.name}
+            type: {account.type.value}
             balance: {account.balance}
             cleared: {account.cleared_balance}
             uncleared: {account.uncleared_balance}
@@ -92,7 +95,7 @@ class YNAB():
             param_1=dotenv_ynab_budget_id,
             since_date=since_date,
             year=year,
-            specific_month=specific_month
+            month=specific_month
         )
 
         result_json = []
@@ -105,6 +108,8 @@ class YNAB():
                 'subcategory': transaction.category_name
             })
         
+        if not since_date: since_date = '2024-01-01'
+
         return {
             'since_date': since_date,
             'data': result_json
@@ -613,21 +618,19 @@ class YNAB():
         # Only categories that I care about for tracking the monthly target.
         # This is usually when I only have a budget assigned to a category.
         # So I should skip any category which does not have a budget assigned.
-        for category_group in pydantic_categories_list:
-            if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
-
-            for category in category_group.categories:
-                total_spent += category.activity
-                total_balance += category.balance
-                total_budgeted += category.budgeted
-                logging.debug(f'''
-                Category details:
-                    name: {category.name}
-                    activity: {category.activity}
-                    balance: {category.balance}
-                    budgeted: {category.budgeted}
-                ''')
-                category_count += 1
+        for category in pydantic_categories_list:
+            if category.category_group_name not in cls.CAT_EXPENSE_NAMES: continue
+            total_spent += category.activity
+            total_balance += category.balance
+            total_budgeted += category.budgeted
+            logging.debug(f'''
+            Category details:
+                name: {category.name}
+                activity: {category.activity}
+                balance: {category.balance}
+                budgeted: {category.budgeted}
+            ''')
+            category_count += 1
 
         # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
         total_goal = min((-total_spent / total_budgeted) * 100, 100)
@@ -678,6 +681,7 @@ class YNAB():
 
         result_json = []
 
+        # TODO change this up to save each of the different categories and then add to them.
         for category_group in pydantic_categories_list:
             if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
             total_balance = 0.0
@@ -767,6 +771,7 @@ class YNAB():
         total_spent = 0.0
         result_json = []
 
+        # TODO fix this with the cahnges to returning DB entities
         for transaction in transactions['data']:
             sub_category_name = transaction['name'] + ' / ' + transaction['category_group_name']
             result_json.append({
@@ -799,6 +804,8 @@ class YNAB():
 
         result_json = []
         while since_date_dt <= current_date:
+            # When using the months var, it can sometimes return more than specified. E.g. returns 4 instead of 3 months.
+            # TODO fix this.
             since_date_dt += timedelta(days=30)  # Assuming an average month length of 30 days
             month_year_match = since_date_dt.strftime("%Y-%m")
             month_year = {
@@ -970,16 +977,6 @@ class YnabHelpers():
             logging.warning(f"Pydantic model for {action} doesn't exist.")
             raise HTTPException(status_code=400)
 
-    # TODO only use this if i don't have the transaction stored on the pi.
-    # TODO only make DB calls, always forcing an update from the API first.
-    '''
-    Check if the route exists in server knowledge
-        If it does, check the entities are up to date
-            If they are return the DB entities
-        If they're not, make the api call
-    Once the API call is made, save them to the DB
-        Then return the DB entities
-    '''
     @classmethod
     @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
     async def make_request(cls,
@@ -991,12 +988,21 @@ class YnabHelpers():
             year: Enum = None,
             skip_sk: bool = False
         ) -> dict | HTTPException:
+        '''
+        Check if the route exists in server knowledge
+            If it does, check the entities are up to date
+                If they are return the DB entities
+            If they're not, make the api call
+        Once the API call is made, save them to the DB
+            Then return the DB entities
+        '''
         ynab_route = await cls.get_route(action, param_1, param_2, since_date, month)
         ynab_url = dotenv_ynab_url + ynab_route
 
         # For debugging purposes only.
         # skip_sk = True
         server_knowledge = None
+        # TODO split this out to a separate function
         try:
             sk_eligible = await YnabServerKnowledgeHelper.check_route_eligibility(action)
             sk_route = await cls.get_route(action, param_1)
@@ -1020,6 +1026,7 @@ class YnabHelpers():
             logging.exception("There was an issue getting the server knowledge info. Continuing to just call the API instead.", exc_info=exc)
             pass
 
+        # TODO split this out to a separate function
         logging.debug(f'Date is not the same as today or there was an issue getting the DB entities, attempting to call YNAB with {ynab_url}')
         async with httpx.AsyncClient() as client:
             try:
@@ -1028,6 +1035,7 @@ class YnabHelpers():
                 logging.exception(exc)
                 raise HTTPException(status_code=500)
             finally:
+                # TODO split this out to a separate function
                 if sk_eligible:
                     logging.debug("Updating/creating new entities")
                     action_data_name = await YnabServerKnowledgeHelper.get_route_data_name(action)
@@ -1066,7 +1074,10 @@ class YnabHelpers():
             queryset = db_model.filter(date__range=(since_date, to_date)).order_by('-date') # DESC
         else:
             logging.debug("Returning all entities.")
-            queryset = db_model.all()
+            if action == 'transactions-list':
+                queryset = db_model.all().order_by('-date')
+            else:
+                queryset = db_model.all()
 
         # Make the DB call, and return them as dicts
         db_entities = await queryset.values()
@@ -1118,10 +1129,6 @@ class YnabServerKnowledgeHelper():
 
     @classmethod
     async def create_update_route_entities(cls, resp_body: dict, model: Model) -> int:
-        # Why does a tortoise.exceptions.DoesNotExist: Object does not exist
-        # When doing a update_or_create
-        # tortoise.exceptions.IntegrityError: duplicate key value violates unique constraint "ynabtransactions_pkey"
-        # DETAIL:  Key (id)=(89a74b06-c0e0-4aba-923d-cbaf9e4579ba) already exists
         try:
             obj = await model.create(**resp_body)
             logging.debug(f"New entity created {obj.id}")
