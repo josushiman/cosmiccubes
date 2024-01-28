@@ -117,13 +117,13 @@ class Category(BaseModel):
         None,
         description="The goal cadence frequency. When goal_cadence is 0, 1, 2, or 13, a goal's due date repeats every goal_cadence * goal_cadence_frequency. For example, goal_cadence 1 with goal_cadence_frequency 2 means the goal is due every other month.  When goal_cadence is 3-12 or 14, goal_cadence_frequency is ignored.",
     )
-    goal_creation_month: Optional[str] = Field(
+    goal_creation_month: Optional[date_field] = Field(
         None, description='The month a goal was created'
     )
     goal_target: Optional[int] = Field(
         None, description='The goal target amount in milliunits'
     )
-    goal_target_month: Optional[str] = Field(
+    goal_target_month: Optional[date_field] = Field(
         None,
         description='The original target month for the goal to be completed.  Only some goal types specify this date.',
     )

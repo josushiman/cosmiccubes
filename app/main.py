@@ -244,36 +244,8 @@ async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_
 
 @app.get("/ynab/latest-transactions")
 async def get_latest_transactions():
-    # Check last server knowledge of route
-    route_url = "/budgets/e473536e-1a6c-42b1-8c90-c780a36b5580/transactions"
-    db_entity = await YnabServerKnowledge.get_or_none(route=route_url)
-
-    server_knowledge_body = {
-        "id": None,
-        "budget_id": "e473536e-1a6c-42b1-8c90-c780a36b5580",
-        "route": "/budgets/e473536e-1a6c-42b1-8c90-c780a36b5580/transactions",
-        "last_updated": datetime.today()
-    }
-
-    if db_entity:
-        server_knowledge_body["id"] = db_entity.id
-        server_knowledge = db_entity.server_knowledge
-        transaction_list = await ynab_help.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580", param_2=server_knowledge)
-    else:
-        server_knowledge = None
-        transaction_list = await ynab_help.make_request(action='transactions-list', param_1="e473536e-1a6c-42b1-8c90-c780a36b5580")
-
-    pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-    # TODO replace below as shouldnt need it with the new helper.
-    if server_knowledge == pydantic_transactions_list.data.server_knowledge or len(pydantic_transactions_list.data.transactions) == 0:
-        return { "message": "No new transactions to store or update."}
-
-    for transaction in pydantic_transactions_list.data.transactions:
-        if transaction.deleted: continue
-        model_dict = transaction.model_dump()
-        model_dict.pop("subtransactions")
-        await ra.create_or_update(resource="ynab-transaction", resp_body=model_dict, _id=transaction.id)
-
-    server_knowledge_body["server_knowledge"] = pydantic_transactions_list.data.server_knowledge
-
-    return await ra.create_or_update(resource="ynab-server-knowledge", resp_body=server_knowledge_body, _id=server_knowledge_body["id"])
+    return await ynab_help.make_request(
+        action='transactions-list',
+        param_1="e473536e-1a6c-42b1-8c90-c780a36b5580",
+        skip_sk=True
+        )
