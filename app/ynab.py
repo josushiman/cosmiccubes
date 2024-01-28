@@ -2,6 +2,7 @@ import os
 import httpx
 import logging
 import json
+from uuid import UUID
 from enum import Enum, IntEnum
 from time import localtime, mktime
 from datetime import datetime, timedelta
@@ -9,10 +10,13 @@ from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
 from fastapi import HTTPException
+from tortoise.models import Model
+from pydantic import TypeAdapter
 from app.ynab_models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
-    TransactionsResponse
-from app.db.models import YnabServerKnowledge
+    TransactionsResponse, Account, Category, MonthSummary, Payee, TransactionDetail
+from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabTransactions
 from app.enums import TransactionTypeOptions, FilterTypes
+from app.db.helpers import ReactAdmin as ra
 
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
@@ -24,14 +28,13 @@ class YNAB():
 
     @classmethod
     async def available_balance(cls):
-        account_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
-        pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
+        pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         total_amount = 0.00
         spent_amount = 0.00
 
-        for account in pydantic_accounts_list.data.accounts:
-            if account.type.value == 'checking':
+        for account in pydantic_accounts_list:
+            if account.type == 'checking':
                 total_amount += account.balance
             else:
                 spent_amount += account.balance
@@ -56,16 +59,14 @@ class YNAB():
     
     @classmethod
     async def card_balances(cls):
-        account_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
-        pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(account_list))
-
+        pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         result_json = {
             "data": []
         }
 
-        for account in pydantic_accounts_list.data.accounts:
-            if account.type.value == 'checking': continue
+        for account in pydantic_accounts_list:
+            if account.type == 'checking': continue
             
             result_json["data"].append({
                 "name": account.name,
@@ -84,18 +85,17 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def last_x_transactions(cls, count: int, since_date: str = None):
-        # For now just get all the transactions, but need to figure out a better way to get the latest results using the since_date.
-        # TODO Replace this a call out to the YNAB Transacitons in the DB instead.
-        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id)
-        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-        transaction_data = pydantic_transactions_list.data.transactions
-
-        # reverse the transaction list as it will always be returned with the oldest transactions first.
-        transaction_data.reverse()
+    async def last_x_transactions(cls, count: int, since_date: str = None, year: Enum = None, specific_month: Enum = None):
+        # TODO pass specific month & year
+        # TODO Figure out how to reverse when the query is made with API rather than DB
+        pydantic_transactions_list = await YnabHelpers.make_request(
+            action='transactions-list',
+            param_1=dotenv_ynab_budget_id,
+            since_date=since_date
+        )
 
         result_json = []
-        for index, transaction in enumerate(pydantic_transactions_list.data.transactions):
+        for index, transaction in enumerate(pydantic_transactions_list):
             if index == count: break
             result_json.append({
                 'payee': transaction.payee_name,
@@ -105,7 +105,7 @@ class YNAB():
             })
         
         return {
-            'since_date': '01/11/2023',
+            'since_date': since_date,
             'data': result_json
         }
     
@@ -140,10 +140,9 @@ class YNAB():
         match filter_type.value:
             case 'account':
                 logging.debug("Getting accounts list.")
-                account_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
-                pydantic_categories_list = AccountsResponse.model_validate_json(json.dumps(account_list))
-                logging.debug(f"Returned {len(pydantic_categories_list.data.accounts)} accounts.")
-                for account in pydantic_categories_list.data.accounts:
+                pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
+                logging.debug(f"Returned {len(pydantic_accounts_list)} accounts.")
+                for account in pydantic_accounts_list:
                     entities_raw[f'{account.id}'] = {
                         'id': account.id,
                         'name': account.name,
@@ -151,9 +150,9 @@ class YNAB():
                     }
             case 'payee':
                 logging.debug("Getting payees list.")
-                payee_list = await YnabHelpers.make_request('payees-list', param_1=dotenv_ynab_budget_id)
-                pydantic_categories_list = PayeesResponse.model_validate_json(json.dumps(payee_list))
-                for payee in pydantic_categories_list.data.payees:
+                pydantic_payees_list = await YnabHelpers.make_request('payees-list', param_1=dotenv_ynab_budget_id)
+                logging.debug(f"Returned {len(pydantic_payees_list)} payees.")
+                for payee in pydantic_payees_list:
                     entities_raw[f'{payee.id}'] = {
                         'id': payee.id,
                         'name': payee.name,
@@ -163,10 +162,9 @@ class YNAB():
                 if filter_type.value != 'category':
                     logging.warn(f"Somehow filter_type was set to something that I can't handle. {filter_type.value}")
                 logging.debug("Getting categories list.")
-                category_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
-                pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
-                logging.debug(f'Returned {len(pydantic_categories_list.data.category_groups)} category groups.')
-                for category_group in pydantic_categories_list.data.category_groups:
+                pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+                logging.debug(f'Returned {len(pydantic_categories_list)} category groups.')
+                for category_group in pydantic_categories_list:
                     if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
                     for category in category_group.categories:
                         entities_raw[f'{category.id}'] = {
@@ -183,11 +181,10 @@ class YNAB():
             'data': []
         }
 
-        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-        logging.debug(f'Returned {len(pydantic_transactions_list.data.transactions)} transactions.')
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        logging.debug(f'Returned {len(pydantic_transactions_list)} transactions.')
         skipped_transactions = 0
-        for transaction in pydantic_transactions_list.data.transactions:
+        for transaction in pydantic_transactions_list:
             # Skip all inflow values.
             if transaction.category_name == 'Inflow: Ready to Assign':
                 logging.debug("Skipped inflow transaction.")
@@ -333,8 +330,7 @@ class YNAB():
             ]
         }
 
-        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
 
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
         
@@ -353,9 +349,11 @@ class YNAB():
             '12': december
         }
 
-        for transaction in pydantic_transactions_list.data.transactions:
+        for transaction in pydantic_transactions_list:
             if transaction.payee_name in skip_payees: continue
             
+            # AttributeError: 'datetime.date' object has no attribute 'split'
+            # TODO fix this
             transaction_month = transaction.date.split('-')[1]
 
             if transaction.amount > 0:
@@ -486,16 +484,17 @@ class YNAB():
             add_month['year'] = str(year)
             month_list.insert(index, add_month)
 
-        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+        
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
         
-        for transaction in pydantic_transactions_list.data.transactions:
+        for transaction in pydantic_transactions_list:
             if transaction.payee_name in skip_payees: continue
             
             # Convert payment date from string to date.
             date_format = '%Y-%m-%d'
+            # TODO fix this 
+            # TypeError: strptime() argument 1 must be str, not datetime.date
             transaction_date = datetime.strptime(transaction.date, date_format)
             
             # extract the month, and convert to string.
@@ -512,9 +511,7 @@ class YNAB():
     async def last_paid_date_for_accounts(cls, months: IntEnum):
         # Look over the last month. If no payment, assume the bill has not been paid yet.
         since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
-        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
 
         amex = {
             "id": None,
@@ -543,7 +540,7 @@ class YNAB():
             'HSBC CC': hsbc,
         }
 
-        for transaction in pydantic_transactions_list.data.transactions:
+        for transaction in pydantic_transactions_list:
             if transaction.payee_name != 'Transfer : HSBC ADVANCE': continue
 
             account_match[transaction.account_name]['id'] = transaction.id
@@ -563,11 +560,10 @@ class YNAB():
         match period.value:
             case 'TODAY':
                 current_date = datetime.today().strftime('%Y-%m-%d')
-                transaction_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
-                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
                 
                 total_spent = 0.0
-                for transaction in pydantic_transactions_list.data.transactions:
+                for transaction in pydantic_transactions_list:
                     if transaction.amount > 0: continue
                     total_spent += transaction.amount
                 
@@ -577,11 +573,10 @@ class YNAB():
             case 'YESTERDAY':
                 current_date = datetime.today() - DateOffset(days=1)
                 current_date = current_date.strftime('%Y-%m-%d')
-                transaction_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
-                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
                 
                 total_spent = 0.0
-                for transaction in pydantic_transactions_list.data.transactions:
+                for transaction in pydantic_transactions_list:
                     if transaction.amount > 0: continue
                     total_spent += transaction.amount
                 
@@ -593,11 +588,10 @@ class YNAB():
                 days_to_monday =  current_date.weekday() - 0
                 current_date = datetime.today() - DateOffset(days=days_to_monday)
                 current_date = current_date.strftime('%Y-%m-%d')
-                transaction_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
-                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
-                
+                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                                
                 total_spent = 0.0
-                for transaction in pydantic_transactions_list.data.transactions:
+                for transaction in pydantic_transactions_list:
                     if transaction.amount > 0 or transaction.category_name in ["Loans", "Monthly Bills", "Credit Card Payments", "Yearly Bills"]: continue
                     total_spent += transaction.amount
                 
@@ -612,8 +606,12 @@ class YNAB():
 
     @classmethod
     async def spent_vs_budget(cls):
-        category_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
-        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+        # TODO fix the below
+        # File "/home/tim-mus/Programming/Python Projects/cosmiccubes/app/ynab.py", line 1021, in make_request
+        #     resp_entity_list = response.json()["data"][action_data_name]
+        #                        ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+        # KeyError: 'categories'
+        pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
 
         total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
         total_budgeted = 0.0 # Budget assigned to the category
@@ -622,7 +620,7 @@ class YNAB():
         # Only categories that I care about for tracking the monthly target.
         # This is usually when I only have a budget assigned to a category.
         # So I should skip any category which does not have a budget assigned.
-        for category_group in pydantic_categories_list.data.category_groups:
+        for category_group in pydantic_categories_list:
             if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
 
             for category in category_group.categories:
@@ -683,12 +681,17 @@ class YNAB():
     @classmethod
     async def get_category_summary(cls):
         current_date = datetime.today().strftime('%Y-%m') + '-01'
-        category_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
-        pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(category_list))
+        pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+
+        # TODO fix the below
+        # File "/home/tim-mus/Programming/Python Projects/cosmiccubes/app/ynab.py", line 1025, in make_request
+        #     resp_entity_list = response.json()["data"][action_data_name]
+        #                        ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+        # KeyError: 'categories'
 
         result_json = []
 
-        for category_group in pydantic_categories_list.data.category_groups:
+        for category_group in pydantic_categories_list:
             if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
             total_balance = 0.0
             total_budgeted = 0.0
@@ -801,12 +804,17 @@ class YNAB():
     @classmethod
     async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
         since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
-        transaction_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-        pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(transaction_list))
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
 
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
         current_date = datetime.now()
+
+        # TODO fix this
+        # File "/home/tim-mus/Programming/Python Projects/cosmiccubes/app/ynab.py", line 829, in income_vs_expenses
+        #     transaction_date = datetime.strptime(transaction.date, '%Y-%m-%d')
+        #                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        # TypeError: strptime() argument 1 must be str, not datetime.date
 
         result_json = []
         while since_date_dt <= current_date:
@@ -821,7 +829,7 @@ class YNAB():
             # Short term: go through each transaction and add them to the month if the year and month match.
             # TODO long term: make DB queries to add transactions from those months/year
             # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
-            for transaction in pydantic_transactions_list.data.transactions:
+            for transaction in pydantic_transactions_list:
                 # Skip all inflow values.
                 if transaction.category_name == 'Inflow: Ready to Assign': continue
                 transaction_date = datetime.strptime(transaction.date, '%Y-%m-%d')
@@ -965,52 +973,227 @@ class YnabHelpers():
             case _:
                 return '/user'
 
+    @classmethod
+    async def get_pydantic_model(cls, action: str) -> Model | HTTPException:
+        model_list = {
+            "accounts-list": Account,
+            "categories-list": Category,
+            "months-list": MonthSummary,
+            "payees-list": Payee,
+            "transactions-list": TransactionDetail
+        }
+
+        try:
+            logging.debug(f"Attempting to get pydantic model for {action}")
+            return model_list[action]
+        except KeyError:
+            logging.warning(f"Pydantic model for {action} doesn't exist.")
+            raise HTTPException(status_code=400)
+
     # TODO only use this if i don't have the transaction stored on the pi.
     @classmethod
     @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
-    async def make_request(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None):
+    async def make_request(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> dict | HTTPException:
         ynab_route = await cls.get_route(action, param_1, param_2, since_date, month)
         ynab_url = dotenv_ynab_url + ynab_route
 
-        # Check if the route exists in YnabServerKnowledge
-        # If it does, check if the current date is todays date
-            # If it is, return the DB entries
-            # Otherwise, update the existing entries
-        # If it isn't, make the Ynab request, and finally save the new entries to the DB
+        # For debugging purposes only.
+        skip_sk = False
+        server_knowledge = None
+        try:
+            sk_eligible = await YnabServerKnowledgeHelper.check_route_eligibility(action)
+            if sk_eligible and not skip_sk:
+                logging.debug("Route is eligible, checking if there are any saved DB entities.")
+                sk_route = await cls.get_route(action, param_1)
+                server_knowledge = await YnabServerKnowledgeHelper.check_if_exists(route_url=sk_route)
+                if server_knowledge:
+                    logging.info("Route already exists in DB, checking if its up to date.")
+                    is_up_to_date = await YnabServerKnowledgeHelper.current_date_check(server_knowledge.last_updated)
+                    if is_up_to_date:
+                        logging.debug("Date is the same as today, returning the DB entities.")
+                        return await cls.return_db_model_entities(action=action, since_date=since_date, specific_month=month)
+                    logging.debug(f"Updating ynab url to include server_knowledge value: {ynab_url}")
+                    ynab_url = await YnabServerKnowledgeHelper.add_server_knowledge_to_url(
+                        ynab_url=ynab_url,
+                        server_knowledge=server_knowledge.server_knowledge
+                    )
+        except Exception as exc:
+            logging.exception("There was an issue getting the server knowledge info. Continuing to just call the API instead.", exc_info=exc)
+            pass
 
-        logging.debug(f'Attempting to call YNAB with {ynab_url}')
-
+        logging.debug(f'Date is not the same as today or there was an issue getting the DB entities, attempting to call YNAB with {ynab_url}')
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(ynab_url, headers={'Authorization': f"Bearer {dotenv_ynab_token}"})
-                return response.json()
+                return await cls.return_pydantic_model_entities(json_response=response.json(), action=action)
             except httpx.HTTPError as exc:
-                logging.debug(exc)
+                logging.exception(exc)
                 raise HTTPException(status_code=500)
+            finally:
+                if sk_eligible and not skip_sk:
+                    logging.debug("Updating/creating new entities")
+                    action_data_name = await YnabServerKnowledgeHelper.get_route_data_name(action)
+                    resp_entity_list = response.json()["data"][action_data_name]
+                    logging.debug(f"Entities to process: {resp_entity_list}")
+                    await YnabServerKnowledgeHelper.process_entities(action=action, entities=resp_entity_list)
+                    resp_server_knowledge = response.json()["data"]["server_knowledge"]
+                    await YnabServerKnowledgeHelper.create_update_server_knowledge(
+                        route=sk_route,
+                        server_knowledge=resp_server_knowledge,
+                        db_entity=server_knowledge
+                    )
+                    logging.debug("Server knowledge created/updated.")
+
+    @classmethod
+    async def return_db_model_entities(cls, action: str, since_date: str = None, specific_month: str = None) -> list[Model]:
+        logging.info("Returning DB entities.")
+        db_model = await YnabServerKnowledgeHelper.get_sk_model(action=action)
+        if since_date:
+            todays_date = datetime.today().strftime('%Y-%m-%d')
+            logging.debug(f"Returning DB entities from {since_date} to {todays_date}")
+            queryset = db_model.filter(date__range=(since_date, todays_date)).order_by('-date') # DESC
+        elif specific_month:
+        # TODO include query for months etc.
+            logging.debug(f"Returning transactions for the entire month of {specific_month}")
+            queryset = db_model.all()
+        else:
+            queryset = db_model.all()
+
+        # Make the DB call, and return them as dicts
+        db_entities = await queryset.values()
+
+        # Return the entities as if they were pydantic models from ynab.
+        db_pydantic_model = await cls.get_pydantic_model(action=action)
+        return TypeAdapter(list[db_pydantic_model]).validate_python(db_entities)
+
+    @classmethod
+    async def return_pydantic_model_entities(cls, json_response: json, action: str) -> list[Model]:
+        match action:
+            case 'accounts-list':
+                pydantic_accounts_list = AccountsResponse.model_validate_json(json.dumps(json_response))
+                return pydantic_accounts_list.data.accounts
+            case 'categories-list':
+                pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(json_response))
+                return pydantic_categories_list.data.category_groups
+            case 'months-list':
+                pydantic_months_list = MonthSummariesResponse.model_validate_json(json.dumps(json_response))
+                return
+            case 'payees-list':
+                pydantic_payees_list = PayeesResponse.model_validate_json(json.dumps(json_response))
+                return pydantic_payees_list.data.payees
+            case 'transactions-list':
+                pydantic_transactions_list = TransactionsResponse.model_validate_json(json.dumps(json_response))
+                return pydantic_transactions_list.data.transactions
+            case _:
+                return
 
 class YnabServerKnowledgeHelper():
     @classmethod
-    async def check_if_exists(route_url: str) -> YnabServerKnowledge | None:
+    async def add_server_knowledge_to_url(cls, ynab_url: str, server_knowledge: int) -> bool:
+        # If a ? exists in the URL then append the additional param.
+        if '?' in ynab_url:
+            return f"{ynab_url}&server_knowledge={server_knowledge}"
+            
+        # Otherwise add a ? and include the sk param.
+        return f"{ynab_url}?server_knowledge={server_knowledge}"
+
+    @classmethod
+    async def check_if_exists(cls, route_url: str) -> YnabServerKnowledge | None:
         return await YnabServerKnowledge.get_or_none(route=route_url)
 
     @classmethod
-    async def create_new_route_entities():
-        return
+    async def check_route_eligibility(cls, action: str) -> bool:
+        capable_routes = ['accounts-list','categories-list','months-list','payees-list','transactions-list']
+        return action in capable_routes
 
     @classmethod
-    async def create_new_server_knowledge():
-        return
+    async def create_update_route_entities(cls, resp_body: dict, model: Model) -> int:
+        try:
+            obj, created = await model.update_or_create(**resp_body)
+
+            if created:
+                logging.debug(f"New entity created {obj.id}")
+                return 1
+            else:
+                logging.debug(f"Entity updated {obj.id}")
+                return 0
+        except Exception as exc:
+            logging.exception("Issue create/update entity.", exc_info=exc)
+            pass
+
+    @classmethod
+    async def create_update_server_knowledge(cls, route: str, server_knowledge: int,
+        db_entity: YnabServerKnowledge = None) -> YnabServerKnowledge:
+        try:
+            if db_entity:
+                logging.debug(f"Updating server knowledge for {route} to {server_knowledge}")
+                db_entity.last_updated = datetime.today()
+                db_entity.server_knowledge = server_knowledge
+                await db_entity.save()
+                return db_entity
+            logging.debug(f"Creating server knowledge for {route} to {server_knowledge}")
+            return await YnabServerKnowledge.create(
+                budget_id=dotenv_ynab_budget_id,
+                route=route,
+                last_updated=datetime.today(),
+                server_knowledge=server_knowledge
+            )
+        except Exception as exc:
+            logging.exception("Issue create/update server knowledge.", exc_info=exc)
+            raise HTTPException(status_code=500)
     
     @classmethod
-    async def current_date_check(date_to_check) -> bool:
+    async def current_date_check(cls, date_to_check: datetime) -> bool:
         current_date = datetime.today().strftime('%Y-%m-%d')
+        date_to_check = date_to_check.strftime('%Y-%m-%d')
+        logging.debug(f"Checking if {current_date} is the same as {date_to_check}")
         return current_date == date_to_check
     
     @classmethod
-    async def update_existing_route_entities():
-        return
+    async def get_route_data_name(cls, action: str) -> str | HTTPException:
+        data_name_list = {
+            "accounts-list": "accounts",
+            "categories-list": "categories", #TODO category_groups for loop and then categories
+            "months-list": "months",
+            "payees-list": "payees",
+            "transactions-list": "transactions"
+        }
+
+        try:
+            logging.debug(f"Attempting to get a data name for {action}")
+            return data_name_list[action]
+        except KeyError:
+            logging.warning(f"Data name for {action} doesn't exist.")
+            raise HTTPException(status_code=400)
+
+    @classmethod
+    async def get_sk_model(cls, action: str) -> Model | HTTPException:
+        model_list = {
+            "accounts-list": YnabAccounts,
+            "categories-list": YnabCategories,
+            "months-list": YnabMonthSummaries,
+            "payees-list": YnabPayees,
+            "transactions-list": YnabTransactions
+        }
+
+        try:
+            logging.debug(f"Attempting to get a model for {action}")
+            return model_list[action]
+        except KeyError:
+            logging.warning(f"Model for {action} doesn't exist.")
+            raise HTTPException(status_code=400)
     
     @classmethod
-    async def update_existing_server_knowledge():
-        return
+    async def process_entities(cls, action: str, entities: dict) -> dict:
+        model = await cls.get_sk_model(action)
+
+        created = 0
+        for entity in entities:
+            logging.debug(entity)
+            if action == 'transactions-list': entity.pop('subtransactions')
+            obj = await cls.create_update_route_entities(resp_body=entity, model=model)
+            created += obj
+        
+        logging.debug(f"Created {created} entities. Updated {len(entities) - created} entities")
+        return { "message": "Complete" }
     

@@ -11,8 +11,6 @@ from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_
     ProjectItemCategories_Pydantic, YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
     YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
 
-logger = logging.getLogger("app")
-
 class ReactAdmin():
     @classmethod
     async def get_entity_model(cls, resource: str) -> Model:
@@ -121,6 +119,7 @@ class ReactAdmin():
 
     @classmethod
     async def create_or_update(cls, resource: str, resp_body: dict, _id: UUID = None):
+        logging.info(resp_body)
         try:
             resp_body.pop("id")
             entity = await cls.update(resource, resp_body, _id)

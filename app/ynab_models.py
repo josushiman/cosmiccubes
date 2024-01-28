@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
+from datetime import date as date_field
 
 class AccountType(Enum):
     checking = 'checking'
@@ -163,7 +164,7 @@ class CategoryGroupWithCategories(CategoryGroup):
 class Payee(BaseModel):
     id: UUID
     name: str
-    transfer_account_id: Optional[str] = Field(
+    transfer_account_id: Optional[UUID] = Field(
         None,
         description='If a transfer payee, the `account_id` to which this payee transfers to',
     )
@@ -316,8 +317,8 @@ class PayeeResponse(BaseModel):
     data: Data10
 
 class TransactionSummary(BaseModel):
-    id: str
-    date: str = Field(
+    id: UUID
+    date: date_field | str = Field(
         ..., description='The transaction date in ISO format (e.g. 2016-12-01)'
     )
     amount: int = Field(..., description='The transaction amount in milliunits format')
@@ -337,7 +338,7 @@ class TransactionSummary(BaseModel):
         None,
         description='If a transfer transaction, the id of transaction on the other side of the transfer',
     )
-    matched_transaction_id: Optional[str] = Field(
+    matched_transaction_id: Optional[UUID] = Field(
         None, description='If transaction is matched, the id of the matched transaction'
     )
     import_id: Optional[str] = Field(
@@ -367,9 +368,6 @@ class TransactionDetail(TransactionSummary):
     category_name: Optional[str] = Field(
         None,
         description="The name of the category.  If a split transaction, this will be 'Split'.",
-    )
-    subtransactions: List[SubTransaction] = Field(
-        ..., description='If a split transaction, the subtransactions.'
     )
 
 class HybridTransaction(TransactionSummary):

@@ -165,10 +165,10 @@ class YnabAccounts(models.Model):
     direct_import_linked = fields.BooleanField(null=True)
     direct_import_in_error = fields.BooleanField(null=True)
     last_reconciled_at = fields.DatetimeField(null=True)
-    debt_original_balance = fields.IntField(default=0, null=True)
-    debt_interest_rates = fields.FloatField(default=0.0, null=True)
-    debt_minimum_payments = fields.IntField(default=0, null=True)
-    debt_escrow_amounts = fields.IntField(default=0, null=True)
+    debt_original_balance = fields.IntField(null=True)
+    debt_interest_rates = fields.JSONField(null=True)
+    debt_minimum_payments = fields.JSONField(null=True)
+    debt_escrow_amounts = fields.JSONField(null=True)
     deleted = fields.BooleanField(null=True)
 
 class YnabCategories(models.Model):
