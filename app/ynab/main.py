@@ -17,7 +17,9 @@ from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailRes
     TransactionsResponse, Account, Category, MonthSummary, Payee, TransactionDetail
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabTransactions
 from app.enums import TransactionTypeOptions, FilterTypes
-from app.ynab.schemas import AvailableBalance, CardBalances, LastXTransactions, TotalSpent
+from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySummaryResponse, \
+    CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
+    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByFilterResponse, TransactionsByMonthResponse
 
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
@@ -28,7 +30,7 @@ class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
 
     @classmethod
-    async def available_balance(cls) -> AvailableBalance:
+    async def available_balance(cls) -> AvailableBalanceResponse:
         pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         total_amount = 0.00
@@ -53,14 +55,14 @@ class YNAB():
         total_amount = await YnabHelpers.convert_to_float(total_amount)
         spent_amount = await YnabHelpers.convert_to_float(spent_amount)
 
-        return AvailableBalance(
+        return AvailableBalanceResponse(
             total=total_amount,
             spent=spent_amount,
             available=available_amount
         )
     
     @classmethod
-    async def card_balances(cls) -> CardBalances:
+    async def card_balances(cls) -> CardBalancesResponse:
         pydantic_accounts_list = await YnabHelpers.make_request('accounts-list', param_1=dotenv_ynab_budget_id)
 
         result_json = {
@@ -70,6 +72,7 @@ class YNAB():
         for account in pydantic_accounts_list:
             if account.type.value == 'checking': continue
             
+            # TODO replace all of these with Pydantic model responses
             result_json["data"].append({
                 "name": account.name,
                 "balance": await YnabHelpers.convert_to_float(account.balance),
@@ -86,6 +89,210 @@ class YNAB():
             ''')
 
         return result_json
+
+    @classmethod
+    async def get_category_summary(cls) -> CategorySummaryResponse:
+        current_date = datetime.today().strftime('%Y-%m') + '-01'
+        pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+
+        result_json = []
+
+        # TODO change this up to save each of the different categories and then add to them.
+        for category_group in pydantic_categories_list:
+            if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
+            total_balance = 0.0
+            total_budgeted = 0.0
+            for category in category_group.categories:
+                total_balance += category.balance
+                total_budgeted += category.budgeted
+            
+            total_spent = total_budgeted - total_balance
+
+            result_json.append({
+                'name': category_group.name,
+                'spent': await YnabHelpers.convert_to_float(total_spent),
+                'budget': await YnabHelpers.convert_to_float(total_budgeted),
+                'progress': (total_spent / total_budgeted) * 100,
+            })
+        
+        # Show the categories with the higher goals first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+
+        return {
+            'since_date': current_date,
+            'data': sorted_list
+        }
+
+    @classmethod
+    async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CategorySpentResponse:
+        # Can't get category limits for previous months, only use the category endpoint when looking at the current month
+        # TODO you can get this info by using the months-single where param2 is the date of the month (e.g. 2024-01-01)
+        if year and specific_month:
+            logging.debug("Attempting to return month and year categories spent.")
+            current_year_month = datetime.today().strftime('%Y-%m')
+            if current_year_month == f'{year.value}-{specific_month.value}':
+                logging.debug("Returning current month category info.")
+                return await cls.get_category_summary()
+
+        # Instead get every transaction for the period
+        transactions = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.CATEGORY,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.EXPENSES
+        )
+
+        category_groups = {}
+        total_spent = 0.0
+
+        # Go through each one
+        for transaction in transactions['data']:
+            category_group_id_str = str(transaction['category_group_id'])
+            
+            try:
+                # If the group name exists, add the sum to the existing value
+                category_groups[category_group_id_str]['spent'] += transaction['total']
+            except KeyError:
+                # Otherwise append it with the current value
+                category_groups[category_group_id_str] = {
+                    'name': transaction['category_group_name'],
+                    'spent': transaction['total']
+                }
+            
+            # Gather the total spent to calculate the overall spend for each category against the time period.
+            total_spent += transaction['total']
+        
+        # Calculate the "progress" for each of the categories
+        result_json = []
+        for category in category_groups.values():
+            category['progress'] = (category['spent'] / total_spent) * 100
+            result_json.append(category)
+
+        # Show the categories with the higher spends first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+
+        return CategorySpentResponse(
+            since_date=transactions['since_date'],
+            data=sorted_list
+        )
+
+    @classmethod
+    async def earned_vs_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> EarnedVsSpentResponse:        
+        transactions_income = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.ACCOUNT,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.INCOME
+        )
+        
+        total_earned = 0.0
+        for account in transactions_income['data']:
+            total_earned += account['total']
+
+        transactions_expense = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.ACCOUNT,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.EXPENSES
+        )
+
+        total_spent = 0.0
+        for account in transactions_expense['data']:
+            total_spent += account['total']
+
+        return EarnedVsSpentResponse(
+            since_date=transactions_expense['since_date'],
+            earned=total_earned,
+            spent=total_spent
+        )
+
+    @classmethod
+    async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> IncomeVsExpensesResponse:
+        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+
+        # From the since date, go through each month and add it to the data
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+        current_date = datetime.now()
+
+        result_json = []
+        while since_date_dt <= current_date:
+            # When using the months var, it can sometimes return more than specified. E.g. returns 4 instead of 3 months.
+            # TODO fix this.
+            since_date_dt += timedelta(days=30)  # Assuming an average month length of 30 days
+            month_year_match = since_date_dt.strftime("%Y-%m")
+            month_year = {
+                'month': since_date_dt.strftime("%B"), # Full month name
+                'year': since_date_dt.strftime("%Y"), # Four-digit year
+                'income': 0.0,
+                'expenses': 0.0
+            }
+            # Short term: go through each transaction and add them to the month if the year and month match.
+            # TODO long term: make DB queries to add transactions from those months/year
+            # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
+            for transaction in pydantic_transactions_list:
+                # Skip all inflow values.
+                if transaction.category_name == 'Inflow: Ready to Assign': continue
+                if transaction.date.strftime("%Y-%m") == month_year_match:
+                    if transaction.amount > 0:
+                        month_year['income'] += await YnabHelpers.convert_to_float(transaction.amount)
+                    else:
+                        month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
+            
+            result_json.append(month_year)
+
+        return IncomeVsExpensesResponse(
+            since_date=since_date,
+            data=result_json
+        )
+
+    @classmethod
+    async def last_paid_date_for_accounts(cls, months: IntEnum) -> CreditAccountResponse:
+        # Look over the last month. If no payment, assume the bill has not been paid yet.
+        since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
+        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
+
+        amex = {
+            "id": None,
+            "date": None,
+            "amount": None,
+            "account_name": "BA AMEX"
+        }
+        barclays = {
+            "id": None,
+            "date": None,
+            "amount": None,
+            "account_name": "Barclays CC"
+        }
+        hsbc = {
+            "id": None,
+            "date": None,
+            "amount": None,
+            "account_name": "HSBC CC"
+        }
+
+        transfer_payments = [amex, barclays, hsbc]
+
+        account_match = {
+            'BA AMEX': amex,
+            'Barclays CC': barclays,
+            'HSBC CC': hsbc,
+        }
+
+        for transaction in pydantic_transactions_list:
+            if transaction.payee_name != 'Transfer : HSBC ADVANCE': continue
+
+            account_match[transaction.account_name]['id'] = transaction.id
+            account_match[transaction.account_name]['date'] = transaction.date
+            account_match[transaction.account_name]['amount'] = await YnabHelpers.convert_to_float(transaction.amount)
+
+        return CreditAccountResponse(
+            since_date=since_date,
+            data=transfer_payments
+        )
 
     @classmethod
     async def last_x_transactions(cls, count: int, since_date: str = None, year: Enum = None, specific_month: Enum = None) -> LastXTransactions:
@@ -113,10 +320,131 @@ class YNAB():
             'since_date': since_date,
             'data': result_json
         }
-    
+
     @classmethod
-    async def get_totals(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
-        transaction_type: Enum = None) -> TotalSpent:
+    async def spent_in_period(cls, period: Enum) -> SpentInPeriodResponse:
+        # TODO add filters for whether I want to include bills or just things which do not come from a specific account (e.g. Current Account)
+        match period.value:
+            case 'TODAY':
+                current_date = datetime.today().strftime('%Y-%m-%d')
+                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                
+                total_spent = 0.0
+                for transaction in pydantic_transactions_list:
+                    if transaction.amount > 0: continue
+                    total_spent += transaction.amount
+                
+                return SpentInPeriodResponse(
+                    spent=await YnabHelpers.convert_to_float(total_spent)
+                )
+            case 'YESTERDAY':
+                current_date = datetime.today() - DateOffset(days=1)
+                current_date = current_date.strftime('%Y-%m-%d')
+                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                
+                total_spent = 0.0
+                for transaction in pydantic_transactions_list:
+                    if transaction.amount > 0: continue
+                    total_spent += transaction.amount
+                
+                return SpentInPeriodResponse(
+                    spent=await YnabHelpers.convert_to_float(total_spent)
+                )
+            case 'THIS_WEEK':
+                current_date = datetime.today()
+                days_to_monday =  current_date.weekday() - 0
+                current_date = datetime.today() - DateOffset(days=days_to_monday)
+                current_date = current_date.strftime('%Y-%m-%d')
+                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
+                                
+                total_spent = 0.0
+                for transaction in pydantic_transactions_list:
+                    if transaction.amount > 0 or transaction.category_name in ["Loans", "Monthly Bills", "Credit Card Payments", "Yearly Bills"]: continue
+                    total_spent += transaction.amount
+                
+                return SpentInPeriodResponse(
+                    spent=await YnabHelpers.convert_to_float(total_spent)
+                )
+            case 'LAST_WEEK':
+                # TODO
+                return None
+            case _:
+                return None
+
+    @classmethod
+    async def spent_vs_budget(cls) -> SpentVsBudgetResponse:
+        pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
+
+        total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
+        total_budgeted = 0.0 # Budget assigned to the category
+        total_spent = 0.0
+        category_count = 0
+        # Only categories that I care about for tracking the monthly target.
+        # This is usually when I only have a budget assigned to a category.
+        # So I should skip any category which does not have a budget assigned.
+        for category in pydantic_categories_list:
+            if category.category_group_name not in cls.CAT_EXPENSE_NAMES: continue
+            total_spent += category.activity
+            total_balance += category.balance
+            total_budgeted += category.budgeted
+            logging.debug(f'''
+            Category details:
+                name: {category.name}
+                activity: {category.activity}
+                balance: {category.balance}
+                budgeted: {category.budgeted}
+            ''')
+            category_count += 1
+
+        # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
+        total_goal = min((-total_spent / total_budgeted) * 100, 100)
+
+        return {
+            'balance': await YnabHelpers.convert_to_float(total_balance),
+            'budget': await YnabHelpers.convert_to_float(total_budgeted),
+            'spent': await YnabHelpers.convert_to_float(-total_spent),
+            'progress': total_goal
+        }
+
+    @classmethod
+    async def sub_categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> SubCategorySpentResponse:
+        transactions = await cls.transactions_by_filter_type(
+            filter_type= FilterTypes.CATEGORY,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            transaction_type= TransactionTypeOptions.EXPENSES,
+            top_x=5 # Only returning the top 5 due to page layout. TODO have a scrolly thingy on the UI.
+        )
+
+        total_spent = 0.0
+        result_json = []
+
+        # TODO fix this with the cahnges to returning DB entities
+        for transaction in transactions['data']:
+            sub_category_name = transaction['name'] + ' / ' + transaction['category_group_name']
+            result_json.append({
+                'name': sub_category_name,
+                'spent': transaction['total'],
+            })
+            
+            # Gather the total spent to calculate the overall spend for each category against the time period.
+            total_spent += transaction['total']
+
+        for sub_category in result_json:
+            sub_category['progress'] = (sub_category['spent'] / total_spent) * 100
+
+        # Show the categories with the higher spends first.
+        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+
+        return {
+            'since_date': transactions['since_date'],
+            'data': sorted_list
+        }
+
+    @classmethod
+    async def total_spent(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
+        transaction_type: Enum = None) -> TotalSpentResponse:
         
         transactions = await cls.transactions_by_filter_type(
             filter_type=filter_type,
@@ -127,15 +455,14 @@ class YNAB():
         )
         
         total_spent = 0.0
-        logging.debug(transactions)
 
         for account in transactions['data']:
             total_spent += account['total']
 
-        return {
-            'since_date': transactions['since_date'],
-            'total': total_spent
-        }
+        return TotalSpentResponse(
+            since_date=transactions['since_date'],
+            total=total_spent
+        )
     
     @classmethod
     async def transactions_by_filter_type(cls,
@@ -145,7 +472,7 @@ class YNAB():
         specific_month: Enum = None,
         top_x: IntEnum = None,
         transaction_type: Enum = None
-        ):
+        ) -> TransactionsByFilterResponse:
 
         entities_raw = {}
         match filter_type.value:
@@ -161,6 +488,7 @@ class YNAB():
                     }
             case 'payee':
                 logging.debug("Getting payees list.")
+                # TODO filter out transfers and other types like monthly bills etc
                 pydantic_payees_list = await YnabHelpers.make_request('payees-list', param_1=dotenv_ynab_budget_id)
                 logging.debug(f"Returned {len(pydantic_payees_list)} payees.")
                 for payee in pydantic_payees_list:
@@ -175,17 +503,18 @@ class YNAB():
                 logging.debug("Getting categories list.")
                 pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
                 logging.debug(f'Returned {len(pydantic_categories_list)} category groups.')
-                for category_group in pydantic_categories_list:
-                    if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
-                    for category in category_group.categories:
-                        entities_raw[f'{category.id}'] = {
-                            'id': category.id,
-                            'name': category.name,
-                            'category_group_name': category.category_group_name,
-                            'category_group_id': category.category_group_id,
-                            'total': 0
-                        }
-        
+                # TODO have a function for each of the return types from transactions by filter type to return the relevant schema.
+                # e.g. CategoryGroups so you can use .value methods.
+                for category in pydantic_categories_list:
+                    if category.category_group_name not in cls.CAT_EXPENSE_NAMES: continue
+                    entities_raw[f'{category.id}'] = {
+                        'id': category.id,
+                        'name': category.name,
+                        'category_group_name': category.category_group_name,
+                        'category_group_id': category.category_group_id,
+                        'total': 0
+                    }
+
         since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
         result_json = {
             'since_date': since_date,
@@ -246,7 +575,7 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def transactions_by_month_for_year(cls, year: Enum = None):
+    async def transactions_by_month_for_year(cls, year: Enum = None) -> TransactionsByMonthResponse:
         since_date = f'{year.value}-01-01'
         
         january = {
@@ -340,7 +669,8 @@ class YNAB():
                 january, february, march, april, may, june, july, august, september, october, november, december
             ]
         }
-
+        
+        # TODO ensure the transactions returned are only returned for that year.
         pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
 
         skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
@@ -373,7 +703,7 @@ class YNAB():
         return result_json
 
     @classmethod
-    async def transactions_by_months(cls, months: IntEnum = None):
+    async def transactions_by_months(cls, months: IntEnum = None) -> TransactionsByMonthResponse:
         since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
         now = localtime()
         # Returns a tuple of year, month. e.g. [(2024, 1), (2023, 12), (2023, 11)]
@@ -509,329 +839,6 @@ class YNAB():
             
         return result_json
     
-    @classmethod
-    async def last_paid_date_for_accounts(cls, months: IntEnum):
-        # Look over the last month. If no payment, assume the bill has not been paid yet.
-        since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
-        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-
-        amex = {
-            "id": None,
-            "date": None,
-            "amount": None,
-            "account_name": "BA AMEX"
-        }
-        barclays = {
-            "id": None,
-            "date": None,
-            "amount": None,
-            "account_name": "Barclays CC"
-        }
-        hsbc = {
-            "id": None,
-            "date": None,
-            "amount": None,
-            "account_name": "HSBC CC"
-        }
-
-        transfer_payments = [amex, barclays, hsbc]
-
-        account_match = {
-            'BA AMEX': amex,
-            'Barclays CC': barclays,
-            'HSBC CC': hsbc,
-        }
-
-        for transaction in pydantic_transactions_list:
-            if transaction.payee_name != 'Transfer : HSBC ADVANCE': continue
-
-            account_match[transaction.account_name]['id'] = transaction.id
-            account_match[transaction.account_name]['date'] = transaction.date
-            account_match[transaction.account_name]['amount'] = await YnabHelpers.convert_to_float(transaction.amount)
-
-        result_json = {
-            'since_date': since_date,
-            'data': transfer_payments
-        }
-
-        return result_json
-
-    @classmethod
-    async def spent_in_period(cls, period: Enum):
-        # TODO add filters for whether I want to include bills or just things which do not come from a specific account (e.g. Current Account)
-        match period.value:
-            case 'TODAY':
-                current_date = datetime.today().strftime('%Y-%m-%d')
-                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
-                
-                total_spent = 0.0
-                for transaction in pydantic_transactions_list:
-                    if transaction.amount > 0: continue
-                    total_spent += transaction.amount
-                
-                return {
-                    "spent": await YnabHelpers.convert_to_float(total_spent)
-                }
-            case 'YESTERDAY':
-                current_date = datetime.today() - DateOffset(days=1)
-                current_date = current_date.strftime('%Y-%m-%d')
-                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
-                
-                total_spent = 0.0
-                for transaction in pydantic_transactions_list:
-                    if transaction.amount > 0: continue
-                    total_spent += transaction.amount
-                
-                return {
-                    "spent": await YnabHelpers.convert_to_float(total_spent)
-                }
-            case 'THIS_WEEK':
-                current_date = datetime.today()
-                days_to_monday =  current_date.weekday() - 0
-                current_date = datetime.today() - DateOffset(days=days_to_monday)
-                current_date = current_date.strftime('%Y-%m-%d')
-                pydantic_transactions_list = await YnabHelpers.make_request(action='transactions-list', param_1=dotenv_ynab_budget_id, since_date=current_date)
-                                
-                total_spent = 0.0
-                for transaction in pydantic_transactions_list:
-                    if transaction.amount > 0 or transaction.category_name in ["Loans", "Monthly Bills", "Credit Card Payments", "Yearly Bills"]: continue
-                    total_spent += transaction.amount
-                
-                return {
-                    "spent": await YnabHelpers.convert_to_float(total_spent)
-                }
-            case 'LAST_WEEK':
-                # TODO
-                return None
-            case _:
-                return None
-
-    @classmethod
-    async def spent_vs_budget(cls):
-        pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
-
-        total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
-        total_budgeted = 0.0 # Budget assigned to the category
-        total_spent = 0.0
-        category_count = 0
-        # Only categories that I care about for tracking the monthly target.
-        # This is usually when I only have a budget assigned to a category.
-        # So I should skip any category which does not have a budget assigned.
-        for category in pydantic_categories_list:
-            if category.category_group_name not in cls.CAT_EXPENSE_NAMES: continue
-            total_spent += category.activity
-            total_balance += category.balance
-            total_budgeted += category.budgeted
-            logging.debug(f'''
-            Category details:
-                name: {category.name}
-                activity: {category.activity}
-                balance: {category.balance}
-                budgeted: {category.budgeted}
-            ''')
-            category_count += 1
-
-        # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
-        total_goal = min((-total_spent / total_budgeted) * 100, 100)
-
-        return {
-            'balance': await YnabHelpers.convert_to_float(total_balance),
-            'budget': await YnabHelpers.convert_to_float(total_budgeted),
-            'spent': await YnabHelpers.convert_to_float(-total_spent),
-            'progress': total_goal
-        }
-
-    @classmethod
-    async def earned_vs_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):        
-        transactions_income = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.ACCOUNT,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.INCOME
-        )
-        
-        total_earned = 0.0
-        for account in transactions_income['data']:
-            total_earned += account['total']
-
-        transactions_expense = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.ACCOUNT,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.EXPENSES
-        )
-
-        total_spent = 0.0
-        for account in transactions_expense['data']:
-            total_spent += account['total']
-
-        return {
-            'since_date': transactions_expense['since_date'],
-            'earned': total_earned,
-            'spent': total_spent
-        }
-
-    @classmethod
-    async def get_category_summary(cls):
-        current_date = datetime.today().strftime('%Y-%m') + '-01'
-        pydantic_categories_list = await YnabHelpers.make_request('categories-list', param_1=dotenv_ynab_budget_id)
-
-        result_json = []
-
-        # TODO change this up to save each of the different categories and then add to them.
-        for category_group in pydantic_categories_list:
-            if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
-            total_balance = 0.0
-            total_budgeted = 0.0
-            for category in category_group.categories:
-                total_balance += category.balance
-                total_budgeted += category.budgeted
-            
-            total_spent = total_budgeted - total_balance
-
-            result_json.append({
-                'name': category_group.name,
-                'spent': await YnabHelpers.convert_to_float(total_spent),
-                'budget': await YnabHelpers.convert_to_float(total_budgeted),
-                'progress': (total_spent / total_budgeted) * 100,
-            })
-        
-        # Show the categories with the higher goals first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
-
-        return {
-            'since_date': current_date,
-            'data': sorted_list
-        }
-
-    @classmethod
-    async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
-        # Can't get category limits for previous months, only use the category endpoint when looking at the current month
-        if year and specific_month:
-            current_year_month = datetime.today().strftime('%Y-%m')
-            if current_year_month == f'{year.value}-{specific_month.value}':
-                logging.debug("Returning current month category info.")
-                return await cls.get_category_summary()
-
-        # Instead go through every transaction for the period and show the categories by amount spent, descending
-        transactions = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.CATEGORY,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.EXPENSES
-        )
-
-        category_groups = {}
-        total_spent = 0.0
-
-        for transaction in transactions['data']:
-            category_group_id_str = str(transaction['category_group_id'])
-            
-            try:
-                # If the group name exists, add the sum to the existing value
-                category_groups[category_group_id_str]['spent'] += transaction['total']
-            except KeyError:
-                # Otherwise append it with the current value
-                category_groups[category_group_id_str] = {
-                    'name': transaction['category_group_name'],
-                    'spent': transaction['total']
-                }
-            
-            # Gather the total spent to calculate the overall spend for each category against the time period.
-            total_spent += transaction['total']
-        
-        result_json = []
-        for category in category_groups.values():
-            category['progress'] = (category['spent'] / total_spent) * 100
-            result_json.append(category)
-
-        # Show the categories with the higher spends first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
-
-        return {
-            'since_date': transactions['since_date'],
-            'data': sorted_list
-        }
-
-    @classmethod
-    async def sub_categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
-        transactions = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.CATEGORY,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.EXPENSES,
-            top_x=5 # Only returning the top 5 due to page layout. TODO have a scrolly thingy on the UI.
-        )
-
-        total_spent = 0.0
-        result_json = []
-
-        # TODO fix this with the cahnges to returning DB entities
-        for transaction in transactions['data']:
-            sub_category_name = transaction['name'] + ' / ' + transaction['category_group_name']
-            result_json.append({
-                'name': sub_category_name,
-                'spent': transaction['total'],
-            })
-            
-            # Gather the total spent to calculate the overall spend for each category against the time period.
-            total_spent += transaction['total']
-
-        for sub_category in result_json:
-            sub_category['progress'] = (sub_category['spent'] / total_spent) * 100
-
-        # Show the categories with the higher spends first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
-
-        return {
-            'since_date': transactions['since_date'],
-            'data': sorted_list
-        }
-
-    @classmethod
-    async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
-        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
-        pydantic_transactions_list = await YnabHelpers.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date)
-
-        # From the since date, go through each month and add it to the data
-        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
-        current_date = datetime.now()
-
-        result_json = []
-        while since_date_dt <= current_date:
-            # When using the months var, it can sometimes return more than specified. E.g. returns 4 instead of 3 months.
-            # TODO fix this.
-            since_date_dt += timedelta(days=30)  # Assuming an average month length of 30 days
-            month_year_match = since_date_dt.strftime("%Y-%m")
-            month_year = {
-                'month': since_date_dt.strftime("%B"), # Full month name
-                'year': since_date_dt.strftime("%Y"), # Four-digit year
-                'income': 0.0,
-                'expenses': 0.0
-            }
-            # Short term: go through each transaction and add them to the month if the year and month match.
-            # TODO long term: make DB queries to add transactions from those months/year
-            # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
-            for transaction in pydantic_transactions_list:
-                # Skip all inflow values.
-                if transaction.category_name == 'Inflow: Ready to Assign': continue
-                if transaction.date.strftime("%Y-%m") == month_year_match:
-                    if transaction.amount > 0:
-                        month_year['income'] += await YnabHelpers.convert_to_float(transaction.amount)
-                    else:
-                        month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
-            
-            result_json.append(month_year)
-
-        return {
-            'since_date': since_date,
-            'data': result_json
-        }
-
 class YnabHelpers():
     @classmethod
     async def convert_to_float(cls, amount) -> float:

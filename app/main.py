@@ -183,18 +183,6 @@ async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthO
     logging.debug("test")
     return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
 
-@app.get("/ynab/spent-vs-budget")
-async def spent_vs_budget():
-    return await ynab.spent_vs_budget()
-
-@app.get("/ynab/sub-categories-spent")
-async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
-
-@app.get("/ynab/last-x-transactions")
-async def last_x_transactions(count: int, since_date: str = None):
-    return await ynab.last_x_transactions(count, since_date)
-
 @app.get("/ynab/income-vs-expenses")
 async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.income_vs_expenses(year=year, months=months, specific_month=month)
@@ -203,14 +191,35 @@ async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMon
 async def last_paid_date_for_accounts():
     return await ynab.last_paid_date_for_accounts(months=PeriodMonthOptions.MONTHS_1)
 
+@app.get("/ynab/last-x-transactions")
+async def last_x_transactions(count: int, since_date: str = None):
+    return await ynab.last_x_transactions(count, since_date)
+
+@app.get("/ynab/latest-transactions")
+async def latest_transactions():
+    # TODO add schema response here
+    return await ynab_help.make_request(
+        action='transactions-list',
+        param_1="e473536e-1a6c-42b1-8c90-c780a36b5580",
+        skip_sk=True
+    )
+
 @app.get("/ynab/spent-in-period")
 async def spent_in_period(period: PeriodOptions):
     return await ynab.spent_in_period(period)
 
-@app.get("/ynab/totals")
-async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
+@app.get("/ynab/spent-vs-budget")
+async def spent_vs_budget():
+    return await ynab.spent_vs_budget()
+
+@app.get("/ynab/sub-categories-spent")
+async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
+
+@app.get("/ynab/total-spent")
+async def total_spent(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
     specific_month: SpecificMonthOptions = None):
-    return await ynab.get_totals(
+    return await ynab.total_spent(
         transaction_type=transaction_type,
         filter_type=FilterTypes.ACCOUNT,
         year=year,
@@ -218,16 +227,8 @@ async def get_totals(transaction_type: TransactionTypeOptions, year: SpecificYea
         specific_month=specific_month,
     )
 
-@app.get("/ynab/transaction-by-month-for-year")
-async def get_transactions_by_month_for_year(year: SpecificYearOptions):
-    return await ynab.transactions_by_month_for_year(year)
-
-@app.get("/ynab/transaction-by-months")
-async def get_transactions_by_months(months: PeriodMonthOptions):
-    return await ynab.transactions_by_months(months)
-
 @app.get("/ynab/transactions-by-filter-type")
-async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_type: TransactionTypeOptions, \
+async def transactions_by_filter_type(filter_type: FilterTypes, transaction_type: TransactionTypeOptions, \
     year: SpecificYearOptions = None, top_x: TopXOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
     return await ynab.transactions_by_filter_type(
         transaction_type=transaction_type,
@@ -238,10 +239,10 @@ async def get_transactions_by_filter_type(filter_type: FilterTypes, transaction_
         top_x=top_x,
     )
 
-@app.get("/ynab/latest-transactions")
-async def get_latest_transactions():
-    return await ynab_help.make_request(
-        action='transactions-list',
-        param_1="e473536e-1a6c-42b1-8c90-c780a36b5580",
-        skip_sk=True
-        )
+@app.get("/ynab/transaction-by-month-for-year")
+async def transactions_by_month_for_year(year: SpecificYearOptions):
+    return await ynab.transactions_by_month_for_year(year)
+
+@app.get("/ynab/transaction-by-months")
+async def transactions_by_months(months: PeriodMonthOptions):
+    return await ynab.transactions_by_months(months)
