@@ -334,7 +334,7 @@ class TransactionSummary(BaseModel):
     transfer_account_id: Optional[UUID] = Field(
         None, description='If a transfer transaction, the account to which it transfers'
     )
-    transfer_transaction_id: Optional[str] = Field(
+    transfer_transaction_id: Optional[UUID] = Field(
         None,
         description='If a transfer transaction, the id of transaction on the other side of the transfer',
     )

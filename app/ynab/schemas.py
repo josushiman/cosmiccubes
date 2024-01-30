@@ -4,13 +4,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import date as date_field
 
-class GoalTypeEnum(Enum):
-    TB = 'TB'
-    TBD = 'TBD'
-    MF = 'MF'
-    NEED = 'NEED'
-    DEBT = 'DEBT'
-
 class AvailableBalance(BaseModel):
     total: float = Field(..., description='Total balance currently available across all accounts.')
     spent: float = Field(..., description='The total spent across all accounts.')
