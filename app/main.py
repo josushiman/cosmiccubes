@@ -77,7 +77,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -198,11 +198,7 @@ async def last_x_transactions(count: int, since_date: str = None):
 @app.get("/ynab/latest-transactions")
 async def latest_transactions():
     # TODO add schema response here
-    return await ynab_help.make_request(
-        action='transactions-list',
-        param_1="e473536e-1a6c-42b1-8c90-c780a36b5580",
-        skip_sk=True
-    )
+    return await ynab_help.pydantic_transactions(skip_sk=True)
 
 @app.get("/ynab/spent-in-period")
 async def spent_in_period(period: PeriodOptions):
