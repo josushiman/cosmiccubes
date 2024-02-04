@@ -14,6 +14,7 @@ async-lru = "*"
 httpx = "*"
 pandas = "*"
 colorlog = "*"
+python-dateutil = "*"
 
 [dev-packages]
 

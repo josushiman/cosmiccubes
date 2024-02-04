@@ -6,6 +6,7 @@ from uuid import UUID
 from enum import Enum, IntEnum
 from time import localtime, mktime
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
@@ -217,13 +218,15 @@ class YNAB():
 
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
-        current_date = datetime.now()
+        current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         result_json = []
         while since_date_dt <= current_date:
-            # When using the months var, it can sometimes return more than specified. E.g. returns 4 instead of 3 months.
-            # TODO fix this.
-            since_date_dt += timedelta(days=30)  # Assuming an average month length of 30 days
+            logging.debug(f'''
+            Current Date: {current_date}
+            Since Date: {since_date_dt}
+            Since date <= Current Date: {since_date_dt <= current_date}
+            ''')
             month_year_match = since_date_dt.strftime("%Y-%m")
             month_year = {
                 'month': since_date_dt.strftime("%B"), # Full month name
@@ -244,6 +247,14 @@ class YNAB():
                         month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
             
             result_json.append(month_year)
+            
+            # Add a month after adding the current month.
+            since_date_dt += relativedelta(months=1)
+            logging.debug(f'''
+            Current Date: {current_date}
+            Since Date Delta: {since_date_dt}
+            Since date <= Current Date: {since_date_dt <= current_date}
+            ''')
 
         return IncomeVsExpensesResponse(
             since_date=since_date,
@@ -391,8 +402,16 @@ class YNAB():
             ''')
             category_count += 1
 
-        # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
-        total_goal = min((-total_spent / total_budgeted) * 100, 100)
+        logging.debug(f'''
+        Total Spent: {total_spent}
+        Total Budgeted: {total_budgeted}
+        ''')
+        try:
+            # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
+            total_goal = min((-total_spent / total_budgeted) * 100, 100)
+        except ZeroDivisionError:
+            logging.debug("No budgets seem to be set. Check why.")
+            total_goal = 0
 
         return {
             'balance': await YnabHelpers.convert_to_float(total_balance),
@@ -843,23 +862,31 @@ class YnabHelpers():
     
     @classmethod
     async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None) -> str:
+        logging.debug(f'''
+        Year: {year}
+        Months: {months}
+        Specific Month: {specific_month}
+        ''')
         if year and not specific_month:
             logging.debug("Getting transactions for the current year.")
             return f'{year.value}-01-01'
-        
-        if months:
-            logging.debug(f"Getting transactions for the last {months.value} months.")
-            current_month = datetime.today() - DateOffset(months=months)
-            return current_month.strftime('%Y-%m') + '-01'
         
         if specific_month and year:
             logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
             return f'{year.value}-{specific_month.value}-01'
         
         if specific_month:
-            current_year = datetime.today().strftime('%Y')
+            current_year = datetime.now().strftime('%Y')
             logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
             return f'{current_year}-{specific_month.value}-01'
+        
+        # If this condition is not set, it'll always return the current month, which would also meet the need for months=1
+        if months > 1:
+            current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            # When returning months, you need to include the current month. So you therefore need to subtract 1 from the months value.
+            month_delta = current_date - relativedelta(months=months - 1)
+            logging.debug(f"Getting transactions for the last {months.value} months. Returning {month_delta}")
+            return month_delta.strftime('%Y-%m-%d')
         
         logging.debug("Getting transactions for this month only.")
         return datetime.today().strftime('%Y-%m') + '-01'
