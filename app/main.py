@@ -188,8 +188,8 @@ async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMon
     return await ynab.income_vs_expenses(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/last-paid-date-for-accounts")
-async def last_paid_date_for_accounts():
-    return await ynab.last_paid_date_for_accounts(months=PeriodMonthOptions.MONTHS_1)
+async def last_paid_date_for_accounts(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.last_paid_date_for_accounts(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/last-x-transactions")
 async def last_x_transactions(count: int, since_date: str = None):
@@ -211,6 +211,10 @@ async def spent_vs_budget():
 @app.get("/ynab/sub-categories-spent")
 async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
+
+@app.get("/ynab/sync-transaction-rels")
+async def sync_transaction_rels():
+    return await ynab_help.sync_transaction_rels()
 
 @app.get("/ynab/total-spent")
 async def total_spent(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \

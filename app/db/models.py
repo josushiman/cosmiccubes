@@ -235,3 +235,4 @@ class YnabTransactions(models.Model):
     import_payee_name_original = fields.CharField(max_length=150, null=True)
     debt_transaction_type = fields.CharField(max_length=150, null=True)
     deleted = fields.BooleanField(null=True)
+    category_fk = fields.ForeignKeyField('models.YnabCategories', related_name='transactions', null=True)

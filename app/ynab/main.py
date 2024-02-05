@@ -11,8 +11,11 @@ from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
 from fastapi import HTTPException
+from itertools import groupby
+from tortoise.functions import Sum
 from tortoise.models import Model
 from tortoise.exceptions import FieldError, IntegrityError
+from tortoise.expressions import RawSQL
 from pydantic import TypeAdapter
 from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse, Account, Category, MonthSummary, Payee, TransactionDetail
@@ -220,41 +223,78 @@ class YNAB():
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
         current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
+        totals_queryset = YnabTransactions.annotate(
+            total_amount=Sum('amount'),
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            date__gte=since_date_dt,
+            date__lt=datetime.now(),
+            # category_name__in=YNAB.CAT_EXPENSE_NAMES TODO add relation between categories and transactions table
+        ).order_by('date').group_by('date').values('date','total_amount','income','expense')
+        
+        logging.debug(totals_queryset.sql())
+        db_results = await totals_queryset
+        # Example output of db_results
+        # [{'date': datetime.date(2024, 1, 7), 'total_amount': 14427080.0, 'income': 21012910.0, 'expense': -6585830.0}]
+
+        # Function to extract year and month from a date
+        def extract_year_month(entry):
+            return entry['date'].year, entry['date'].month
+
+        # Sort the list by year and month
+        sorted_result = sorted(db_results, key=extract_year_month)
+
+        # Group the sorted list by year and month
+        grouped_result = {key: list(group) for key, group in groupby(sorted_result, key=extract_year_month)}
+
         result_json = []
-        while since_date_dt <= current_date:
-            logging.debug(f'''
-            Current Date: {current_date}
-            Since Date: {since_date_dt}
-            Since date <= Current Date: {since_date_dt <= current_date}
-            ''')
-            month_year_match = since_date_dt.strftime("%Y-%m")
+        # Print or use the grouped result with total income and total expense
+        for year_month, entries in grouped_result.items():
+            year, month = year_month
             month_year = {
-                'month': since_date_dt.strftime("%B"), # Full month name
-                'year': since_date_dt.strftime("%Y"), # Four-digit year
-                'income': 0.0,
-                'expenses': 0.0
+                'month': str(month),
+                'year': str(year),
+                'income': await YnabHelpers.convert_to_float(sum(entry['income'] for entry in entries)),
+                'expenses': await YnabHelpers.convert_to_float(sum(entry['expense'] for entry in entries))
             }
-            # Short term: go through each transaction and add them to the month if the year and month match.
-            # TODO long term: make DB queries to add transactions from those months/year
-            # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
-            for transaction in pydantic_transactions_list:
-                # Skip all inflow values.
-                if transaction.category_name == 'Inflow: Ready to Assign': continue
-                if transaction.date.strftime("%Y-%m") == month_year_match:
-                    if transaction.amount > 0:
-                        month_year['income'] += await YnabHelpers.convert_to_float(transaction.amount)
-                    else:
-                        month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
-            
             result_json.append(month_year)
+
+        # result_json = []
+        # while since_date_dt <= current_date:
+        #     logging.debug(f'''
+        #     Current Date: {current_date}
+        #     Since Date: {since_date_dt}
+        #     Since date <= Current Date: {since_date_dt <= current_date}
+        #     ''')
+        #     month_year_match = since_date_dt.strftime("%Y-%m")
+        #     month_year = {
+        #         'month': since_date_dt.strftime("%B"), # Full month name
+        #         'year': since_date_dt.strftime("%Y"), # Four-digit year
+        #         'income': 0.0,
+        #         'expenses': 0.0
+        #     }
+        #     # Short term: go through each transaction and add them to the month if the year and month match.
+        #     # TODO long term: make DB queries to add transactions from those months/year
+        #     # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
+        #     for transaction in pydantic_transactions_list:
+        #         # Skip all inflow values.
+        #         if transaction.category_name == 'Inflow: Ready to Assign': continue
+        #         if transaction.date.strftime("%Y-%m") == month_year_match:
+        #             if transaction.amount > 0:
+        #                 month_year['income'] += await YnabHelpers.convert_to_float(transaction.amount)
+        #             else:
+        #                 month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
             
-            # Add a month after adding the current month.
-            since_date_dt += relativedelta(months=1)
-            logging.debug(f'''
-            Current Date: {current_date}
-            Since Date Delta: {since_date_dt}
-            Since date <= Current Date: {since_date_dt <= current_date}
-            ''')
+        #     result_json.append(month_year)
+
+        #     # Add a month after adding the current month.
+        #     since_date_dt += relativedelta(months=1)
+        #     logging.debug(f'''
+        #     Current Date: {current_date}
+        #     Since Date Delta: {since_date_dt}
+        #     Since date <= Current Date: {since_date_dt <= current_date}
+        #     ''')
 
         return IncomeVsExpensesResponse(
             since_date=since_date,
@@ -262,10 +302,10 @@ class YNAB():
         )
 
     @classmethod
-    async def last_paid_date_for_accounts(cls, months: IntEnum) -> CreditAccountResponse:
+    async def last_paid_date_for_accounts(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CreditAccountResponse:
         # Look over the last month. If no payment, assume the bill has not been paid yet.
-        since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date)
+        since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
+        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date, month=specific_month, year=year)
 
         amex = {
             "id": None,
@@ -1016,6 +1056,7 @@ class YnabHelpers():
             year: Enum = None,
             skip_sk: bool = False
         ) -> dict | HTTPException:
+        # TODO remove transactions which don't meet CAT_EXPENSE_NAMES
         '''
         Check if the route exists in server knowledge
             If it does, check the entities are up to date
@@ -1093,8 +1134,8 @@ class YnabHelpers():
         return await cls.make_request('payees-list', param_1=dotenv_ynab_budget_id)
     
     @classmethod
-    async def pydantic_transactions(cls, since_date: str = None, month: str = None, year: Enum = None) -> list[YnabTransactions]:
-        return await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date, month=month, year=year)
+    async def pydantic_transactions(cls, since_date: str = None, month: str = None, year: Enum = None, skip_sk: bool = None) -> list[YnabTransactions]:
+        return await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date, month=month, year=year, skip_sk=skip_sk)
 
     @classmethod
     async def return_db_model_entities(cls, action: str, since_date: str = None, month: Enum = None, year: Enum = None) -> list[Model]:
@@ -1150,6 +1191,40 @@ class YnabHelpers():
             case _:
                 logging.exception(f"Tried to return an endpoint we don't support yet. {action}")
                 raise HTTPException(status_code=500)
+
+    @classmethod
+    async def sync_transaction_rels(cls):
+        # Get all the transactions that don't have a category_fk set
+        transactions_no_cat_fk = await YnabTransactions.filter(category_fk=None)
+        transactions_to_update = await YnabTransactions.filter(category_fk=None).count()
+
+        if transactions_to_update < 1: return {"message": "All transactions have category fk's synced."}
+
+        skipped_transactions = 0
+        # Go through each transaction that doesn't have a category_fk set
+        for transaction in transactions_no_cat_fk:
+            # Search on the ynabcategories table for the ID
+            category_entity = await YnabCategories.filter(id=transaction.category_id).get_or_none()
+
+            if category_entity is None:
+                if transaction.transfer_account_id is not None:
+                    logging.info(f"Transaction is a transfer, ignoring: {transaction.id}")    
+                else:
+                    logging.warn(f"Category may not be set for transaction: {transaction.id}")
+                skipped_transactions += 1
+                continue
+            
+            # Set the category_fk
+            logging.debug(f"Assigning Category Group: {category_entity.category_group_name} to {transaction.id}")
+            transaction.category_fk = category_entity
+            await transaction.save()
+
+        logging.info(f'''
+        Total to sync: {transactions_to_update}
+        Total skipped: {skipped_transactions}
+        Total synced: {transactions_to_update-skipped_transactions}
+        ''')
+        return {"message": "Complete."}
 
 class YnabServerKnowledgeHelper():
     @classmethod
