@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Dict, List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from datetime import date as date_field
 from app.ynab.models import TransactionDetail
 
@@ -9,6 +9,11 @@ class AvailableBalanceResponse(BaseModel):
     total: float = Field(..., description='Total balance currently available across all accounts.')
     spent: float = Field(..., description='The total spent across all accounts.')
     available: float = Field(..., description='The left over balance after all outstanding credit is paid off.')
+
+    @validator("total", "spent", "available", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
 class CardBalance(BaseModel):
     name: str = Field(..., description='Account name for the card.')

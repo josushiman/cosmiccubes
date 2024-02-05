@@ -36,35 +36,18 @@ class YNAB():
 
     @classmethod
     async def available_balance(cls) -> AvailableBalanceResponse:
-        pydantic_accounts_list = await YnabHelpers.pydantic_accounts()
+        db_queryset = YnabAccounts.annotate(
+            available=Sum('balance'),
+            spent=Sum(RawSQL('''CASE WHEN "type" != 'checking' THEN "balance" ELSE 0 END''')),
+            total=Sum(RawSQL('''CASE WHEN "type" = 'checking' THEN "balance" ELSE 0 END'''))
+        ).first().values('total','spent','available')
+        
+        db_result = await db_queryset
 
-        total_amount = 0.00
-        spent_amount = 0.00
+        logging.debug(f"DB Query: {db_queryset.sql()}")
+        logging.debug(f"DB Result: {db_result}")
 
-        for account in pydantic_accounts_list:
-            if account.type.value == 'checking':
-                total_amount += account.balance
-            else:
-                spent_amount += account.balance
-
-            logging.debug(f'''
-            name: {account.name}
-            type: {account.type.value}
-            balance: {account.balance}
-            cleared: {account.cleared_balance}
-            uncleared: {account.uncleared_balance}
-            ''')
-
-        # Units are returned as milliunits.
-        available_amount = await YnabHelpers.convert_to_float(total_amount -- spent_amount)
-        total_amount = await YnabHelpers.convert_to_float(total_amount)
-        spent_amount = await YnabHelpers.convert_to_float(spent_amount)
-
-        return AvailableBalanceResponse(
-            total=total_amount,
-            spent=spent_amount,
-            available=available_amount
-        )
+        return AvailableBalanceResponse(**db_result)
     
     @classmethod
     async def card_balances(cls) -> CardBalancesResponse:
