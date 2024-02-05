@@ -51,32 +51,16 @@ class YNAB():
     
     @classmethod
     async def card_balances(cls) -> CardBalancesResponse:
-        pydantic_accounts_list = await YnabHelpers.pydantic_accounts()
+        db_queryset = YnabAccounts.filter(
+            type__not='checking'
+        ).values('name','balance',cleared='cleared_balance',uncleared='uncleared_balance')
+        
+        db_result = await db_queryset
 
-        result_json = {
-            "data": []
-        }
+        logging.debug(f"DB Query: {db_queryset.sql()}")
+        logging.debug(f"DB Result: {db_result}")
 
-        for account in pydantic_accounts_list:
-            if account.type.value == 'checking': continue
-            
-            # TODO replace all of these with Pydantic model responses
-            result_json["data"].append({
-                "name": account.name,
-                "balance": await YnabHelpers.convert_to_float(account.balance),
-                "cleared": await YnabHelpers.convert_to_float(account.cleared_balance),
-                "uncleared": await YnabHelpers.convert_to_float(account.uncleared_balance),
-            })
-
-            logging.debug(f'''
-            name: {account.name}
-            type: {account.type.value}
-            balance: {account.balance}
-            cleared: {account.cleared_balance}
-            uncleared: {account.uncleared_balance}
-            ''')
-
-        return result_json
+        return CardBalancesResponse(data=db_result)
 
     @classmethod
     async def get_category_summary(cls) -> CategorySummaryResponse:
