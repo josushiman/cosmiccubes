@@ -218,13 +218,12 @@ class YNAB():
     @classmethod
     async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> IncomeVsExpensesResponse:
         since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date)
 
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
-        cat_expense_include_income = YNAB.CAT_EXPENSE_NAMES
-        cat_expense_include_income.append('')
 
+        # The below covers between two dates.
+        # TODO have a query which will pull specific dates when specific_month is set.
         db_queryset = YnabTransactions.annotate(
             total_amount=Sum('amount'),
             income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
@@ -271,9 +270,9 @@ class YNAB():
         # Print or use the grouped result with total income and total expense
         for year_month, entries in grouped_result.items():
             year, month = year_month
-            month_name = calendar.month_name[month]
+            month_full_name = calendar.month_name[month] # January
             month_year = {
-                'month': month_name,
+                'month': month_full_name,
                 'year': str(year),
                 'income': await YnabHelpers.convert_to_float(sum(entry['income'] for entry in entries)),
                 'expenses': await YnabHelpers.convert_to_float(sum(entry['expense'] for entry in entries))
