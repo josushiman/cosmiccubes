@@ -2,6 +2,7 @@ import os
 import httpx
 import logging
 import json
+import calendar
 from uuid import UUID
 from enum import Enum, IntEnum
 from time import localtime, mktime
@@ -15,7 +16,7 @@ from itertools import groupby
 from tortoise.functions import Sum
 from tortoise.models import Model
 from tortoise.exceptions import FieldError, IntegrityError
-from tortoise.expressions import RawSQL
+from tortoise.expressions import RawSQL, Q
 from pydantic import TypeAdapter
 from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse, Account, Category, MonthSummary, Payee, TransactionDetail
@@ -221,20 +222,38 @@ class YNAB():
 
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
-        current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        cat_expense_include_income = YNAB.CAT_EXPENSE_NAMES
+        cat_expense_include_income.append('')
 
-        totals_queryset = YnabTransactions.annotate(
+        db_queryset = YnabTransactions.annotate(
             total_amount=Sum('amount'),
             income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
             expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
         ).filter(
-            date__gte=since_date_dt,
-            date__lt=datetime.now(),
-            # category_name__in=YNAB.CAT_EXPENSE_NAMES TODO add relation between categories and transactions table
-        ).order_by('date').group_by('date').values('date','total_amount','income','expense')
+            Q(date__gte=since_date_dt),
+            Q(date__lt=datetime.now()),
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('date').values('date','total_amount','income','expense').sql()
+        logging.debug(db_queryset)
+
+        db_results = await YnabTransactions.annotate(
+            total_amount=Sum('amount'),
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lt=datetime.now()),
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('date').values('date','total_amount','income','expense')
         
-        logging.debug(totals_queryset.sql())
-        db_results = await totals_queryset
         # Example output of db_results
         # [{'date': datetime.date(2024, 1, 7), 'total_amount': 14427080.0, 'income': 21012910.0, 'expense': -6585830.0}]
 
@@ -252,49 +271,14 @@ class YNAB():
         # Print or use the grouped result with total income and total expense
         for year_month, entries in grouped_result.items():
             year, month = year_month
+            month_name = calendar.month_name[month]
             month_year = {
-                'month': str(month),
+                'month': month_name,
                 'year': str(year),
                 'income': await YnabHelpers.convert_to_float(sum(entry['income'] for entry in entries)),
                 'expenses': await YnabHelpers.convert_to_float(sum(entry['expense'] for entry in entries))
             }
             result_json.append(month_year)
-
-        # result_json = []
-        # while since_date_dt <= current_date:
-        #     logging.debug(f'''
-        #     Current Date: {current_date}
-        #     Since Date: {since_date_dt}
-        #     Since date <= Current Date: {since_date_dt <= current_date}
-        #     ''')
-        #     month_year_match = since_date_dt.strftime("%Y-%m")
-        #     month_year = {
-        #         'month': since_date_dt.strftime("%B"), # Full month name
-        #         'year': since_date_dt.strftime("%Y"), # Four-digit year
-        #         'income': 0.0,
-        #         'expenses': 0.0
-        #     }
-        #     # Short term: go through each transaction and add them to the month if the year and month match.
-        #     # TODO long term: make DB queries to add transactions from those months/year
-        #     # TODO make sure this matches what transactions_by_filter_type does when going through transxtions
-        #     for transaction in pydantic_transactions_list:
-        #         # Skip all inflow values.
-        #         if transaction.category_name == 'Inflow: Ready to Assign': continue
-        #         if transaction.date.strftime("%Y-%m") == month_year_match:
-        #             if transaction.amount > 0:
-        #                 month_year['income'] += await YnabHelpers.convert_to_float(transaction.amount)
-        #             else:
-        #                 month_year['expenses'] += await YnabHelpers.convert_to_float(-transaction.amount)
-            
-        #     result_json.append(month_year)
-
-        #     # Add a month after adding the current month.
-        #     since_date_dt += relativedelta(months=1)
-        #     logging.debug(f'''
-        #     Current Date: {current_date}
-        #     Since Date Delta: {since_date_dt}
-        #     Since date <= Current Date: {since_date_dt <= current_date}
-        #     ''')
 
         return IncomeVsExpensesResponse(
             since_date=since_date,
@@ -893,6 +877,20 @@ class YNAB():
             
         return result_json
     
+    @classmethod
+    async def test_endpoint(cls):
+        filter_by_cat = await YnabTransactions.annotate(
+            total_amount=Sum('amount'),
+            income=Sum(RawSQL('CASE WHEN "ynabtransactions"."amount" >= 0 THEN "ynabtransactions"."amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "ynabtransactions"."amount" < 0 THEN "ynabtransactions"."amount" ELSE 0 END'))
+        ).filter(
+            date__gte='2024-01-01T00:00:00',
+            date__lt=datetime.now(),
+            category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES
+        ).group_by('date').values('date','total_amount','income','expense')
+
+        return filter_by_cat
+
 class YnabHelpers():    
     @classmethod
     async def convert_to_float(cls, amount) -> float:
@@ -1349,4 +1347,3 @@ class YnabServerKnowledgeHelper():
         
         logging.debug(f"Created {created} entities. Updated {len(entities) - created} entities")
         return { "message": "Complete" }
-    
