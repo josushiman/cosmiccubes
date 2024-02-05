@@ -875,20 +875,6 @@ class YNAB():
                 month_match[transaction_month]['total_spent'] += await YnabHelpers.convert_to_float(transaction.amount)
             
         return result_json
-    
-    @classmethod
-    async def test_endpoint(cls):
-        filter_by_cat = await YnabTransactions.annotate(
-            total_amount=Sum('amount'),
-            income=Sum(RawSQL('CASE WHEN "ynabtransactions"."amount" >= 0 THEN "ynabtransactions"."amount" ELSE 0 END')),
-            expense=Sum(RawSQL('CASE WHEN "ynabtransactions"."amount" < 0 THEN "ynabtransactions"."amount" ELSE 0 END'))
-        ).filter(
-            date__gte='2024-01-01T00:00:00',
-            date__lt=datetime.now(),
-            category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES
-        ).group_by('date').values('date','total_amount','income','expense')
-
-        return filter_by_cat
 
 class YnabHelpers():    
     @classmethod

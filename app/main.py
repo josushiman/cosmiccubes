@@ -246,7 +246,3 @@ async def transactions_by_month_for_year(year: SpecificYearOptions):
 @app.get("/ynab/transaction-by-months")
 async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
-
-@app.get("/ynab/test-endpoint")
-async def test_endpoint():
-    return await ynab.test_endpoint()
