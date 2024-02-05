@@ -221,23 +221,28 @@ class YNAB():
 
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+        end_date = datetime.now()
 
-        # The below covers between two dates.
-        # TODO have a query which will pull specific dates when specific_month is set.
+        if specific_month:
+            logging.debug(f"Returning values for {specific_month}")
+            # Find the last day of the month
+            _, last_day = calendar.monthrange(since_date_dt.year, since_date_dt.month)
+            end_date = datetime(since_date_dt.year, since_date_dt.month, last_day, hour=23, minute=59, second=59)
+
         db_queryset = YnabTransactions.annotate(
             total_amount=Sum('amount'),
             income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
             expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
         ).filter(
             Q(date__gte=since_date_dt),
-            Q(date__lt=datetime.now()),
+            Q(date__lt=end_date),
             Q(
                 category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
                 payee_name='BJSS LIMITED',
                 join_type='OR'
             )
         ).group_by('date').values('date','total_amount','income','expense').sql()
-        logging.debug(db_queryset)
+        logging.debug(f"SQL Query: {db_queryset}")
 
         db_results = await YnabTransactions.annotate(
             total_amount=Sum('amount'),
@@ -245,7 +250,7 @@ class YNAB():
             expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
         ).filter(
             Q(date__gte=since_date_dt),
-            Q(date__lt=datetime.now()),
+            Q(date__lte=end_date),
             Q(
                 category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
                 payee_name='BJSS LIMITED',
