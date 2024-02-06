@@ -63,38 +63,22 @@ class YNAB():
         return CardBalancesResponse(data=db_result)
 
     @classmethod
-    async def get_category_summary(cls) -> CategorySummaryResponse:
-        current_date = datetime.today().strftime('%Y-%m') + '-01'
-        pydantic_categories_list = await YnabHelpers.pydantic_categories()
+    async def get_current_month_category_summary(cls) -> CategorySummaryResponse:
+        db_queryset = YnabCategories.annotate(
+            spent=Sum('activity'),
+            budget=Sum('budgeted')
+        ).filter(
+            category_group_name__in=YNAB.CAT_EXPENSE_NAMES
+        ).group_by('category_group_name').order_by('spent').values('spent','budget',name='category_group_name')
 
-        result_json = []
+        db_result = await db_queryset
 
-        # TODO change this up to save each of the different categories and then add to them.
-        # Need to also check the below is correct as im probably only returning the category not the category groups
-        for category_group in pydantic_categories_list:
-            if category_group.name not in cls.CAT_EXPENSE_NAMES: continue
-            total_balance = 0.0
-            total_budgeted = 0.0
-            for category in category_group.categories:
-                total_balance += category.balance
-                total_budgeted += category.budgeted
-            
-            total_spent = total_budgeted - total_balance
+        logging.debug(f"DB Query: {db_queryset.sql()}")
+        logging.debug(f"DB Result: {db_result}")
 
-            result_json.append({
-                'name': category_group.name,
-                'spent': await YnabHelpers.convert_to_float(total_spent),
-                'budget': await YnabHelpers.convert_to_float(total_budgeted),
-                'progress': (total_spent / total_budgeted) * 100,
-            })
-        
-        # Show the categories with the higher goals first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+        current_date = datetime.today().replace(day=1).strftime('%Y-%m-%d')
 
-        return {
-            'since_date': current_date,
-            'data': sorted_list
-        }
+        return CategorySummaryResponse(since_date=current_date, data=db_result)
 
     @classmethod
     async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CategorySpentResponse:
@@ -105,7 +89,7 @@ class YNAB():
             current_year_month = datetime.today().strftime('%Y-%m')
             if current_year_month == f'{year.value}-{specific_month.value}':
                 logging.debug("Returning current month category info.")
-                return await cls.get_category_summary()
+                return await cls.get_current_month_category_summary()
 
         # Instead get every transaction for the period
         transactions = await cls.transactions_by_filter_type(

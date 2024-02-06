@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Dict, List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, computed_field
 from datetime import date as date_field
 from app.ynab.models import TransactionDetail
 
@@ -32,7 +32,6 @@ class CardBalancesResponse(BaseModel):
 class CategorySpent(BaseModel):
     name: str
     spent: float
-    progress: float
 
 class CategorySpentResponse(BaseModel):
     since_date: date_field
@@ -40,6 +39,17 @@ class CategorySpentResponse(BaseModel):
 
 class CategorySummary(CategorySpent):
     budget: float
+
+    @computed_field
+    @property
+    def progress(self) -> float:
+        if self.budget == 0: return 0
+        return (self.spent / self.budget) * 100
+    
+    @validator("spent", "budget", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
 class CategorySummaryResponse(BaseModel):
     since_date: date_field
