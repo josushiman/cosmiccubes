@@ -200,8 +200,17 @@ async def categories_spent(year: SpecificYearOptions = None, months: PeriodMonth
 
 @app.get("/ynab/earned-vs-spent")
 async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    logging.debug("test")
     return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
+
+@app.get("/ynab/update-month-details")
+async def update_month_details():
+    # Does previous month category summaries. Will only do previous months.
+    return await ynab_help.pydantic_month_details()
+
+@app.get("/ynab/update-month-summaries")
+async def update_month_summaries():
+    # Does the current year summaries
+    return await ynab_help.pydantic_month_summaries()
 
 @app.get("/ynab/income-vs-expenses")
 async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):

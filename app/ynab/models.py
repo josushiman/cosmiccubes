@@ -255,7 +255,7 @@ class ScheduledSubTransaction(BaseModel):
     )
 
 class MonthSummary(BaseModel):
-    month: str
+    month: date_field
     note: Optional[str] = None
     income: int = Field(
         ...,

@@ -198,7 +198,7 @@ class YnabCategories(models.Model):
 
 class YnabMonthSummaries(models.Model):
     id = fields.UUIDField(pk=True)
-    month = fields.DateField(null=True)
+    month = fields.DatetimeField(null=True)
     note = fields.CharField(max_length=150, null=True)
     income = fields.IntField(default=0, null=True)
     budgeted = fields.IntField(default=0, null=True)
@@ -206,6 +206,32 @@ class YnabMonthSummaries(models.Model):
     to_be_budgeted = fields.IntField(default=0, null=True)
     age_of_money = fields.IntField(default=0, null=True)
     deleted = fields.BooleanField(null=True)
+
+class YnabMonthDetailCategories(models.Model):
+    id = fields.UUIDField(pk=True)
+    category_group_id = fields.UUIDField(null=True)
+    category_group_name = fields.CharField(max_length=150, null=True)
+    name = fields.CharField(max_length=150, null=True)
+    hidden = fields.BooleanField(null=True)
+    original_category_group_id = fields.UUIDField(null=True)
+    note = fields.CharField(max_length=150, null=True)
+    budgeted = fields.IntField(default=0, null=True)
+    activity = fields.IntField(default=0, null=True)
+    balance = fields.IntField(default=0, null=True)
+    goal_type = fields.CharField(max_length=150, null=True)
+    goal_day = fields.IntField(default=0, null=True)
+    goal_cadence = fields.IntField(default=0, null=True)
+    goal_cadence_frequency = fields.IntField(default=0, null=True)
+    goal_creation_month = fields.DateField(null=True)
+    goal_target = fields.IntField(default=0, null=True)
+    goal_target_month = fields.DateField(null=True)
+    goal_percentage_complete = fields.IntField(default=0, null=True)
+    goal_months_to_budget = fields.IntField(default=0, null=True)
+    goal_under_funded = fields.IntField(default=0, null=True)
+    goal_overall_funded = fields.IntField(default=0, null=True)
+    goal_overall_left = fields.IntField(default=0, null=True)
+    deleted = fields.BooleanField(null=True)
+    month_summary_fk = fields.ForeignKeyField('models.YnabMonthSummaries', related_name='summaries', null=True)
 
 class YnabPayees(models.Model):
     id = fields.UUIDField(pk=True)

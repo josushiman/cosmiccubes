@@ -19,10 +19,11 @@ from tortoise.exceptions import FieldError, IntegrityError
 from tortoise.expressions import RawSQL, Q
 from pydantic import TypeAdapter
 from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
-    TransactionsResponse, Account, Category, MonthSummary, Payee, TransactionDetail
-from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabTransactions
+    TransactionsResponse, Account, Category, MonthSummary, MonthDetail, Payee, TransactionDetail
+from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabMonthDetailCategories, YnabPayees, \
+    YnabTransactions
 from app.enums import TransactionTypeOptions, FilterTypes
-from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySummaryResponse, \
+from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByFilterResponse, TransactionsByMonthResponse
 
@@ -63,75 +64,84 @@ class YNAB():
         return CardBalancesResponse(data=db_result)
 
     @classmethod
-    async def get_current_month_category_summary(cls) -> CategorySummaryResponse:
-        db_queryset = YnabCategories.annotate(
-            spent=Sum('activity'),
-            budget=Sum('budgeted')
-        ).filter(
-            category_group_name__in=YNAB.CAT_EXPENSE_NAMES
-        ).group_by('category_group_name').order_by('spent').values('spent','budget',name='category_group_name')
+    async def get_current_month_category_summary(cls,
+        current_month: bool = None, 
+        since_date: str = None, 
+        year: Enum = None, 
+        months: IntEnum = None,
+        specific_month: Enum = None
+        ) -> list[CategorySpent]:
+        if current_month:
+            db_queryset = YnabCategories.annotate(
+                spent=Sum('activity'),
+                budget=Sum('budgeted')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES
+            ).group_by('category_group_name').order_by('spent').values('spent','budget',name='category_group_name')
+        elif since_date and specific_month:
+            db_queryset = YnabMonthDetailCategories.annotate(
+                spent=Sum('activity'),
+                budget=Sum('budgeted')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                month_summary_fk__month=since_date
+            ).group_by('category_group_name').order_by('spent').values('spent','budget',name='category_group_name')    
+        elif months:
+            logging.debug(f"Returning category info for the months since: {since_date}.")
+            db_queryset = YnabMonthDetailCategories.annotate(
+                spent=Sum('activity'),
+                budget=Sum('budgeted')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                month_summary_fk__month__gte=since_date
+            ).group_by('category_group_name').order_by('spent').values('spent','budget',name='category_group_name')
+        elif year:
+            logging.debug(f"Returning category info for the year since: {year.value}.")
+            db_queryset = YnabMonthDetailCategories.annotate(
+                spent=Sum('activity'),
+                budget=Sum('budgeted')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                month_summary_fk__month__year=year.value
+            ).group_by('category_group_name').order_by('spent').values('spent','budget',name='category_group_name')            
 
         db_result = await db_queryset
 
         logging.debug(f"DB Query: {db_queryset.sql()}")
         logging.debug(f"DB Result: {db_result}")
 
-        current_date = datetime.today().replace(day=1).strftime('%Y-%m-%d')
-
-        return CategorySummaryResponse(since_date=current_date, data=db_result)
+        return db_result
 
     @classmethod
     async def categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CategorySpentResponse:
-        # Can't get category limits for previous months, only use the category endpoint when looking at the current month
-        # TODO you can get this info by using the months-single where param2 is the date of the month (e.g. 2024-01-01)
+        since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
         if year and specific_month:
-            logging.debug("Attempting to return month and year categories spent.")
-            current_year_month = datetime.today().strftime('%Y-%m')
-            if current_year_month == f'{year.value}-{specific_month.value}':
+            current_year_month = datetime.today().replace(day=1).strftime('%Y-%m-%d')
+            if current_year_month == since_date:
                 logging.debug("Returning current month category info.")
-                return await cls.get_current_month_category_summary()
+                db_result = await cls.get_current_month_category_summary(current_month=True)
+            else:
+                logging.debug(f"Returning category info for the month starting: {since_date}.")
+                db_result = await cls.get_current_month_category_summary(since_date=since_date, specific_month=specific_month)
+        else:
+            current_month = await cls.get_current_month_category_summary(current_month=True)
+            prev_months = await cls.get_current_month_category_summary(since_date=since_date, months=months, year=year)
 
-        # Instead get every transaction for the period
-        transactions = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.CATEGORY,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.EXPENSES
-        )
+            db_result = []
+            # Create a dictionary for fast lookup of values from prev_months
+            dict_list = {item['name']: item for item in prev_months}
 
-        category_groups = {}
-        total_spent = 0.0
-
-        # Go through each one
-        for transaction in transactions['data']:
-            category_group_id_str = str(transaction['category_group_id'])
-            
-            try:
-                # If the group name exists, add the sum to the existing value
-                category_groups[category_group_id_str]['spent'] += transaction['total']
-            except KeyError:
-                # Otherwise append it with the current value
-                category_groups[category_group_id_str] = {
-                    'name': transaction['category_group_name'],
-                    'spent': transaction['total']
-                }
-            
-            # Gather the total spent to calculate the overall spend for each category against the time period.
-            total_spent += transaction['total']
-        
-        # Calculate the "progress" for each of the categories
-        result_json = []
-        for category in category_groups.values():
-            category['progress'] = (category['spent'] / total_spent) * 100
-            result_json.append(category)
-
-        # Show the categories with the higher spends first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
+            # Iterate over list1 and update values with corresponding values from prev_months
+            for category in current_month:
+                db_result.append({
+                    'name': category['name'],
+                    'spent': category['spent'] + dict_list[category['name']]['spent'],
+                    'budget': category['budget'] + dict_list[category['name']]['budget'],
+                })
 
         return CategorySpentResponse(
-            since_date=transactions['since_date'],
-            data=sorted_list
+            since_date=since_date,
+            data=db_result
         )
 
     @classmethod
@@ -840,35 +850,32 @@ class YnabHelpers():
         return amount / 1000
     
     @classmethod
-    async def get_date_for_transactions(cls, year: str = None, months: int = None, specific_month: str = None) -> str:
+    async def get_date_for_transactions(cls, year: Enum = None, months: IntEnum = None, specific_month: Enum = None) -> str:
         logging.debug(f'''
         Year: {year}
         Months: {months}
         Specific Month: {specific_month}
         ''')
         if year and not specific_month:
-            logging.debug("Getting transactions for the current year.")
-            return f'{year.value}-01-01'
+            date_value = datetime.today().replace(year=int(year.value), month=1, day=1).strftime('%Y-%m-%d')
+            return date_value
         
         if specific_month and year:
-            logging.debug(f"Getting transactions for {year.value}-{specific_month.value}-01.")
-            return f'{year.value}-{specific_month.value}-01'
+            date_value = datetime.today().replace(year=int(year.value), month=int(specific_month.value), day=1).strftime('%Y-%m-%d')
+            return date_value
         
         if specific_month:
-            current_year = datetime.now().strftime('%Y')
-            logging.debug(f"Getting transactions for {current_year}-{specific_month.value}-01.")
-            return f'{current_year}-{specific_month.value}-01'
+            date_value = datetime.today().replace(month=int(specific_month.value), day=1).strftime('%Y-%m-%d')
+            return date_value
         
         # If this condition is not set, it'll always return the current month, which would also meet the need for months=1
         if months > 1:
             current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             # When returning months, you need to include the current month. So you therefore need to subtract 1 from the months value.
             month_delta = current_date - relativedelta(months=months - 1)
-            logging.debug(f"Getting transactions for the last {months.value} months. Returning {month_delta}")
             return month_delta.strftime('%Y-%m-%d')
-        
-        logging.debug("Getting transactions for this month only.")
-        return datetime.today().strftime('%Y-%m') + '-01'
+    
+        return datetime.today().replace(day=1).strftime('%Y-%m-%d')
 
     @classmethod
     async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
@@ -921,6 +928,7 @@ class YnabHelpers():
             
             case 'months-single':
                 # Returns all budget months
+                # month -> The budget month in ISO format (e.g. 2016-12-01)
                 return f'/budgets/{param_1}/months/{month}'
             
             case 'payees-list':
@@ -973,6 +981,7 @@ class YnabHelpers():
             "accounts-list": Account,
             "categories-list": Category,
             "months-list": MonthSummary,
+            "months-single": MonthDetail,
             "payees-list": Payee,
             "transactions-list": TransactionDetail
         }
@@ -995,7 +1004,6 @@ class YnabHelpers():
             year: Enum = None,
             skip_sk: bool = False
         ) -> dict | HTTPException:
-        # TODO remove transactions which don't meet CAT_EXPENSE_NAMES
         '''
         Check if the route exists in server knowledge
             If it does, check the entities are up to date
@@ -1028,10 +1036,12 @@ class YnabHelpers():
                         ynab_url=ynab_url,
                         server_knowledge=server_knowledge.server_knowledge
                     )
+            else:
+                logging.debug("Route is not eligible.")
             if skip_sk:
                 logging.info("Skipping returning the DB entities. Making API call.")
         except Exception as exc:
-            logging.exception("There was an issue getting the server knowledge info. Continuing to just call the API instead.", exc_info=exc)
+            logging.exception("Continuing to just call the API instead.", exc_info=exc)
             pass
 
         # TODO split this out to a separate function
@@ -1068,6 +1078,32 @@ class YnabHelpers():
     async def pydantic_categories(cls) -> list[YnabCategories]:
         return await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
     
+    @classmethod
+    async def pydantic_month_details(cls) -> list[YnabMonthSummaries]: # TODO cron this once a month
+        current_month = datetime.today().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        previous_month = current_month - relativedelta(months=1)
+        prev_month_string = previous_month.strftime('%Y-%m-%d')
+        # Check if the previous month categories exist in the DB
+        logging.debug(f"Checking if any previous month categories exist for {prev_month_string}")
+        prev_month_entities = await YnabMonthDetailCategories.filter(month_summary_fk__month=previous_month).all()
+        # If its already been stored, skip it otherwise make the API call.
+        if len(prev_month_entities) > 0: return { "message": "Already stored for the previous month" }
+        # Get the month summary
+        month_summary_entity = await YnabMonthSummaries.filter(month=previous_month).get_or_none()
+        if month_summary_entity is None: return {"message": "no month summary available. run update_month_summaries."}
+        # Get the entities to store
+        json_month_list = await cls.make_request('months-single', param_1=dotenv_ynab_budget_id, month=prev_month_string)
+        # Then store the entities in the DB.
+        for category in json_month_list:
+            category["month_summary_fk"] = month_summary_entity
+
+        await YnabServerKnowledgeHelper.process_entities(action='months-single', entities=json_month_list)
+        return { "message": "Complete" }
+
+    @classmethod
+    async def pydantic_month_summaries(cls) -> list[YnabMonthSummaries]:
+        return await cls.make_request('months-list', param_1=dotenv_ynab_budget_id)
+
     @classmethod
     async def pydantic_payees(cls) -> list[YnabPayees]:
         return await cls.make_request('payees-list', param_1=dotenv_ynab_budget_id)
@@ -1118,6 +1154,8 @@ class YnabHelpers():
             case 'categories-list':
                 pydantic_categories_list = CategoriesResponse.model_validate_json(json.dumps(json_response))
                 return pydantic_categories_list.data.category_groups
+            case 'months-single':
+                return json_response["data"]["month"]["categories"]
             case 'months-list':
                 pydantic_months_list = MonthSummariesResponse.model_validate_json(json.dumps(json_response))
                 return pydantic_months_list.data.months
@@ -1253,6 +1291,7 @@ class YnabServerKnowledgeHelper():
         model_list = {
             "accounts-list": YnabAccounts,
             "categories-list": YnabCategories,
+            "months-single": YnabMonthDetailCategories,
             "months-list": YnabMonthSummaries,
             "payees-list": YnabPayees,
             "transactions-list": YnabTransactions

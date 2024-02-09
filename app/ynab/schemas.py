@@ -32,12 +32,6 @@ class CardBalancesResponse(BaseModel):
 class CategorySpent(BaseModel):
     name: str
     spent: float
-
-class CategorySpentResponse(BaseModel):
-    since_date: date_field
-    data: List[CategorySpent]
-
-class CategorySummary(CategorySpent):
     budget: float
 
     @computed_field
@@ -51,9 +45,9 @@ class CategorySummary(CategorySpent):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
-class CategorySummaryResponse(BaseModel):
+class CategorySpentResponse(BaseModel):
     since_date: date_field
-    data: List[CategorySummary]
+    data: List[CategorySpent]
 
 class CreditAccount(BaseModel):
     id: Optional[UUID] = None
