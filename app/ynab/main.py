@@ -124,6 +124,7 @@ class YNAB():
                 logging.debug(f"Returning category info for the month starting: {since_date}.")
                 db_result = await cls.get_current_month_category_summary(since_date=since_date, specific_month=specific_month)
         else:
+            # This will return both the full year, as well as the last X months.
             current_month = await cls.get_current_month_category_summary(current_month=True)
             prev_months = await cls.get_current_month_category_summary(since_date=since_date, months=months, year=year)
 
