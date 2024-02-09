@@ -16,7 +16,7 @@ from itertools import groupby
 from tortoise.functions import Sum
 from tortoise.models import Model
 from tortoise.exceptions import FieldError, IntegrityError
-from tortoise.expressions import RawSQL, Q
+from tortoise.expressions import RawSQL, Q, Subquery
 from pydantic import TypeAdapter
 from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse, Account, Category, MonthSummary, MonthDetail, Payee, TransactionDetail
@@ -64,7 +64,7 @@ class YNAB():
         return CardBalancesResponse(data=db_result)
 
     @classmethod
-    async def get_current_month_category_summary(cls,
+    async def get_month_category_summary(cls,
         current_month: bool = None, 
         since_date: str = None, 
         year: Enum = None, 
@@ -119,14 +119,14 @@ class YNAB():
             current_year_month = datetime.today().replace(day=1).strftime('%Y-%m-%d')
             if current_year_month == since_date:
                 logging.debug("Returning current month category info.")
-                db_result = await cls.get_current_month_category_summary(current_month=True)
+                db_result = await cls.get_month_category_summary(current_month=True)
             else:
                 logging.debug(f"Returning category info for the month starting: {since_date}.")
-                db_result = await cls.get_current_month_category_summary(since_date=since_date, specific_month=specific_month)
+                db_result = await cls.get_month_category_summary(since_date=since_date, specific_month=specific_month)
         else:
             # This will return both the full year, as well as the last X months.
-            current_month = await cls.get_current_month_category_summary(current_month=True)
-            prev_months = await cls.get_current_month_category_summary(since_date=since_date, months=months, year=year)
+            current_month = await cls.get_month_category_summary(current_month=True)
+            prev_months = await cls.get_month_category_summary(since_date=since_date, months=months, year=year)
 
             db_result = []
             # Create a dictionary for fast lookup of values from prev_months
@@ -146,35 +146,59 @@ class YNAB():
         )
 
     @classmethod
-    async def earned_vs_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> EarnedVsSpentResponse:        
-        transactions_income = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.ACCOUNT,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.INCOME
-        )
+    async def earned_vs_spent_db_q(cls, since_date: str = None, end_date: str = None):
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+
+        db_queryset = YnabTransactions.annotate(
+            earned=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            spent=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('deleted').values('earned','spent').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
+
+        db_results = await YnabTransactions.annotate(
+            earned=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            spent=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('deleted').values('earned','spent')
         
-        total_earned = 0.0
-        for account in transactions_income['data']:
-            total_earned += account['total']
+        if len(db_results) != 1:
+            raise HTTPException(status_code=500, detail="More than one result returned.")
 
-        transactions_expense = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.ACCOUNT,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.EXPENSES
-        )
+        return db_results[0]
 
-        total_spent = 0.0
-        for account in transactions_expense['data']:
-            total_spent += account['total']
+    @classmethod
+    async def earned_vs_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> EarnedVsSpentResponse:        
+        since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
+        if months:
+            end_date = datetime.now()
+        elif year and specific_month:
+            # Set the date to the last day of the current month.
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
+        elif year:
+            # Set the date to the last day of the current year.
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date, year=True)
+
+        db_results = await cls.earned_vs_spent_db_q(since_date=since_date, end_date=end_date)
 
         return EarnedVsSpentResponse(
-            since_date=transactions_expense['since_date'],
-            earned=total_earned,
-            spent=total_spent
+            since_date=since_date,
+            earned=db_results['earned'],
+            spent=db_results['spent']
         )
 
     @classmethod
@@ -877,6 +901,14 @@ class YnabHelpers():
             return month_delta.strftime('%Y-%m-%d')
     
         return datetime.today().replace(day=1).strftime('%Y-%m-%d')
+
+    @classmethod
+    async def get_last_date_from_since_date(cls, since_date: str, year: bool = False) -> datetime:
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+        _, last_day = calendar.monthrange(since_date_dt.year, since_date_dt.month)
+        if year:
+            return datetime(year=since_date_dt.year, month=12, day=last_day, hour=23, minute=59, second=59)
+        return datetime(year=since_date_dt.year, month=since_date_dt.month, day=last_day, hour=23, minute=59, second=59)
 
     @classmethod
     async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
