@@ -146,7 +146,7 @@ class YNAB():
         )
 
     @classmethod
-    async def earned_vs_spent_db_q(cls, since_date: str = None, end_date: str = None):
+    async def earned_vs_spent_db_q(cls, since_date: str = None, end_date: str = None) -> dict:
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
 
         db_queryset = YnabTransactions.annotate(
@@ -202,18 +202,13 @@ class YNAB():
         )
 
     @classmethod
-    async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> IncomeVsExpensesResponse:
-        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
-
+    async def income_vs_expenses_db_q(cls, since_date, specific_month: Enum = None) -> list[dict]:
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
         end_date = datetime.now()
 
         if specific_month:
-            logging.debug(f"Returning values for {specific_month}")
-            # Find the last day of the month
-            _, last_day = calendar.monthrange(since_date_dt.year, since_date_dt.month)
-            end_date = datetime(since_date_dt.year, since_date_dt.month, last_day, hour=23, minute=59, second=59)
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
 
         db_queryset = YnabTransactions.annotate(
             total_amount=Sum('amount'),
@@ -221,7 +216,7 @@ class YNAB():
             expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
         ).filter(
             Q(date__gte=since_date_dt),
-            Q(date__lt=end_date),
+            Q(date__lte=end_date),
             Q(
                 category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
                 payee_name='BJSS LIMITED',
@@ -246,6 +241,14 @@ class YNAB():
         
         # Example output of db_results
         # [{'date': datetime.date(2024, 1, 7), 'total_amount': 14427080.0, 'income': 21012910.0, 'expense': -6585830.0}]
+
+        return db_results
+
+    @classmethod
+    async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> IncomeVsExpensesResponse:
+        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
+
+        db_results = await cls.income_vs_expenses_db_q(since_date=since_date, specific_month=specific_month)
 
         # Function to extract year and month from a date
         def extract_year_month(entry):
