@@ -104,6 +104,11 @@ class Transaction(BaseModel):
     date: date_field = Field(..., description='Date of the transaction being cleared.')
     subcategory: str = Field(..., description='Subcategory of the transaction.')
 
+    @validator("amount", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
 class LastXTransactions(BaseModel):
     since_date: date_field
     data: List[Transaction]

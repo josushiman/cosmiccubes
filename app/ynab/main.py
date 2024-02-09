@@ -314,25 +314,34 @@ class YNAB():
         )
 
     @classmethod
-    async def last_x_transactions(cls, count: int, since_date: str = None, year: Enum = None, specific_month: Enum = None) -> LastXTransactions:
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date, year=year, month=specific_month)
-
-        result_json = []
-        for index, transaction in enumerate(pydantic_transactions_list):
-            if index == count: break
-            result_json.append({
-                'payee': transaction.payee_name,
-                'amount': await YnabHelpers.convert_to_float(transaction.amount),
-                'date': transaction.date,
-                'subcategory': transaction.category_name
-            })
+    async def last_x_transactions(cls, count: int, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> LastXTransactions:
+        since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
         
-        if not since_date: since_date = '2024-01-01'
+        # For year, or last x months - get the current date and the last X transactions
+        if year or months:
+            end_date = datetime.now()
+        # For year and specific month - get the last date of that month and then the last x transactions
+        if year and specific_month:
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
 
-        return {
-            'since_date': since_date,
-            'data': result_json
-        }
+        db_queryset = YnabTransactions.filter(
+            date__gte=since_date_dt,
+            date__lte=end_date,
+            category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES
+        ).order_by('-date').limit(count).values('amount','date',subcategory='category_name',payee='payee_name').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
+
+        db_results = await YnabTransactions.filter(
+            date__gte=since_date_dt,
+            date__lte=end_date,
+            category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES
+        ).order_by('-date').limit(count).values('amount','date',subcategory='category_name',payee='payee_name')
+
+        return LastXTransactions(
+            since_date=since_date,
+            data=db_results
+        )
 
     @classmethod
     async def spent_in_period(cls, period: Enum) -> SpentInPeriodResponse:

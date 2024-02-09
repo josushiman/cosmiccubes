@@ -221,8 +221,8 @@ async def last_paid_date_for_accounts(year: SpecificYearOptions = None, months: 
     return await ynab.last_paid_date_for_accounts(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/last-x-transactions")
-async def last_x_transactions(count: int, since_date: str = None):
-    return await ynab.last_x_transactions(count, since_date)
+async def last_x_transactions(count: int, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.last_x_transactions(count, year=year, months=months, specific_month=month)
 
 @app.get("/ynab/latest-transactions")
 async def latest_transactions():
