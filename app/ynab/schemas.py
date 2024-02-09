@@ -55,6 +55,12 @@ class CreditAccount(BaseModel):
     amount: Optional[float] = None
     account_name: str
 
+    @validator("amount", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        if value is None: return 0
+        return value / 1000.0
+
 class CreditAccountResponse(BaseModel):
     since_date: date_field
     data: List[CreditAccount]

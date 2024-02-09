@@ -202,13 +202,15 @@ class YNAB():
         )
 
     @classmethod
-    async def income_vs_expenses_db_q(cls, since_date, specific_month: Enum = None) -> list[dict]:
+    async def income_vs_expenses_db_q(cls, since_date, year: Enum = None, specific_month: Enum = None) -> list[dict]:
         # From the since date, go through each month and add it to the data
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
         end_date = datetime.now()
 
         if specific_month:
             end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
+        if year and not specific_month:
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date, year=True)
 
         db_queryset = YnabTransactions.annotate(
             total_amount=Sum('amount'),
@@ -248,7 +250,7 @@ class YNAB():
     async def income_vs_expenses(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> IncomeVsExpensesResponse:
         since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
 
-        db_results = await cls.income_vs_expenses_db_q(since_date=since_date, specific_month=specific_month)
+        db_results = await cls.income_vs_expenses_db_q(since_date=since_date, specific_month=specific_month, year=year)
 
         # Function to extract year and month from a date
         def extract_year_month(entry):
@@ -282,45 +284,33 @@ class YNAB():
     async def last_paid_date_for_accounts(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CreditAccountResponse:
         # Look over the last month. If no payment, assume the bill has not been paid yet.
         since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date, month=specific_month, year=year)
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+        end_date = datetime.now()
 
-        amex = {
-            "id": None,
-            "date": None,
-            "amount": None,
-            "account_name": "BA AMEX"
-        }
-        barclays = {
-            "id": None,
-            "date": None,
-            "amount": None,
-            "account_name": "Barclays CC"
-        }
-        hsbc = {
-            "id": None,
-            "date": None,
-            "amount": None,
-            "account_name": "HSBC CC"
-        }
+        if specific_month:
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
+        if year and not specific_month:
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date, year=True)
 
-        transfer_payments = [amex, barclays, hsbc]
+        db_queryset = YnabTransactions.filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(transfer_account_id__isnull=False),
+            Q(account_name__not_in=["HSBC ADVANCE"])
+        ).group_by('account_name', 'id').order_by('-date').values('id','date','amount','account_name').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
 
-        account_match = {
-            'BA AMEX': amex,
-            'Barclays CC': barclays,
-            'HSBC CC': hsbc,
-        }
-
-        for transaction in pydantic_transactions_list:
-            if transaction.payee_name != 'Transfer : HSBC ADVANCE': continue
-
-            account_match[transaction.account_name]['id'] = transaction.id
-            account_match[transaction.account_name]['date'] = transaction.date
-            account_match[transaction.account_name]['amount'] = await YnabHelpers.convert_to_float(transaction.amount)
+        db_results = await YnabTransactions.filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(transfer_account_id__isnull=False),
+            Q(account_name__not_in=["HSBC ADVANCE"])
+        ).group_by('account_name', 'id').order_by('-date').values('id','date','amount','account_name')
+        # TODO might have an issue when more than one result is returned on the UI.
 
         return CreditAccountResponse(
             since_date=since_date,
-            data=transfer_payments
+            data=db_results
         )
 
     @classmethod
