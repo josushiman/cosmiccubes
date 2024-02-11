@@ -665,6 +665,7 @@ class YNAB():
     @classmethod
     async def transactions_by_month_for_year(cls, year: Enum = None) -> TransactionsByMonthResponse:
         since_date = await YnabHelpers.get_date_for_transactions(year=year)
+        end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date, year=True)
         
         january = {
             "month_long": "January",
@@ -753,6 +754,9 @@ class YNAB():
 
         sorted_months = [january, february, march, april, may, june, july, august, september, october, november, december]
 
+        # From the since date, go through each month and add it to the data
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+
         class TruncMonth(Function):
             database_func = CustomFunction("TO_CHAR", ["column_name", "dt_format"])
         
@@ -761,7 +765,8 @@ class YNAB():
             income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
             expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
         ).filter(
-            Q(date__year=year.value), # TODO need to update the date field on the DB model
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
             Q(
                 category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
                 payee_name='BJSS LIMITED',
@@ -775,7 +780,8 @@ class YNAB():
             income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
             expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
         ).filter(
-            Q(date__year=year.value), # TODO need to update the date field on the DB model
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
             Q(
                 category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
                 payee_name='BJSS LIMITED',
