@@ -36,12 +36,12 @@ class CategorySpent(BaseModel):
     total_spent: Optional[float] = None
 
     @computed_field
-    @property
+    @property # TODO make this better
     def progress(self) -> float:
         if self.budget is None and self.total_spent is None: return None
-        if self.budget and self.budget > 0:
+        if self.budget and self.budget != 0:
             return (self.spent / self.budget) * 100
-        elif self.total_spent and self.total_spent > 0:
+        elif self.total_spent and self.total_spent != 0:
             return (self.spent / self.total_spent) * 100
         return 0
     
