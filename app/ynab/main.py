@@ -64,7 +64,7 @@ class YNAB():
         return CardBalancesResponse(data=db_result)
 
     @classmethod
-    async def get_month_category_summary(cls,
+    async def categories_spent_db_q(cls,
         current_month: bool = None, 
         since_date: str = None, 
         year: Enum = None, 
@@ -119,14 +119,14 @@ class YNAB():
             current_year_month = datetime.today().replace(day=1).strftime('%Y-%m-%d')
             if current_year_month == since_date:
                 logging.debug("Returning current month category info.")
-                db_result = await cls.get_month_category_summary(current_month=True)
+                db_result = await cls.categories_spent_db_q(current_month=True)
             else:
                 logging.debug(f"Returning category info for the month starting: {since_date}.")
-                db_result = await cls.get_month_category_summary(since_date=since_date, specific_month=specific_month)
+                db_result = await cls.categories_spent_db_q(since_date=since_date, specific_month=specific_month)
         else:
             # This will return both the full year, as well as the last X months.
-            current_month = await cls.get_month_category_summary(current_month=True)
-            prev_months = await cls.get_month_category_summary(since_date=since_date, months=months, year=year)
+            current_month = await cls.categories_spent_db_q(current_month=True)
+            prev_months = await cls.categories_spent_db_q(since_date=since_date, months=months, year=year)
 
             db_result = []
             # Create a dictionary for fast lookup of values from prev_months
@@ -343,7 +343,7 @@ class YNAB():
             data=db_results
         )
 
-    @classmethod
+    @classmethod #TODO
     async def spent_in_period(cls, period: Enum) -> SpentInPeriodResponse:
         # TODO add filters for whether I want to include bills or just things which do not come from a specific account (e.g. Current Account)
         match period.value:
@@ -393,14 +393,13 @@ class YNAB():
             case _:
                 return None
 
-    @classmethod
+    @classmethod # TODO
     async def spent_vs_budget(cls) -> SpentVsBudgetResponse:
         pydantic_categories_list = await YnabHelpers.pydantic_categories()
 
         total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
         total_budgeted = 0.0 # Budget assigned to the category
         total_spent = 0.0
-        category_count = 0
         # Only categories that I care about for tracking the monthly target.
         # This is usually when I only have a budget assigned to a category.
         # So I should skip any category which does not have a budget assigned.
@@ -416,61 +415,119 @@ class YNAB():
                 balance: {category.balance}
                 budgeted: {category.budgeted}
             ''')
-            category_count += 1
 
         logging.debug(f'''
         Total Spent: {total_spent}
         Total Budgeted: {total_budgeted}
         ''')
-        try:
-            # Set the max goal to be 100. Need to flip the spent value as it is a negative number.
-            total_goal = min((-total_spent / total_budgeted) * 100, 100)
-        except ZeroDivisionError:
-            logging.debug("No budgets seem to be set. Check why.")
-            total_goal = 0
 
         return {
             'balance': await YnabHelpers.convert_to_float(total_balance),
             'budget': await YnabHelpers.convert_to_float(total_budgeted),
             'spent': await YnabHelpers.convert_to_float(-total_spent),
-            'progress': total_goal
         }
 
     @classmethod
+    async def sub_categories_spent_db_q(cls,
+        current_month: bool = None, 
+        since_date: str = None, 
+        year: Enum = None, 
+        months: IntEnum = None,
+        specific_month: Enum = None
+        ) -> list[CategorySpent]:
+        if current_month:
+            db_queryset = YnabCategories.annotate(
+                spent=Sum('activity')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES
+            ).group_by('category_group_name','name').order_by('spent').values('spent','name','category_group_name')
+        elif since_date and specific_month:
+            db_queryset = YnabMonthDetailCategories.annotate(
+                spent=Sum('activity')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                month_summary_fk__month=since_date
+            ).group_by('category_group_name','name').order_by('spent').values('spent','name','category_group_name')    
+        elif months:
+            logging.debug(f"Returning category info for the months since: {since_date}.")
+            db_queryset = YnabMonthDetailCategories.annotate(
+                spent=Sum('activity')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                month_summary_fk__month__gte=since_date
+            ).group_by('category_group_name','name').order_by('spent').values('spent','name','category_group_name')
+        elif year:
+            logging.debug(f"Returning category info for the year since: {year.value}.")
+            db_queryset = YnabMonthDetailCategories.annotate(
+                spent=Sum('activity')
+            ).filter(
+                category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                month_summary_fk__month__year=year.value
+            ).group_by('category_group_name','name').order_by('spent').values('spent','name','category_group_name')            
+
+        db_result = await db_queryset
+
+        logging.debug(f"DB Query: {db_queryset.sql()}")
+        logging.debug(f"DB Result: {db_result}")
+
+        return db_result
+
+    @classmethod
     async def sub_categories_spent(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> SubCategorySpentResponse:
-        transactions = await cls.transactions_by_filter_type(
-            filter_type= FilterTypes.CATEGORY,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type= TransactionTypeOptions.EXPENSES,
-            top_x=5 # Only returning the top 5 due to page layout. TODO have a scrolly thingy on the UI.
-        )
+        since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
+        if year and specific_month:
+            current_year_month = datetime.today().replace(day=1).strftime('%Y-%m-%d')
+            if current_year_month == since_date:
+                logging.debug("Returning current month category info.")
+                db_result = await cls.sub_categories_spent_db_q(current_month=True)
+            else:
+                logging.debug(f"Returning category info for the month starting: {since_date}.")
+                db_result = await cls.sub_categories_spent_db_q(since_date=since_date, specific_month=specific_month)
+        else:
+            # This will return both the full year, as well as the last X months.
+            current_month = await cls.sub_categories_spent_db_q(current_month=True)
+            prev_months = await cls.sub_categories_spent_db_q(since_date=since_date, months=months, year=year)
 
-        total_spent = 0.0
-        result_json = []
+            db_result = []
+            # Create a dictionary for fast lookup of values from prev_months
+            dict_list = {category['name']: category for category in prev_months}
 
-        # TODO fix this with the cahnges to returning DB entities
-        for transaction in transactions['data']:
-            sub_category_name = transaction['name'] + ' / ' + transaction['category_group_name']
-            result_json.append({
-                'name': sub_category_name,
-                'spent': transaction['total'],
+            # Iterate over list1 and update values with corresponding values from prev_months
+            for category in current_month:
+                # combined_name = f"{category['category_group_name']} / {category['name']}"
+                try:
+                    db_result.append({
+                        'name': category['name'],
+                        'category_group_name': category['category_group_name'],
+                        'spent': category['spent'] + dict_list[category['name']]['spent'] \
+                            if dict_list[category['name']]['category_group_name'] == category['category_group_name'] else category['spent']
+                    })
+                except KeyError:
+                    if category["spent"] == 0: continue
+                    logging.info(f"Subcategory not used in previous months. {category}")
+                    db_result.append({
+                        'name': category['name'],
+                        'category_group_name': category['category_group_name'],
+                        'spent': category['spent']
+                    })
+        
+        total_spent = sum(item['spent'] for item in db_result)
+
+        filtered_list = []
+        for category in db_result:
+            if category["spent"] == 0: continue
+            filtered_list.append({
+                'name': f"{category['category_group_name']} / {category['name']}",
+                'spent': category['spent'],
+                'total_spent': total_spent
             })
-            
-            # Gather the total spent to calculate the overall spend for each category against the time period.
-            total_spent += transaction['total']
+        
+        sorted_list = sorted(filtered_list, key=lambda x: x['spent'])
 
-        for sub_category in result_json:
-            sub_category['progress'] = (sub_category['spent'] / total_spent) * 100
-
-        # Show the categories with the higher spends first.
-        sorted_list = sorted(result_json, key=lambda obj: obj['progress'], reverse=True)
-
-        return {
-            'since_date': transactions['since_date'],
-            'data': sorted_list
-        }
+        return SubCategorySpentResponse(
+            since_date=since_date,
+            data=sorted_list
+        )
 
     @classmethod
     async def total_spent(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \

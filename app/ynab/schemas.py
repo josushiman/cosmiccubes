@@ -32,15 +32,18 @@ class CardBalancesResponse(BaseModel):
 class CategorySpent(BaseModel):
     name: str
     spent: float
-    budget: float
+    budget: Optional[float] = None
+    total_spent: Optional[float] = None
 
     @computed_field
     @property
     def progress(self) -> float:
-        if self.budget == 0: return 0
-        return (self.spent / self.budget) * 100
+        if self.budget is None and self.total_spent is None: return None
+        if self.budget:
+            return (self.spent / self.budget) * 100
+        return (self.spent / self.total_spent) * 100
     
-    @validator("spent", "budget", pre=True)
+    @validator("spent", "budget", "total_spent", pre=True)
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
@@ -92,7 +95,17 @@ class SpentVsBudgetResponse(BaseModel):
     balance: float
     budget: float
     spent: float
-    progress: float
+
+    @computed_field
+    @property
+    def progress(self) -> float:
+        if self.budget == 0: return 0
+        return (self.spent / self.budget) * 100
+
+    @validator("balance","budget","spent", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
 class SubCategorySpentResponse(BaseModel):
     since_date: date_field
