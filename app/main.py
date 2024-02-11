@@ -202,16 +202,6 @@ async def categories_spent(year: SpecificYearOptions = None, months: PeriodMonth
 async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
 
-@app.get("/ynab/update-month-details")
-async def update_month_details():
-    # Does previous month category summaries. Will only do previous months.
-    return await ynab_help.pydantic_month_details()
-
-@app.get("/ynab/update-month-summaries")
-async def update_month_summaries():
-    # Does the current year summaries
-    return await ynab_help.pydantic_month_summaries()
-
 @app.get("/ynab/income-vs-expenses")
 async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.income_vs_expenses(year=year, months=months, specific_month=month)
@@ -223,11 +213,6 @@ async def last_paid_date_for_accounts(year: SpecificYearOptions = None, months: 
 @app.get("/ynab/last-x-transactions")
 async def last_x_transactions(count: int, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.last_x_transactions(count, year=year, months=months, specific_month=month)
-
-@app.get("/ynab/latest-transactions")
-async def latest_transactions():
-    # TODO add schema response here
-    return await ynab_help.pydantic_transactions(skip_sk=True)
 
 @app.get("/ynab/spent-in-period")
 async def spent_in_period(period: PeriodOptions):
@@ -263,3 +248,29 @@ async def transactions_by_month_for_year(year: SpecificYearOptions):
 @app.get("/ynab/transaction-by-months")
 async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
+
+@app.get("/ynab/update-accounts")
+async def update_accounts():
+    return await ynab_help.pydantic_accounts()
+
+@app.get("/ynab/update-categories")
+async def update_categories():
+    return await ynab_help.pydantic_categories()
+
+@app.get("/ynab/update-month-details")
+async def update_month_details():
+    # Does previous month category summaries. Will only do previous months.
+    return await ynab_help.pydantic_month_details()
+
+@app.get("/ynab/update-month-summaries")
+async def update_month_summaries():
+    # Does the current year summaries
+    return await ynab_help.pydantic_month_summaries()
+
+@app.get("/ynab/update-payees")
+async def update_payees():
+    return await ynab_help.pydantic_payees()
+
+@app.get("/ynab/update-transactions")
+async def update_transactions():
+    return await ynab_help.pydantic_transactions()

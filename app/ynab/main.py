@@ -1148,7 +1148,7 @@ class YnabHelpers():
     
     @classmethod
     async def pydantic_transactions(cls, since_date: str = None, month: str = None, year: Enum = None, skip_sk: bool = None) -> list[YnabTransactions]:
-        return await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date, month=month, year=year, skip_sk=skip_sk)
+        return await cls.make_request('transactions-list', param_1=dotenv_ynab_budget_id, since_date=since_date, month=month, year=year)
 
     @classmethod
     async def return_db_model_entities(cls, action: str, since_date: str = None, month: Enum = None, year: Enum = None) -> list[Model]:
