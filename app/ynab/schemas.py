@@ -136,11 +136,15 @@ class TransactionsByFilterResponse(BaseModel):
 # TODO change the above for payee, category and account types
     
 class TransactionByMonth(BaseModel):
-    month: int
     month_long: str
     month_short: str
     total_spent: float
     total_earned: float
+
+    @validator("total_spent", "total_earned", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
 class TransactionsByMonthResponse(BaseModel):
     since_date: date_field

@@ -256,18 +256,6 @@ async def total_spent(transaction_type: TransactionTypeOptions, year: SpecificYe
         specific_month=specific_month,
     )
 
-@app.get("/ynab/transactions-by-filter-type")
-async def transactions_by_filter_type(filter_type: FilterTypes, transaction_type: TransactionTypeOptions, \
-    year: SpecificYearOptions = None, top_x: TopXOptions = None, months: PeriodMonthOptions = None, specific_month: SpecificMonthOptions = None):
-    return await ynab.transactions_by_filter_type(
-        transaction_type=transaction_type,
-        filter_type=filter_type,
-        year=year,
-        months=months,
-        specific_month=specific_month,
-        top_x=top_x,
-    )
-
 @app.get("/ynab/transaction-by-month-for-year")
 async def transactions_by_month_for_year(year: SpecificYearOptions):
     return await ynab.transactions_by_month_for_year(year)

@@ -16,7 +16,8 @@ from itertools import groupby
 from tortoise.functions import Sum
 from tortoise.models import Model
 from tortoise.exceptions import FieldError, IntegrityError
-from tortoise.expressions import RawSQL, Q, Subquery
+from tortoise.expressions import RawSQL, Q, Function
+from pypika import CustomFunction
 from pydantic import TypeAdapter
 from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse, Account, Category, MonthSummary, MonthDetail, Payee, TransactionDetail
@@ -529,7 +530,7 @@ class YNAB():
             data=sorted_list
         )
 
-    @classmethod
+    @classmethod # TODO
     async def total_spent(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
         transaction_type: Enum = None) -> TotalSpentResponse:
         
@@ -663,131 +664,148 @@ class YNAB():
 
     @classmethod
     async def transactions_by_month_for_year(cls, year: Enum = None) -> TransactionsByMonthResponse:
-        since_date = f'{year.value}-01-01'
+        since_date = await YnabHelpers.get_date_for_transactions(year=year)
         
         january = {
-            "month": 1,
             "month_long": "January",
             "month_short": "J",
+            "month_year": f"{year.value}-01",
             "total_spent": 0,
             "total_earned": 0
         }
         february = {
-            "month": 2,
             "month_long": "February",
             "month_short": "F",
+            "month_year": f"{year.value}-02",
             "total_spent": 0,
             "total_earned": 0
         }
         march = {
-            "month": 3,
             "month_long": "March",
             "month_short": "M",
+            "month_year": f"{year.value}-03",
             "total_spent": 0,
             "total_earned": 0
         }
         april = {
-            "month": 4,
             "month_long": "April",
             "month_short": "A",
+            "month_year": f"{year.value}-04",
             "total_spent": 0,
             "total_earned": 0
         }
         may = {
-            "month": 5,
             "month_long": "May",
             "month_short": "M",
+            "month_year": f"{year.value}-05",
             "total_spent": 0,
             "total_earned": 0
         }
         june = {
-            "month": 6,
             "month_long": "June",
             "month_short": "J",
+            "month_year": f"{year.value}-06",
             "total_spent": 0,
             "total_earned": 0
         }
         july = {
-            "month": 7,
             "month_long": "July",
             "month_short": "J",
+            "month_year": f"{year.value}-07",
             "total_spent": 0,
             "total_earned": 0
         }
         august = {
-            "month": 8,
             "month_long": "August",
             "month_short": "A",
+            "month_year": f"{year.value}-08",
             "total_spent": 0,
             "total_earned": 0
         }
         september = {
-            "month": 9,
             "month_long": "September",
             "month_short": "S",
+            "month_year": f"{year.value}-09",
             "total_spent": 0,
             "total_earned": 0
         }
         october = {
-            "month": 10,
             "month_long": "October",
             "month_short": "O",
+            "month_year": f"{year.value}-10",
             "total_spent": 0,
             "total_earned": 0
         }
         november = {
-            "month": 11,
             "month_long": "November",
             "month_short": "N",
+            "month_year": f"{year.value}-11",
             "total_spent": 0,
             "total_earned": 0
         }
         december = {
-            "month": 12,
             "month_long": "December",
             "month_short": "D",
+            "month_year": f"{year.value}-12",
             "total_spent": 0,
             "total_earned": 0
         }
 
-        result_json = {
-            'since_date': since_date,
-            'data': [
-                january, february, march, april, may, june, july, august, september, october, november, december
-            ]
-        }
-        
-        # TODO ensure the transactions returned are only returned for that year.
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date)
+        sorted_months = [january, february, march, april, may, june, july, august, september, october, november, december]
 
-        skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
+        class TruncMonth(Function):
+            database_func = CustomFunction("TO_CHAR", ["column_name", "dt_format"])
         
+        db_queryset = YnabTransactions.annotate(
+            month_year=TruncMonth('date', 'YYYY-MM'),
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__year=year.value), # TODO need to update the date field on the DB model
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('month_year').values('month_year','income','expense').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
+            
+        db_result = await YnabTransactions.annotate(
+            month_year=TruncMonth('date', 'YYYY-MM'),
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__year=year.value), # TODO need to update the date field on the DB model
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('month_year').values('month_year','income','expense')
+
         month_match = {
-            '01': january,
-            '02': february,
-            '03': march,
-            '04': april,
-            '05': may,
-            '06': june,
-            '07': july,
-            '08': august,
-            '09': september,
-            '10': october,
-            '11': november,
-            '12': december
+            f'{year.value}-01': january,
+            f'{year.value}-02': february,
+            f'{year.value}-03': march,
+            f'{year.value}-04': april,
+            f'{year.value}-05': may,
+            f'{year.value}-06': june,
+            f'{year.value}-07': july,
+            f'{year.value}-08': august,
+            f'{year.value}-09': september,
+            f'{year.value}-10': october,
+            f'{year.value}-11': november,
+            f'{year.value}-12': december
         }
 
-        for transaction in pydantic_transactions_list:
-            if transaction.payee_name in skip_payees: continue
-            
-            transaction_month = transaction.date.strftime('%m')
+        for month in db_result:
+            month_match[month['month_year']]['total_spent'] = month['expense']
+            month_match[month['month_year']]['total_earned'] = month['income']
 
-            if transaction.amount > 0:
-                month_match[transaction_month]['total_earned'] += await YnabHelpers.convert_to_float(transaction.amount)
-            else:
-                month_match[transaction_month]['total_spent'] += await YnabHelpers.convert_to_float(transaction.amount)
-            
-        return result_json
+        return TransactionsByMonthResponse(
+            since_date=since_date,
+            data=sorted_months
+        )
 
     @classmethod
     async def transactions_by_months(cls, months: IntEnum = None) -> TransactionsByMonthResponse:
