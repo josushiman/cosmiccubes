@@ -534,134 +534,26 @@ class YNAB():
     async def total_spent(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
         transaction_type: Enum = None) -> TotalSpentResponse:
         
-        transactions = await cls.transactions_by_filter_type(
-            filter_type=filter_type,
-            year=year,
-            months=months,
-            specific_month=specific_month,
-            transaction_type=transaction_type
-        )
+        # transactions = await cls.transactions_by_filter_type(
+        #     filter_type=filter_type,
+        #     year=year,
+        #     months=months,
+        #     specific_month=specific_month,
+        #     transaction_type=transaction_type
+        # )
         
-        total_spent = 0.0
+        # total_spent = 0.0
 
-        for account in transactions['data']:
-            total_spent += account['total']
+        # for account in transactions['data']:
+        #     total_spent += account['total']
 
-        return TotalSpentResponse(
-            since_date=transactions['since_date'],
-            total=total_spent
-        )
+        # return TotalSpentResponse(
+        #     since_date=transactions['since_date'],
+        #     total=total_spent
+        # )
     
-    @classmethod
-    async def transactions_by_filter_type(cls,
-        filter_type: Enum,
-        year: Enum = None,
-        months: IntEnum = None,
-        specific_month: Enum = None,
-        top_x: IntEnum = None,
-        transaction_type: Enum = None
-        ) -> TransactionsByFilterResponse:
-
-        entities_raw = {}
-        match filter_type.value:
-            case 'account':
-                logging.debug("Getting accounts list.")
-                pydantic_accounts_list = await YnabHelpers.pydantic_accounts()
-                logging.debug(f"Returned {len(pydantic_accounts_list)} accounts.")
-                for account in pydantic_accounts_list:
-                    entities_raw[f'{account.id}'] = {
-                        'id': account.id,
-                        'name': account.name,
-                        'total': 0
-                    }
-            case 'payee':
-                logging.debug("Getting payees list.")
-                # TODO filter out transfers and other types like monthly bills etc
-                pydantic_payees_list = await YnabHelpers.pydantic_payees()
-                logging.debug(f"Returned {len(pydantic_payees_list)} payees.")
-                for payee in pydantic_payees_list:
-                    entities_raw[f'{payee.id}'] = {
-                        'id': payee.id,
-                        'name': payee.name,
-                        'total': 0
-                    }
-            case _:
-                if filter_type.value != 'category':
-                    logging.warn(f"Somehow filter_type was set to something that I can't handle. {filter_type.value}")
-                logging.debug("Getting categories list.")
-                pydantic_categories_list = await YnabHelpers.pydantic_categories()
-                logging.debug(f'Returned {len(pydantic_categories_list)} category groups.')
-                # TODO have a function for each of the return types from transactions by filter type to return the relevant schema.
-                # e.g. CategoryGroups so you can use .value methods.
-                for category in pydantic_categories_list:
-                    if category.category_group_name not in cls.CAT_EXPENSE_NAMES: continue
-                    entities_raw[f'{category.id}'] = {
-                        'id': category.id,
-                        'name': category.name,
-                        'category_group_name': category.category_group_name,
-                        'category_group_id': category.category_group_id,
-                        'total': 0
-                    }
-
-        since_date = await YnabHelpers.get_date_for_transactions(year, months, specific_month)
-        result_json = {
-            'since_date': since_date,
-            'data': []
-        }
-
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date, month=specific_month, year=year)
-        logging.debug(f'Returned {len(pydantic_transactions_list)} transactions.')
-        skipped_transactions = 0
-        for transaction in pydantic_transactions_list:
-            # Skip all inflow values.
-            if transaction.category_name == 'Inflow: Ready to Assign':
-                logging.debug("Skipped inflow transaction.")
-                skipped_transactions += 1
-                continue
-            try:
-                if filter_type.value == 'account':
-                    # don't include transfers/payments
-                    if transaction_type.value == 'income' and transaction.amount <= 0 or \
-                    transaction_type.value == 'expenses' and transaction.amount >= 0:
-                        logging.debug(f"Skipped transaction which may have been a transfer or payment to another account. Transaction Type being filtered: {transaction_type.value}")
-                        logging.debug(f"Transaction amount: {transaction.amount}")
-                        skipped_transactions += 1
-                        continue
-                    entities_raw[f'{transaction.account_id}']['total'] += transaction.amount
-                elif filter_type.value == 'category':
-                    entities_raw[f'{transaction.category_id}']['total'] += transaction.amount
-                else:
-                    entities_raw[f'{transaction.payee_id}']['total'] += transaction.amount
-            except KeyError:
-                logging.warning(f"Issue with trying to assign transaction amount to uncategorised transaction. {transaction.account_name} - {transaction.payee_name}")
-                skipped_transactions += 1
-                continue
-        
-        logging.debug(f'Skipped {skipped_transactions} transactions.')
-
-        all_results = []
-        for value in entities_raw.values():
-            if transaction_type.value == 'income':
-                if value['total'] < 0: continue
-            else:
-                if value['total'] >= 0: continue
-            
-            value['total'] = await YnabHelpers.convert_to_float(value['total'])
-            all_results.append(value)
-
-        if transaction_type.value == 'income':
-            remove_zero_totals = []
-            for value in all_results:
-                if value['total'] > 0: remove_zero_totals.append(value)
-            result_json['data'] = sorted(remove_zero_totals, key=lambda item: item['total'], reverse=True)
-        else:
-            result_json['data'] = sorted(all_results, key=lambda item: item['total'])
-
-        if top_x:
-            result_json['data'] = result_json['data'][0:top_x]
-
-        return result_json
-
+        return None
+    
     @classmethod
     async def transactions_by_month_for_year(cls, year: Enum = None) -> TransactionsByMonthResponse:
         since_date = await YnabHelpers.get_date_for_transactions(year=year)
