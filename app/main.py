@@ -226,10 +226,6 @@ async def spent_vs_budget():
 async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
 
-@app.get("/ynab/sync-transaction-rels")
-async def sync_transaction_rels():
-    return await ynab_help.sync_transaction_rels()
-
 @app.get("/ynab/total-spent")
 async def total_spent(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
     specific_month: SpecificMonthOptions = None):
@@ -273,4 +269,6 @@ async def update_payees():
 
 @app.get("/ynab/update-transactions")
 async def update_transactions():
-    return await ynab_help.pydantic_transactions()
+    await ynab_help.pydantic_transactions()
+    # Below needs categories to exist.
+    return await ynab_help.sync_transaction_rels()
