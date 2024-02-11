@@ -39,9 +39,11 @@ class CategorySpent(BaseModel):
     @property
     def progress(self) -> float:
         if self.budget is None and self.total_spent is None: return None
-        if self.budget:
+        if self.budget and self.budget > 0:
             return (self.spent / self.budget) * 100
-        return (self.spent / self.total_spent) * 100
+        elif self.total_spent and self.total_spent > 0:
+            return (self.spent / self.total_spent) * 100
+        return 0
     
     @validator("spent", "budget", "total_spent", pre=True)
     def format_milliunits(cls, value):

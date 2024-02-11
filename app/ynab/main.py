@@ -319,12 +319,11 @@ class YNAB():
         since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
         since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
         
-        # For year, or last x months - get the current date and the last X transactions
-        if year or months:
-            end_date = datetime.now()
         # For year and specific month - get the last date of that month and then the last x transactions
         if year and specific_month:
             end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
+        else:
+            end_date = datetime.now()
 
         db_queryset = YnabTransactions.filter(
             date__gte=since_date_dt,
@@ -899,7 +898,7 @@ class YnabHelpers():
             return date_value
         
         # If this condition is not set, it'll always return the current month, which would also meet the need for months=1
-        if months > 1:
+        if months:
             current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             # When returning months, you need to include the current month. So you therefore need to subtract 1 from the months value.
             month_delta = current_date - relativedelta(months=months - 1)
