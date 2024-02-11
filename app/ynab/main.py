@@ -809,7 +809,7 @@ class YNAB():
 
     @classmethod
     async def transactions_by_months(cls, months: IntEnum = None) -> TransactionsByMonthResponse:
-        since_date = await YnabHelpers.get_date_for_transactions(year=None, months=months, specific_month=None)
+        since_date = await YnabHelpers.get_date_for_transactions(months=months)
         now = localtime()
         # Returns a tuple of year, month. e.g. [(2024, 1), (2023, 12), (2023, 11)]
         months_to_get = [localtime(mktime((now.tm_year, now.tm_mon - n, 1, 0, 0, 0, 0, 0, 0)))[:2] for n in range(months.value)]
@@ -917,32 +917,62 @@ class YNAB():
             '12': december
         }
 
-        result_json = {
-            'since_date': since_date,
-            'data': month_list
-        }
-
         # add the months in order of oldest, the latest to the result_json
         for index, (year, month) in enumerate(months_to_get):
             add_month = month_match[str(month)]
             add_month['year'] = str(year)
+            if month < 10:
+                add_month['month_year'] = f"{year}-0{month}"
+            else:
+                add_month['month_year'] = f"{year}-{month}"
             month_list.insert(index, add_month)
 
-        pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=since_date)
-        
-        skip_payees = ['Starting Balance', '"Transfer : BA AMEX', 'Transfer : HSBC CC', 'Transfer : Barclays CC', 'Transfer : HSBC ADVANCE']
-        
-        for transaction in pydantic_transactions_list:
-            if transaction.payee_name in skip_payees: continue
-            
-            transaction_month = transaction.date.strftime('%#m').lstrip('0') # The hash removes the zero-padding.
+        # From the since date, go through each month and add it to the data
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
+        end_date = datetime.now()
 
-            if transaction.amount > 0:
-                month_match[transaction_month]['total_earned'] += await YnabHelpers.convert_to_float(transaction.amount)
-            else:
-                month_match[transaction_month]['total_spent'] += await YnabHelpers.convert_to_float(transaction.amount)
-            
-        return result_json
+        class TruncMonth(Function):
+            database_func = CustomFunction("TO_CHAR", ["column_name", "dt_format"])
+
+        db_queryset = YnabTransactions.annotate(
+            month_year=TruncMonth('date', 'YYYY-MM'),
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('month_year').values('month_year','income','expense').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
+
+        db_result = await YnabTransactions.annotate(
+            month_year=TruncMonth('date', 'YYYY-MM'),
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            expense=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(
+                category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            )
+        ).group_by('month_year').values('month_year','income','expense')
+
+        for month in db_result:
+            for filtered_list in month_list:
+                if filtered_list['month_year'] == month['month_year']:
+                    filtered_list['total_spent'] = month['expense']
+                    filtered_list['total_earned'] = month['income']
+
+        return TransactionsByMonthResponse(
+            since_date=since_date,
+            data=month_list
+        )
 
 class YnabHelpers():    
     @classmethod

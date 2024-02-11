@@ -241,7 +241,8 @@ class YnabPayees(models.Model):
 
 class YnabTransactions(models.Model):
     id = fields.UUIDField(pk=True)
-    date = fields.DatetimeField()
+    date = fields.DateField()
+    # date = fields.DatetimeField() # TODO
     amount = fields.FloatField(default=0.0)
     memo = fields.CharField(max_length=150, null=True)
     cleared = fields.CharField(max_length=150)
