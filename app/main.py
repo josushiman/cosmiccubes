@@ -16,6 +16,7 @@ load_dotenv()
 dotenv_db_url = os.getenv("DB_URL")
 dotenv_logging_level = os.getenv("LOGGING_LEVEL", "INFO")
 dotenv_token = os.getenv("ENV_TOKEN")
+dotenv_ynab_phrase = os.getenv("YNAB_PHRASE")
 raw_hosts = os.getenv("ENV_HOSTS")
 raw_origins = os.getenv("ENV_ORIGINS")
 raw_referer = os.getenv("ENV_REFERER")
@@ -238,30 +239,41 @@ async def transactions_by_month_for_year(year: SpecificYearOptions):
 async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
+async def check_ynab_phrase(phrase: str) -> bool | HTTPException:
+    if phrase != dotenv_ynab_phrase:
+        raise HTTPException(status_code=403, detail="Not authorised")
+    return True
+
 @app.get("/ynab/update-accounts")
-async def update_accounts():
+async def update_accounts(phrase: str):
+    await check_ynab_phrase(phrase=phrase)
     return await ynab_help.pydantic_accounts()
 
 @app.get("/ynab/update-categories")
-async def update_categories():
+async def update_categories(phrase: str):
+    await check_ynab_phrase(phrase=phrase)
     return await ynab_help.pydantic_categories()
 
 @app.get("/ynab/update-month-details")
-async def update_month_details():
+async def update_month_details(phrase: str):
+    await check_ynab_phrase(phrase=phrase)
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
 @app.get("/ynab/update-month-summaries")
-async def update_month_summaries():
+async def update_month_summaries(phrase: str):
+    await check_ynab_phrase(phrase=phrase)
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
 @app.get("/ynab/update-payees")
-async def update_payees():
+async def update_payees(phrase: str):
+    await check_ynab_phrase(phrase=phrase)
     return await ynab_help.pydantic_payees()
 
 @app.get("/ynab/update-transactions")
-async def update_transactions():
+async def update_transactions(phrase: str):
+    await check_ynab_phrase(phrase=phrase)
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()
