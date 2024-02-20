@@ -11,6 +11,7 @@ from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_
     ProjectItemCategories_Pydantic, YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
     YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
 
+# TODO make changes here to make sure can return Ynab stuff
 class ReactAdmin():
     @classmethod
     async def get_entity_model(cls, resource: str) -> Model:
