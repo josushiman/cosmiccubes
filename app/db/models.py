@@ -198,7 +198,7 @@ class YnabCategories(models.Model):
 
 class YnabMonthSummaries(models.Model):
     id = fields.UUIDField(pk=True)
-    month = fields.DatetimeField(null=True)
+    month = fields.DatetimeField(null=True, unique=True)
     note = fields.CharField(max_length=150, null=True)
     income = fields.IntField(default=0, null=True)
     budgeted = fields.IntField(default=0, null=True)

@@ -219,23 +219,16 @@ async def spent_in_period(period: PeriodOptions):
     return await ynab.spent_in_period(period)
 
 @app.get("/ynab/spent-vs-budget")
-async def spent_vs_budget():
-    return await ynab.spent_vs_budget()
+async def spent_vs_budget(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.spent_vs_budget(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/sub-categories-spent")
 async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
     return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/total-spent")
-async def total_spent(transaction_type: TransactionTypeOptions, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, \
-    specific_month: SpecificMonthOptions = None):
-    return await ynab.total_spent(
-        transaction_type=transaction_type,
-        filter_type=FilterTypes.ACCOUNT,
-        year=year,
-        months=months,
-        specific_month=specific_month,
-    )
+async def total_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
+    return await ynab.total_spent(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/transaction-by-month-for-year")
 async def transactions_by_month_for_year(year: SpecificYearOptions):

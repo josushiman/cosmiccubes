@@ -23,7 +23,7 @@ from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailRes
     TransactionsResponse, Account, Category, MonthSummary, MonthDetail, Payee, TransactionDetail
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabMonthDetailCategories, YnabPayees, \
     YnabTransactions
-from app.enums import TransactionTypeOptions, FilterTypes
+from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByFilterResponse, TransactionsByMonthResponse
@@ -271,8 +271,8 @@ class YNAB():
             month_year = {
                 'month': month_full_name,
                 'year': str(year),
-                'income': await YnabHelpers.convert_to_float(sum(entry['income'] for entry in entries)),
-                'expenses': await YnabHelpers.convert_to_float(sum(entry['expense'] for entry in entries))
+                'income': sum(entry['income'] for entry in entries),
+                'expenses': sum(entry['expense'] for entry in entries)
             }
             result_json.append(month_year)
 
@@ -344,76 +344,73 @@ class YNAB():
         )
 
     @classmethod #TODO
+    async def count_in_category(cls, category: str, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
+        return
+
+    @classmethod
     async def spent_in_period(cls, period: Enum) -> SpentInPeriodResponse:
-        # TODO add filters for whether I want to include bills or just things which do not come from a specific account (e.g. Current Account)
+        # Set the defaults to today.
+        since_date = datetime.today().replace(hour=00, minute=00, second=00, microsecond=00)
+        end_date = datetime.today().replace(hour=23, minute=59, second=59, microsecond=59)
+
         match period.value:
-            case 'TODAY':
-                current_date = datetime.today().strftime('%Y-%m-%d')
-                pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=current_date)
-                
-                total_spent = 0.0
-                for transaction in pydantic_transactions_list:
-                    if transaction.amount > 0: continue
-                    total_spent += transaction.amount
-                
-                return SpentInPeriodResponse(
-                    spent=await YnabHelpers.convert_to_float(total_spent)
-                )
             case 'YESTERDAY':
-                current_date = datetime.today() - DateOffset(days=1)
-                current_date = current_date.strftime('%Y-%m-%d')
-                pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=current_date)
-                
-                total_spent = 0.0
-                for transaction in pydantic_transactions_list:
-                    if transaction.amount > 0: continue
-                    total_spent += transaction.amount
-                
-                return SpentInPeriodResponse(
-                    spent=await YnabHelpers.convert_to_float(total_spent)
-                )
-            case 'THIS_WEEK':
-                current_date = datetime.today()
-                days_to_monday =  current_date.weekday() - 0
-                current_date = datetime.today() - DateOffset(days=days_to_monday)
-                current_date = current_date.strftime('%Y-%m-%d')
-                pydantic_transactions_list = await YnabHelpers.pydantic_transactions(since_date=current_date)
-                                
-                total_spent = 0.0
-                for transaction in pydantic_transactions_list:
-                    if transaction.amount > 0 or transaction.category_name in ["Loans", "Monthly Bills", "Credit Card Payments", "Yearly Bills"]: continue
-                    total_spent += transaction.amount
-                
-                return SpentInPeriodResponse(
-                    spent=await YnabHelpers.convert_to_float(total_spent)
-                )
+                since_date = since_date - relativedelta(days=1)
+                end_date = end_date - relativedelta(days=1)
+            case 'THIS_WEEK': # Weeks run from Monday to Sunday
+                # Minus the start_date by the current weekday. This sets it to Monday within that week.
+                since_date = since_date - relativedelta(days=since_date.weekday())
+                end_of_week = since_date + relativedelta(days=6)
+                end_date = end_of_week.replace(hour=23, minute=59, second=59, microsecond=59)
             case 'LAST_WEEK':
-                # TODO
-                return None
-            case _:
-                return None
+                start_of_week = since_date - relativedelta(days=since_date.weekday())
+                since_date = start_of_week - relativedelta(weeks=1)
+                end_of_week = since_date + relativedelta(days=6)
+                end_date = end_of_week.replace(hour=23, minute=59, second=59, microsecond=59)
+            case _: # 'TODAY' is the default
+                pass
+        
+        db_queryset = YnabTransactions.annotate(
+            spent=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date),
+            Q(date__lte=end_date),
+            Q(category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES)
+        ).group_by('deleted').values('spent').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
+        
+        db_results = await YnabTransactions.annotate(
+            spent=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date),
+            Q(date__lte=end_date),
+            Q(category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES)
+        ).group_by('deleted').values('spent')
 
-    @classmethod # TODO
-    async def spent_vs_budget(cls) -> SpentVsBudgetResponse:
-        pydantic_categories_list = await YnabHelpers.pydantic_categories()
+        try: #TODO move this to a separate function to share across all DB queries
+            spent_amount = db_results[0]['spent']
+        except IndexError:
+            spent_amount = 0
 
-        total_balance = 0.0 # Amount difference between whats been budgeted, and the activity.
+        return SpentInPeriodResponse(
+            period=period.value,
+            spent=spent_amount
+        )
+
+    @classmethod
+    async def spent_vs_budget(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> SpentVsBudgetResponse:
+        spent_categories = await cls.categories_spent(months=months, year=year, specific_month=specific_month)
+        
         total_budgeted = 0.0 # Budget assigned to the category
         total_spent = 0.0
-        # Only categories that I care about for tracking the monthly target.
-        # This is usually when I only have a budget assigned to a category.
-        # So I should skip any category which does not have a budget assigned.
-        for category in pydantic_categories_list:
-            if category.category_group_name not in cls.CAT_EXPENSE_NAMES: continue
-            total_spent += category.activity
-            total_balance += category.balance
-            total_budgeted += category.budgeted
+        for category in spent_categories.data:
+            total_spent += category.spent
+            total_budgeted += category.budget
             logging.debug(f'''
             Category details:
                 name: {category.name}
-                activity: {category.activity}
-                balance: {category.balance}
-                budgeted: {category.budgeted}
+                spent: {category.spent}
+                budgeted: {category.budget}
             ''')
 
         logging.debug(f'''
@@ -421,11 +418,11 @@ class YNAB():
         Total Budgeted: {total_budgeted}
         ''')
 
-        return {
-            'balance': await YnabHelpers.convert_to_float(total_balance),
-            'budget': await YnabHelpers.convert_to_float(total_budgeted),
-            'spent': await YnabHelpers.convert_to_float(-total_spent),
-        }
+        return SpentVsBudgetResponse(
+            balance=total_budgeted - total_spent,
+            budget=total_budgeted,
+            spent=total_spent
+        )
 
     @classmethod
     async def sub_categories_spent_db_q(cls,
@@ -529,29 +526,41 @@ class YNAB():
             data=sorted_list
         )
 
-    @classmethod # TODO
-    async def total_spent(cls, filter_type: Enum, year: Enum = None, months: IntEnum = None, specific_month: Enum = None, \
-        transaction_type: Enum = None) -> TotalSpentResponse:
+    @classmethod
+    async def total_spent(cls, year: Enum = None, months: IntEnum = None, specific_month: Enum = None) -> TotalSpentResponse:
+        since_date = await YnabHelpers.get_date_for_transactions(year=year, months=months, specific_month=specific_month)
+        if months:
+            end_date = datetime.now()
+        elif year and specific_month:
+            # Set the date to the last day of the current month.
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date)
+        elif year:
+            # Set the date to the last day of the current year.
+            end_date = await YnabHelpers.get_last_date_from_since_date(since_date=since_date, year=True)
         
-        # transactions = await cls.transactions_by_filter_type(
-        #     filter_type=filter_type,
-        #     year=year,
-        #     months=months,
-        #     specific_month=specific_month,
-        #     transaction_type=transaction_type
-        # )
-        
-        # total_spent = 0.0
+        since_date_dt = datetime.strptime(since_date, '%Y-%m-%d')
 
-        # for account in transactions['data']:
-        #     total_spent += account['total']
+        db_queryset = YnabTransactions.annotate(
+            spent=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES)
+        ).group_by('deleted').values('spent').sql()
+        logging.debug(f"SQL Query: {db_queryset}")
 
-        # return TotalSpentResponse(
-        #     since_date=transactions['since_date'],
-        #     total=total_spent
-        # )
+        db_results = await YnabTransactions.annotate(
+            spent=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(date__gte=since_date_dt),
+            Q(date__lte=end_date),
+            Q(category_fk__category_group_name__in=YNAB.CAT_EXPENSE_NAMES)
+        ).group_by('deleted').values('spent')
     
-        return None
+        return TotalSpentResponse(
+            since_date=since_date,
+            total_spent=db_results[0]['spent']
+        )
     
     @classmethod
     async def transactions_by_month_for_year(cls, year: Enum = None) -> TransactionsByMonthResponse:
@@ -873,12 +882,6 @@ class YNAB():
 
 class YnabHelpers():    
     @classmethod
-    async def convert_to_float(cls, amount) -> float:
-        # Amount comes in as a milliunit e.g. 21983290
-        # It needs to be returned as 21983.29
-        return amount / 1000
-    
-    @classmethod
     async def get_date_for_transactions(cls, year: Enum = None, months: IntEnum = None, specific_month: Enum = None) -> str:
         logging.debug(f'''
         Year: {year}
@@ -1031,6 +1034,44 @@ class YnabHelpers():
             raise HTTPException(status_code=400)
 
     @classmethod
+    async def check_server_knowledge_eligibility(cls,
+            action: str,
+            ynab_url: str,
+            param_1: str = None,
+            skip_sk: bool = False,
+            since_date: str = None,
+            month: str = None,
+            year: Enum = None,
+        ):
+        try:
+            sk_eligible = await YnabServerKnowledgeHelper.check_route_eligibility(action)
+            sk_route = await cls.get_route(action, param_1)
+            server_knowledge = await YnabServerKnowledgeHelper.check_if_exists(route_url=sk_route)
+            if sk_eligible and not skip_sk:
+                logging.debug("Route is eligible, checking if there are any saved DB entities.")
+                if server_knowledge:
+                    logging.info("Route already exists in DB, checking if its up to date.")
+                    is_up_to_date = await YnabServerKnowledgeHelper.current_date_check(server_knowledge.last_updated)
+                    if is_up_to_date:
+                        logging.info("Date is the same as today, returning the DB entities.")
+                        # TODO need to move this somewhere else otherwise it'll return entities to the make_request function.
+                        return await cls.return_db_model_entities(action=action, since_date=since_date, month=month, year=year)
+                    logging.debug(f"Updating ynab url to include server_knowledge value: {ynab_url}")
+                    ynab_url = await YnabServerKnowledgeHelper.add_server_knowledge_to_url(
+                        ynab_url=ynab_url,
+                        server_knowledge=server_knowledge.server_knowledge
+                    )
+            else:
+                logging.debug("Route is not eligible.")
+            if skip_sk:
+                logging.info("Skipping returning the DB entities. Making API call.")
+        except Exception as exc:
+            logging.exception("Continuing to just call the API instead.", exc_info=exc)
+            pass
+        
+        return ynab_url
+
+    @classmethod
     @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
     async def make_request(cls,
             action: str,
@@ -1055,7 +1096,15 @@ class YnabHelpers():
         # For debugging purposes only.
         # skip_sk = True
         server_knowledge = None
-        # TODO split this out to a separate function
+        # TODO
+        # ynab_url = await cls.check_server_knowledge_eligibility(
+        #     action=action,
+        #     param_1=param_1,
+        #     skip_sk=skip_sk,
+        #     since_date=since_date,
+        #     month=month,
+        #     year=year
+        # )
         try:
             sk_eligible = await YnabServerKnowledgeHelper.check_route_eligibility(action)
             sk_route = await cls.get_route(action, param_1)
@@ -1116,7 +1165,7 @@ class YnabHelpers():
         return await cls.make_request('categories-list', param_1=dotenv_ynab_budget_id)
     
     @classmethod
-    async def pydantic_month_details(cls) -> list[YnabMonthSummaries]: # TODO cron this once a month
+    async def pydantic_month_details(cls) -> list[YnabMonthSummaries]:
         current_month = datetime.today().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         previous_month = current_month - relativedelta(months=1)
         prev_month_string = previous_month.strftime('%Y-%m-%d')

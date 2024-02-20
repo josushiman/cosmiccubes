@@ -86,12 +86,23 @@ class IncomeVsExpense(BaseModel):
     income: float
     expenses: float
 
+    @validator("income", "expenses", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
 class IncomeVsExpensesResponse(BaseModel):
     since_date: date_field
     data: List[IncomeVsExpense]
 
 class SpentInPeriodResponse(BaseModel):
+    period: str
     spent: float
+
+    @validator("spent", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
 class SpentVsBudgetResponse(BaseModel):
     balance: float
@@ -103,11 +114,6 @@ class SpentVsBudgetResponse(BaseModel):
     def progress(self) -> float:
         if self.budget == 0: return 0
         return (self.spent / self.budget) * 100
-
-    @validator("balance","budget","spent", pre=True)
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
 
 class SubCategorySpentResponse(BaseModel):
     since_date: date_field
@@ -130,7 +136,12 @@ class LastXTransactions(BaseModel):
 
 class TotalSpentResponse(BaseModel):
     since_date: date_field
-    total: float = Field(..., description='Total amount spent across all accounts from the since_date to today.')
+    total_spent: float = Field(..., description='Total amount spent across all accounts from the since_date to today.')
+
+    @validator("total_spent", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
 class TransactionsByFilterResponse(BaseModel):
     since_date: date_field
