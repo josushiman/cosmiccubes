@@ -86,7 +86,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    # dependencies=[Depends(get_token_header)],
+    dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -129,11 +129,11 @@ async def get_health():
         "status": "OK"
     }
 
-@app.post("/portal/admin/{resource}", status_code=201)
+@app.post("/portal/admin/{resource}", status_code=201, include_in_schema=False)
 async def create(resource: str, _body: dict):
     return await ra.create(resource, _body)
 
-@app.get("/portal/admin/{resource}/{_id}")
+@app.get("/portal/admin/{resource}/{_id}", include_in_schema=False)
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
@@ -159,40 +159,20 @@ async def get_list(request: Request, response: Response, resource: str, commons:
     response.headers["X-Total-Count"] = count
     return entities
 
-@app.put("/portal/admin/{resource}/{_id}")
+@app.put("/portal/admin/{resource}/{_id}", include_in_schema=False)
 async def update(resource: str, _body: dict, _id: UUID):
     return await ra.update(resource, _body, _id)
 
-@app.delete("/portal/admin/{resource}/{_id}")
+@app.delete("/portal/admin/{resource}/{_id}", include_in_schema=False)
 async def delete(resource: str, _id: UUID):
     return await ra.delete(resource, _id)
 
-@app.delete("/portal/admin/{resource}")
+@app.delete("/portal/admin/{resource}", include_in_schema=False)
 async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alias="ids")):
     for _id in _ids:
         rows_deleted = await ra.delete(resource, _id)
     return {
         "message": f"Deleted {rows_deleted} rows."
-    }
-
-@app.get("/portal/admin/dashboard/direct-debits/{type}")
-async def get_dd_totals(type: str):
-    entity_model = await ra.get_entity_model('direct-debits')
-    entity_schema = await ra.get_entity_schema('direct-debits')
-
-    db_entities = await entity_schema.from_queryset(entity_model.all())
-
-    monthly_total = 0
-    annual_total = 0
-
-    for entity in db_entities:
-        if entity.period == "monthly":
-            monthly_total += entity.amount
-        annual_total += entity.annual_cost
-
-    return {
-        "monthly_total": monthly_total,
-        "annual_total": annual_total
     }
 
 @app.get("/ynab/available-balance")

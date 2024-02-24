@@ -8,4 +8,5 @@ Update requirements .txt
 `pipenv requirements > requirements.txt`
 
 Run with New Relic
-`NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-program uvicorn app.main:app --reload --log-config=logging.yml`
+The app initialises newrelic on startup. Ensure a newrelic.ini exists in the main directory.
+`newrelic-admin run-program uvicorn app.main:app --reload --log-config=logging.yml`
