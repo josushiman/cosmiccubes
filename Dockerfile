@@ -7,7 +7,7 @@ COPY ./requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 # Copy the New Relic configuration file and application code
-COPY ./etc/secrets/newrelic.ini /code/newrelic.ini
+COPY /etc/secrets/newrelic.ini /code/newrelic.ini
 COPY ./app /code/app
 
 # Expose the New Relic environment variables
