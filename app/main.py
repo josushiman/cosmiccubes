@@ -1,5 +1,6 @@
 import os
 import logging
+import newrelic.agent
 from tortoise import Tortoise
 from dotenv import load_dotenv
 from typing import List
@@ -17,6 +18,8 @@ dotenv_db_url = os.getenv("DB_URL")
 dotenv_logging_level = os.getenv("LOGGING_LEVEL", "INFO")
 dotenv_token = os.getenv("ENV_TOKEN")
 dotenv_ynab_phrase = os.getenv("YNAB_PHRASE")
+dotenv_newrelic_key = os.getenv("NEWRELIC_KEY")
+dotenv_newrelic_env = os.getenv("NEWRELIC_ENV")
 raw_hosts = os.getenv("ENV_HOSTS")
 raw_origins = os.getenv("ENV_ORIGINS")
 raw_referer = os.getenv("ENV_REFERER")
@@ -28,6 +31,8 @@ dotenv_docs = raw_docs if raw_docs != 'None' else None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.info("Initialising NewRelic")
+    newrelic.agent.initialize(dotenv_newrelic_key, environment=dotenv_newrelic_env)
     logging.info("Initialising DB")
     await Tortoise.init(
         db_url=dotenv_db_url,

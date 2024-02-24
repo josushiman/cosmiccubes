@@ -1282,8 +1282,14 @@ class YnabServerKnowledgeHelper():
             logging.debug(f"New entity created {obj.id}")
             return 1
         except IntegrityError:
-            entity_id = resp_body["id"]
-            resp_body.pop("id")
+            try:
+                entity_id = resp_body["id"]
+                resp_body.pop("id")
+            except KeyError: # Happens on 'months-list' as no ID is returned.
+                resp_month_dt = datetime.strptime(resp_body['month'], '%Y-%m-%d')
+                db_entity = await model.filter(month=resp_month_dt).get()
+                entity_id = db_entity.id
+                resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
             obj = await model.filter(id=entity_id).update(**resp_body)
             logging.debug(f"Entity updated")
             return 0
@@ -1374,7 +1380,9 @@ class YnabServerKnowledgeHelper():
         created = 0
         for entity in entity_list:
             logging.debug(entity)
-            if action == 'transactions-list': entity.pop('subtransactions')
+            if action == 'transactions-list':
+                entity.pop('flag_name') # new field introduced. TODO figure out how to do DB migrations
+                entity.pop('subtransactions')
             obj = await cls.create_update_route_entities(resp_body=entity, model=model)
             created += obj
         
