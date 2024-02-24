@@ -328,6 +328,9 @@ class TransactionSummary(BaseModel):
         ..., description='Whether or not the transaction is approved'
     )
     flag_color: Optional[TransactionFlagColorEnum] = None
+    flag_name: Optional[str] = Field(
+        None, description='The customized name of a transaction flag'
+    )
     account_id: UUID
     payee_id: Optional[UUID] = None
     category_id: Optional[UUID] = None

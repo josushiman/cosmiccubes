@@ -15,6 +15,7 @@ httpx = "*"
 pandas = "*"
 colorlog = "*"
 python-dateutil = "*"
+newrelic = "*"
 
 [dev-packages]
 
