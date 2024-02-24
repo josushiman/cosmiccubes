@@ -1,5 +1,6 @@
 import os
 import logging
+import newrelic.agent
 from tortoise import Tortoise
 from dotenv import load_dotenv
 from typing import List
@@ -25,6 +26,13 @@ dotenv_hosts = raw_hosts if raw_hosts != 'None' else ["*"]
 dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
 dotenv_referer = raw_referer if raw_referer != 'None' else ["*"]
 dotenv_docs = raw_docs if raw_docs != 'None' else None
+
+dotenv_nr_env = os.getenv("NEWRELIC_ENV")
+if dotenv_nr_env != 'production':
+    dotenv_path_to_ini = os.getcwd() + '/newrelic.ini'
+else:
+    dotenv_path_to_ini = os.getenv("NEWRELIC_INI_PATH")
+newrelic.agent.initialize(dotenv_path_to_ini, dotenv_nr_env)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
