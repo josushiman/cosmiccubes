@@ -110,15 +110,15 @@ from tortoise import fields, models
 #         computed = ["total"]
 #         unique_together=("name", "company", "category")
 
-# class YnabServerKnowledge(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     budget_id = fields.UUIDField()
-#     route = fields.CharField(max_length=250, unique=True)
-#     server_knowledge = fields.IntField()
-#     last_updated = fields.DatetimeField(auto_now=True)
+class YnabServerKnowledge(models.Model):
+    id = fields.UUIDField(pk=True)
+    budget_id = fields.UUIDField()
+    route = fields.CharField(max_length=250, unique=True)
+    server_knowledge = fields.IntField()
+    last_updated = fields.DatetimeField(auto_now=True)
 
-#     class PydanticMeta:
-#         unique_together=("budget_id", "route")
+    class PydanticMeta:
+        unique_together=("budget_id", "route")
 
 class YnabAccounts(models.Model):
     id = fields.UUIDField(pk=True)

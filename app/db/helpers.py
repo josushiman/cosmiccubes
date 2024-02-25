@@ -3,12 +3,8 @@ from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
 from uuid import UUID
-from .models import Accounts, AccountTypes, BalanceTransfers, Budgets, Companies, CompanyCategories, DirectDebits, Incomes, \
-    Mortgages, Projects, ProjectItems, ProjectItemCategories, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, \
-    YnabServerKnowledge, YnabTransactions
-from .schemas import Accounts_Pydantic, AccountTypes_Pydantic, BalanceTransfers_Pydantic, Budgets_Pydantic, Companies_Pydantic, \
-    CompanyCategories_Pydantic, DirectDebits_Pydantic, Incomes_Pydantic, Mortgages_Pydantic, Projects_Pydantic, ProjectItems_Pydantic, \
-    ProjectItemCategories_Pydantic, YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
+from .models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions
+from .schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
     YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
 
 # TODO make changes here to make sure can return Ynab stuff
@@ -16,18 +12,18 @@ class ReactAdmin():
     @classmethod
     async def get_entity_model(cls, resource: str) -> Model:
         model_list ={
-            "accounts": Accounts,
-            "account-types": AccountTypes,
-            "balance-transfers": BalanceTransfers,
-            "budgets": Budgets,
-            "companies": Companies,
-            "company-categories": CompanyCategories,
-            "direct-debits": DirectDebits,
-            "incomes": Incomes,
-            "mortgages": Mortgages,
-            "projects": Projects,
-            "project-item-categories": ProjectItemCategories,
-            "project-items": ProjectItems,
+            # "accounts": Accounts,
+            # "account-types": AccountTypes,
+            # "balance-transfers": BalanceTransfers,
+            # "budgets": Budgets,
+            # "companies": Companies,
+            # "company-categories": CompanyCategories,
+            # "direct-debits": DirectDebits,
+            # "incomes": Incomes,
+            # "mortgages": Mortgages,
+            # "projects": Projects,
+            # "project-item-categories": ProjectItemCategories,
+            # "project-items": ProjectItems,
             "ynab-accounts": YnabAccounts,
             "ynab-categories": YnabCategories,
             "ynab-month-summaries": YnabMonthSummaries,
@@ -45,18 +41,18 @@ class ReactAdmin():
     @classmethod
     async def get_entity_schema(cls, resource: str):
         schema_list ={
-            "accounts": Accounts_Pydantic,
-            "account-types": AccountTypes_Pydantic,
-            "balance-transfers": BalanceTransfers_Pydantic,
-            "budgets": Budgets_Pydantic,
-            "companies": Companies_Pydantic,
-            "company-categories": CompanyCategories_Pydantic,
-            "direct-debits": DirectDebits_Pydantic,
-            "incomes": Incomes_Pydantic,
-            "mortgages": Mortgages_Pydantic,
-            "projects": Projects_Pydantic,
-            "project-item-categories": ProjectItemCategories_Pydantic,
-            "project-items": ProjectItems_Pydantic,
+            # "accounts": Accounts_Pydantic,
+            # "account-types": AccountTypes_Pydantic,
+            # "balance-transfers": BalanceTransfers_Pydantic,
+            # "budgets": Budgets_Pydantic,
+            # "companies": Companies_Pydantic,
+            # "company-categories": CompanyCategories_Pydantic,
+            # "direct-debits": DirectDebits_Pydantic,
+            # "incomes": Incomes_Pydantic,
+            # "mortgages": Mortgages_Pydantic,
+            # "projects": Projects_Pydantic,
+            # "project-item-categories": ProjectItemCategories_Pydantic,
+            # "project-items": ProjectItems_Pydantic,
             "ynab-accounts": YnabAccounts_Pydantic,
             "ynab-categories": YnabCategories_Pydantic,
             "ynab-month-summaries": YnabMonthSummaries_Pydantic,

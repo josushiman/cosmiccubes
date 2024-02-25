@@ -3,12 +3,10 @@ import httpx
 import logging
 import json
 import calendar
-from uuid import UUID
 from enum import Enum, IntEnum
 from time import localtime, mktime
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from pandas import DateOffset
 from async_lru import alru_cache
 from dotenv import load_dotenv
 from fastapi import HTTPException
@@ -19,19 +17,21 @@ from tortoise.exceptions import FieldError, IntegrityError
 from tortoise.expressions import RawSQL, Q, Function
 from pypika import CustomFunction
 from pydantic import TypeAdapter
-from app.ynab.models import AccountsResponse, CategoriesResponse, MonthDetailResponse, MonthSummariesResponse, PayeesResponse, \
+from app.ynab.models import AccountsResponse, CategoriesResponse, MonthSummariesResponse, PayeesResponse, \
     TransactionsResponse, Account, Category, MonthSummary, MonthDetail, Payee, TransactionDetail
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabMonthDetailCategories, YnabPayees, \
     YnabTransactions
-from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO
+from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
-    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByFilterResponse, TransactionsByMonthResponse
+    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse
 
 load_dotenv()
 dotenv_ynab_url = os.getenv("EXT_YNAB_URL")
 dotenv_ynab_token = os.getenv("EXT_YNAB_TOKEN")
 dotenv_ynab_budget_id = os.getenv("YNAB_BUDGET_ID")
+
+# TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
@@ -61,6 +61,8 @@ class YNAB():
 
         logging.debug(f"DB Query: {db_queryset.sql()}")
         logging.debug(f"DB Result: {db_result}")
+
+        # TODO support date filtering
 
         return CardBalancesResponse(data=db_result)
 
