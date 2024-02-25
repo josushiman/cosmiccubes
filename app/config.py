@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ext_ynab_url: str
     newrelic_key: str
     newrelic_ini_path: str = os.getcwd() + '/newrelic.ini'
-    newrelic_env: str
+    newrelic_env: str = 'production'
     ynab_phrase: str
     ynab_budget_id: UUID
 
