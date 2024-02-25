@@ -90,26 +90,6 @@ app = FastAPI(
     openapi_url=dotenv_docs
     )
 
-# TODO add cron job within the service to run daily transaction, category and account checks
-# OR use render to create the job and run it: https://docs.render.com/jobs
-# from apscheduler.schedulers.background import BackgroundScheduler
-# from apscheduler.triggers.daily import DailyTrigger
-# import atexit
-# # Function to be scheduled
-# def my_cron_job():
-#     print("Cron job executed!")
-
-# # Initialize scheduler
-# scheduler = BackgroundScheduler()
-# scheduler.start()
-
-# # Schedule the job to run daily at a specific time (adjust as needed)
-# trigger = DailyTrigger(hour=2, minute=0)  # Example: 2:00 AM daily
-# scheduler.add_job(my_cron_job, trigger=trigger)
-
-# # Shut down the scheduler when the app exits
-# atexit.register(lambda: scheduler.shutdown())
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[dotenv_origins],

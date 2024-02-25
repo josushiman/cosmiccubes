@@ -146,7 +146,6 @@ class TotalSpentResponse(BaseModel):
 class TransactionsByFilterResponse(BaseModel):
     since_date: date_field
     data: List[TransactionDetail]
-# TODO change the above for payee, category and account types
     
 class TransactionByMonth(BaseModel):
     month_long: str
