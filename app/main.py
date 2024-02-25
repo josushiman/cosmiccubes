@@ -10,6 +10,7 @@ from app.reactadmin.helpers import ReactAdmin as ra
 from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
+from app.decorators import protected_endpoint
 
 dotenv_token = settings.env_token
 dotenv_hosts = settings.env_hosts
@@ -73,7 +74,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -90,7 +91,7 @@ async def common_parameters(_end: int = 10, _start: int = 0, _order: str = Query
     _sort: str = None):
     return {"_end": _end, "_start": _start, "_order": _order, "_sort": _sort}
 
-@app.get("/health")
+@app.get("/health", status_code=200)
 async def get_health():
     return {
         "status": "OK"
@@ -194,42 +195,36 @@ async def transactions_by_month_for_year(year: SpecificYearOptions):
 async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
-# TODO make this a decorator
-async def check_ynab_phrase(phrase: str) -> bool | HTTPException:
-    if phrase != settings.ynab_phrase:
-        raise HTTPException(status_code=403, detail="Not authorised")
-    return True
-
-@app.get("/ynab/update-accounts")
-async def update_accounts(phrase: str):
-    await check_ynab_phrase(phrase=phrase)
+@app.get("/ynab/update-accounts", name="Update YNAB Accounts")
+@protected_endpoint
+async def update_accounts():
     return await ynab_help.pydantic_accounts()
 
-@app.get("/ynab/update-categories")
-async def update_categories(phrase: str):
-    await check_ynab_phrase(phrase=phrase)
+@app.get("/ynab/update-categories", name="Update YNAB Categories")
+@protected_endpoint
+async def update_categories():
     return await ynab_help.pydantic_categories()
 
-@app.get("/ynab/update-month-details")
-async def update_month_details(phrase: str):
-    await check_ynab_phrase(phrase=phrase)
+@app.get("/ynab/update-month-details", name="Update YNAB Month Details")
+@protected_endpoint
+async def update_month_details():
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
-@app.get("/ynab/update-month-summaries")
-async def update_month_summaries(phrase: str):
-    await check_ynab_phrase(phrase=phrase)
+@app.get("/ynab/update-month-summaries", name="Update YNAB Month Summaries")
+@protected_endpoint
+async def update_month_summaries():
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
-@app.get("/ynab/update-payees")
-async def update_payees(phrase: str):
-    await check_ynab_phrase(phrase=phrase)
+@app.get("/ynab/update-payees", name="Update YNAB Payees")
+@protected_endpoint
+async def update_payees():
     return await ynab_help.pydantic_payees()
 
-@app.get("/ynab/update-transactions")
-async def update_transactions(phrase: str):
-    await check_ynab_phrase(phrase=phrase)
+@app.get("/ynab/update-transactions", name="Update YNAB Transactions")
+@protected_endpoint
+async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()

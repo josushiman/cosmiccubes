@@ -3,8 +3,8 @@ from uuid import UUID
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    db_url: str # TODO if possible regex ^postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)(\?.*)?$
-    env_docs: str = None # ^\/[a-zA-Z0-9\-\/]*$
+    db_url: str
+    env_docs: str = None
     env_hosts: str = ["*"]
     env_origins: str = ["*"]
     env_referer: str = ["*"]
