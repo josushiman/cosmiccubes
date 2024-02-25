@@ -18,6 +18,7 @@ dotenv_referer = settings.env_referer
 dotenv_docs = settings.env_docs
 dotenv_path_to_ini = settings.newrelic_ini_path
 
+logging.info("Initialising NewRelic")
 newrelic.agent.initialize(dotenv_path_to_ini, settings.newrelic_env)
 
 @asynccontextmanager

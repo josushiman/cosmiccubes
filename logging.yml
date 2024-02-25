@@ -39,6 +39,11 @@ loggers:
         handlers: [console]
         formatter: simple
         propagate: no
+    newrelic.core:
+        level: INFO
+        handlers: [console]
+        formatter: simple
+        propagate: no
     tortoise:
         level: INFO
         handlers: [console]
@@ -52,3 +57,15 @@ loggers:
 root:
     level: INFO # Set to debug here
     handlers: [console]
+# All Loggers: ['concurrent.futures', 'asyncio', 'uvicorn.error', 'uvicorn', 'watchfiles.watcher', 'watchfiles',
+# 'watchfiles.main', 'httpx', 'httpcore', 'gunicorn', 'tortoise', 'newrelic.api.import_hook', 'newrelic', 'newrelic.core.config',
+# 'newrelic.core.attribute', 'newrelic.core.custom_event', 'newrelic.packages.urllib3.util.retry', 'newrelic.packages.urllib3',
+# 'newrelic.packages.urllib3.connection', 'newrelic.packages.urllib3.response', 'newrelic.packages.urllib3.connectionpool',
+# 'newrelic.packages.urllib3.poolmanager', 'newrelic.common.utilization', 'newrelic.common.system_info', 'newrelic.api.settings',
+# 'newrelic.core.trace_cache', 'newrelic.api.time_trace', 'newrelic.common.streaming_utils', 'newrelic.core.database_utils',
+# 'newrelic.core.stats_engine', 'newrelic.core.otlp_utils', 'newrelic.core.agent_protocol', 'newrelic.core.agent_streaming',
+# 'newrelic.core.data_collector', 'newrelic.core.environment', 'newrelic.core.profile_sessions', 'newrelic.samplers.data_sampler',
+# 'newrelic.core.application', 'newrelic.core.agent', 'newrelic.api.transaction', 'newrelic.common.async_proxy',
+# 'newrelic.api.web_transaction', 'newrelic.api.wsgi_application', 'newrelic.api.database_trace', 'newrelic.config',
+# 'newrelic.hooks.mlmodel_sklearn', 'tortoise.db_client', 'fastapi', 'dotenv.main', 'httpcore.http11', 'httpcore.connection',
+# 'httpcore.proxy', 'newrelic.core.context']
