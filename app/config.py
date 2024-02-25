@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     db_url: str
-    env_docs: str = None
+    env_docs: str | None = None
     env_hosts: str = ["*"]
     env_origins: str = ["*"]
     env_referer: str = ["*"]
