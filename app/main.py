@@ -86,7 +86,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -265,3 +265,8 @@ async def update_transactions(phrase: str):
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()
+
+@app.route("/{path:path}")
+def catch_all(path: str):
+    logging.warning(f"Resource attempted by {path.headers}")
+    raise HTTPException(status_code=404, detail="Not Found")
