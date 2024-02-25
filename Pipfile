@@ -16,6 +16,7 @@ pandas = "*"
 colorlog = "*"
 python-dateutil = "*"
 newrelic = "*"
+pydantic-settings = "*"
 
 [dev-packages]
 

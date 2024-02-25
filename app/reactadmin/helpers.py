@@ -3,8 +3,8 @@ from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
 from uuid import UUID
-from .models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions
-from .schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions
+from app.db.schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
     YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
 
 # TODO make changes here to make sure can return Ynab stuff

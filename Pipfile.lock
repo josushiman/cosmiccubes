@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8877bde326519165c2189da9207481d9bd3e33d1dd400394d9ce314ded7277ca"
+            "sha256": "a448d3b4a4718a429134cb81f0c64acedc3e2f53ea3673a75e651c3552a33e5f"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -129,11 +129,11 @@
         },
         "fastapi": {
             "hashes": [
-                "sha256:2c9bab24667293b501cad8dd388c05240c850b58ec5876ee3283c47d6e1e3a4d",
-                "sha256:f3817eac96fe4f65a2ebb4baa000f394e55f5fccdaf7f75250804bc58f354f73"
+                "sha256:266775f0dcc95af9d3ef39bad55cff525329a931d5fd51930aadd4f428bf7ff3",
+                "sha256:87a1f6fb632a218222c5984be540055346a8f5d8a68e8f6fb647b1dc9934de4b"
             ],
             "index": "pypi",
-            "version": "==0.109.2"
+            "version": "==0.110.0"
         },
         "h11": {
             "hashes": [
@@ -428,6 +428,14 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==2.16.3"
+        },
+        "pydantic-settings": {
+            "hashes": [
+                "sha256:00b9f6a5e95553590434c0fa01ead0b216c3e10bc54ae02e37f359948643c5ed",
+                "sha256:0235391d26db4d2190cb9b31051c4b46882d28a51533f97440867f012d4da091"
+            ],
+            "index": "pypi",
+            "version": "==2.2.1"
         },
         "pypika-tortoise": {
             "hashes": [

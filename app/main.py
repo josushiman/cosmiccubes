@@ -1,44 +1,30 @@
-import os
 import logging
 import newrelic.agent
 from tortoise import Tortoise
-from dotenv import load_dotenv
-from typing import List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
-from app.db.helpers import ReactAdmin as ra
-from app.enums import FilterTypes, PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions, TopXOptions, \
-    TransactionTypeOptions
-from app.ynab.main import YNAB as ynab, YnabHelpers as ynab_help
+from app.config import settings
+from app.reactadmin.helpers import ReactAdmin as ra
+from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
+from app.ynab.main import YNAB as ynab
+from app.ynab.helpers import YnabHelpers as ynab_help
 
-load_dotenv()
-dotenv_db_url = os.getenv("DB_URL")
-dotenv_logging_level = os.getenv("LOGGING_LEVEL", "INFO")
-dotenv_token = os.getenv("ENV_TOKEN")
-dotenv_ynab_phrase = os.getenv("YNAB_PHRASE")
-raw_hosts = os.getenv("ENV_HOSTS")
-raw_origins = os.getenv("ENV_ORIGINS")
-raw_referer = os.getenv("ENV_REFERER")
-raw_docs = os.getenv("ENV_DOCS")
-dotenv_hosts = raw_hosts if raw_hosts != 'None' else ["*"]
-dotenv_origins = raw_origins if raw_origins != 'None' else ["*"]
-dotenv_referer = raw_referer if raw_referer != 'None' else ["*"]
-dotenv_docs = raw_docs if raw_docs != 'None' else None
+dotenv_token = settings.env_token
+dotenv_hosts = settings.env_hosts
+dotenv_origins = settings.env_origins
+dotenv_referer = settings.env_referer
+dotenv_docs = settings.env_docs
+dotenv_path_to_ini = settings.newrelic_ini_path
 
-dotenv_nr_env = os.getenv("NEWRELIC_ENV")
-if dotenv_nr_env != 'production':
-    dotenv_path_to_ini = os.getcwd() + '/newrelic.ini'
-else:
-    dotenv_path_to_ini = os.getenv("NEWRELIC_INI_PATH")
-newrelic.agent.initialize(dotenv_path_to_ini, dotenv_nr_env)
+newrelic.agent.initialize(dotenv_path_to_ini, settings.newrelic_env)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Initialising DB")
     await Tortoise.init(
-        db_url=dotenv_db_url,
+        db_url=settings.db_url,
         modules={'models': ['app.db.models']},
     )
     # Generate the model schemas.
@@ -117,7 +103,7 @@ async def create(resource: str, _body: dict):
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
-@app.get("/portal/admin/{resource}")
+@app.get("/portal/admin/{resource}", include_in_schema=False)
 async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_parameters), \
     _id: list[UUID] | None = Query(default=None, alias="id")):
     
@@ -207,8 +193,9 @@ async def transactions_by_month_for_year(year: SpecificYearOptions):
 async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
+# TODO make this a decorator
 async def check_ynab_phrase(phrase: str) -> bool | HTTPException:
-    if phrase != dotenv_ynab_phrase:
+    if phrase != settings.ynab_phrase:
         raise HTTPException(status_code=403, detail="Not authorised")
     return True
 
