@@ -17,6 +17,7 @@ dotenv_hosts = settings.env_hosts
 dotenv_origins = settings.env_origins
 dotenv_referer = settings.env_referer
 dotenv_docs = settings.env_docs
+dotenv_user_agent = settings.env_agent
 dotenv_path_to_ini = settings.newrelic_ini_path
 
 logging.info("Initialising NewRelic")
@@ -63,7 +64,9 @@ async def get_token_header(request: Request, x_token: UUID = Header(...)):
                 logging.warning(f"Origin {origin} attempted access using a valid token")
                 raise HTTPException(status_code=403)
         except KeyError as e_key:
-            logging.warning(f"Origin was not set for {request.headers['host']} on IP: {request.headers['true-client-ip']}. User Agent string: {request.headers['user-agent']}")
+            user_agent = request.headers['user-agent']
+            if user_agent != dotenv_user_agent:
+                logging.warning(f"Origin was not set for {request.headers['host']} on IP: {request.headers['true-client-ip']}. User Agent string: {user_agent}")
 
     if x_token != dotenv_token:
         logging.warning(f"Invalid token provided from Origin and/or Host")
