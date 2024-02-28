@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
     logging.info("Shutting down application.")
     await Tortoise.close_connections()
 
-async def get_token_header(request: Request, x_token: str = Header(...)):
+async def get_token_header(request: Request, x_token: UUID = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
         logging.debug(request.headers.raw)
         try:
