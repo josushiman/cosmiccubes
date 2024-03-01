@@ -122,7 +122,7 @@ class YnabServerKnowledge(models.Model):
 
 class YnabAccounts(models.Model):
     id = fields.UUIDField(pk=True)
-    name = fields.CharField(max_length=150, null=True)
+    name = fields.CharField(max_length=150, unique=True)
     type = fields.CharField(max_length=150, null=True)
     on_budget = fields.BooleanField(null=True)
     closed = fields.BooleanField(null=True)
@@ -165,6 +165,9 @@ class YnabCategories(models.Model):
     goal_overall_left = fields.IntField(default=0, null=True)
     deleted = fields.BooleanField(null=True)
 
+    class PydanticMeta:
+        unique_together=("category_group_name", "name")
+
 class YnabMonthSummaries(models.Model):
     id = fields.UUIDField(pk=True)
     month = fields.DatetimeField(null=True, unique=True)
@@ -175,6 +178,9 @@ class YnabMonthSummaries(models.Model):
     to_be_budgeted = fields.IntField(default=0, null=True)
     age_of_money = fields.IntField(default=0, null=True)
     deleted = fields.BooleanField(null=True)
+
+    class PydanticMeta:
+        unique_together=("month", "deleted")
 
 class YnabMonthDetailCategories(models.Model):
     id = fields.UUIDField(pk=True)
@@ -202,11 +208,17 @@ class YnabMonthDetailCategories(models.Model):
     deleted = fields.BooleanField(null=True)
     month_summary_fk = fields.ForeignKeyField('models.YnabMonthSummaries', related_name='summaries', null=True)
 
+    class PydanticMeta:
+        unique_together=("month_summary_fk_id", "category_group_name", "name")
+
 class YnabPayees(models.Model):
     id = fields.UUIDField(pk=True)
     name = fields.CharField(max_length=150, null=True)
     transfer_account_id = fields.UUIDField(null=True)
     deleted = fields.BooleanField(null=True)
+
+    class PydanticMeta:
+        unique_together=("name", "deleted")
 
 class YnabTransactions(models.Model):
     id = fields.UUIDField(pk=True)
@@ -231,3 +243,6 @@ class YnabTransactions(models.Model):
     debt_transaction_type = fields.CharField(max_length=150, null=True)
     deleted = fields.BooleanField(null=True)
     category_fk = fields.ForeignKeyField('models.YnabCategories', related_name='transactions', null=True)
+
+    class PydanticMeta:
+        unique_together=("date", "amount", "account_id", "payee_id", "category_id")

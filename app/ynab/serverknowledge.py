@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from fastapi import HTTPException
 from tortoise.models import Model
-from tortoise.exceptions import FieldError, IntegrityError
+from tortoise.exceptions import IncompleteInstanceError, IntegrityError
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabMonthDetailCategories, YnabPayees, \
     YnabTransactions
 from app.config import settings
@@ -27,29 +27,16 @@ class YnabServerKnowledgeHelper():
         return action in capable_routes
 
     @classmethod
-    async def create_update_route_entities(cls, resp_body: dict, model: Model) -> int:
+    async def create_route_entities(cls, model: Model) -> int | IntegrityError:
         try:
-            obj = await model.create(**resp_body)
-            logging.debug(f"New entity created {obj.id}")
+            await model.save()
+            logging.debug("New entity created")
             return 1
+        except IncompleteInstanceError as e_incomplete:
+            logging.exception("Model is partial and the fields are not available for persistence", exc_info=e_incomplete)
+            return 0
         except IntegrityError:
-            try:
-                entity_id = resp_body["id"]
-                resp_body.pop("id")
-            except KeyError: # Happens on 'months-list' as no ID is returned.
-                resp_month_dt = datetime.strptime(resp_body['month'], '%Y-%m-%d')
-                db_entity = await model.filter(month=resp_month_dt).get()
-                entity_id = db_entity.id
-                resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
-            obj = await model.filter(id=entity_id).update(**resp_body)
-            logging.debug(f"Entity updated")
-            return 0
-        except FieldError as e_field:
-            logging.exception("Issue with a field value", exc_info=e_field)
-            return 0
-        except Exception as exc:
-            logging.exception("Issue create/update entity.", exc_info=exc)
-            return 0
+            raise IntegrityError
 
     @classmethod
     async def create_update_server_knowledge(cls, route: str, server_knowledge: int,
@@ -115,9 +102,21 @@ class YnabServerKnowledgeHelper():
             raise HTTPException(status_code=400)
     
     @classmethod
-    async def process_entities(cls, action: str, entities: dict) -> dict:
-        model = await cls.get_sk_model(action)
+    async def update_route_entities(cls, model: Model, resp_body: dict) -> int:
+        logging.debug(f"Entity already exists, updating it")
+        try:
+            entity_id = resp_body["id"]
+            resp_body.pop("id")
+        except KeyError: # Happens on 'months-list' as no ID is returned.
+            resp_month_dt = datetime.strptime(resp_body['month'], '%Y-%m-%d')
+            db_entity = await model.filter(month=resp_month_dt).get()
+            entity_id = db_entity.id
+            resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
+        await model.filter(id=entity_id).update(**resp_body)
+        return 1
 
+    @classmethod
+    async def process_entities(cls, action: str, entities: dict) -> dict:
         if action == 'categories-list':
             # Need to loop on each of the category groups as they are not presented as one full list.
             entity_list = []
@@ -129,13 +128,62 @@ class YnabServerKnowledgeHelper():
             entity_list = entities
 
         created = 0
-        for entity in entity_list:
-            logging.debug(entity)
-            if action == 'transactions-list':
-                entity.pop('flag_name') # new field introduced. TODO figure out how to do DB migrations
-                entity.pop('subtransactions')
-            obj = await cls.create_update_route_entities(resp_body=entity, model=model)
-            created += obj
+        updated = 0
+        for entity in entity_list: 
+            logging.debug(f"Base entity body: {entity}")
+            model = await YnabModelResponses.return_sk_model(action=action, kwargs=entity)
+            logging.debug(f"Model body: {entity}")
+            try:
+                created += await cls.create_route_entities(model=model)
+            except IntegrityError:
+                updated += await cls.update_route_entities(model=model, resp_body=entity)
         
-        logging.debug(f"Created {created} entities. Updated {len(entities) - created} entities")
+        logging.debug(f"Created {created} entities. Updated {updated} entities. Issues with {len(entities) - (created + updated)} entities.")
         return { "message": "Complete" }
+
+class YnabModelResponses():
+    @classmethod
+    async def return_sk_model(cls, action: str, kwargs: dict) -> Model | HTTPException:
+        logging.debug(f"Attempting to get a model for {action}")
+        match action:
+            case 'accounts-list':
+                return await cls.create_account(kwargs=kwargs)
+            case 'categories-list':
+                return await cls.create_category(kwargs=kwargs)
+            case 'months-single':
+                return await cls.create_month_detail(kwargs=kwargs)
+            case 'months-list':
+                return await cls.create_month_summary(kwargs=kwargs)
+            case 'payees-list':
+                return await cls.create_payee(kwargs=kwargs)
+            case 'transactions-list':
+                # Two fields which should be ignored
+                # flag_name, subtransactions
+                return await cls.create_transactions(kwargs=kwargs)
+            case _:
+                logging.warning(f"Model for {action} doesn't exist.")
+                raise HTTPException(status_code=400)
+
+    @classmethod
+    async def create_account(cls, kwargs: dict) -> YnabAccounts:
+        return YnabAccounts(**kwargs)
+    
+    @classmethod
+    async def create_category(cls, kwargs: dict) -> YnabCategories:
+        return YnabCategories(**kwargs)
+    
+    @classmethod
+    async def create_month_detail(cls, kwargs: dict) -> YnabMonthDetailCategories:
+        return YnabMonthDetailCategories(**kwargs)
+    
+    @classmethod
+    async def create_month_summary(cls, kwargs: dict) -> YnabMonthSummaries:
+        return YnabMonthSummaries(**kwargs)
+    
+    @classmethod
+    async def create_payee(cls, kwargs: dict) -> YnabPayees:
+        return YnabPayees(**kwargs)
+    
+    @classmethod
+    async def create_transactions(cls, kwargs: dict) -> YnabTransactions:
+        return YnabTransactions(**kwargs)

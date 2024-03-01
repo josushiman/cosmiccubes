@@ -95,7 +95,6 @@ async def common_parameters(_end: int = 10, _start: int = 0, _order: str = Query
     return {"_end": _end, "_start": _start, "_order": _order, "_sort": _sort}
 
 @app.get("/health", status_code=200)
-@protected_endpoint
 async def get_health():
     return {
         "status": "OK"
