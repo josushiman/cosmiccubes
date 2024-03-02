@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from fastapi import HTTPException
 from tortoise.models import Model
-from tortoise.exceptions import IncompleteInstanceError, IntegrityError
+from tortoise.exceptions import IncompleteInstanceError, IntegrityError, FieldError
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabMonthDetailCategories, YnabPayees, \
     YnabTransactions
 from app.config import settings
@@ -112,8 +112,12 @@ class YnabServerKnowledgeHelper():
             db_entity = await model.filter(month=resp_month_dt).get()
             entity_id = db_entity.id
             resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
-        await model.filter(id=entity_id).update(**resp_body)
-        return 1
+        try:
+            await model.filter(id=entity_id).update(**resp_body)
+            return 1
+        except FieldError as e_field:
+            logging.warning("Additional field identified in model", exc_info=e_field)
+            return 0
 
     @classmethod
     async def process_entities(cls, action: str, entities: dict) -> dict:
