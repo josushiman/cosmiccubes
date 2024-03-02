@@ -228,6 +228,7 @@ class YnabTransactions(models.Model):
     cleared = fields.CharField(max_length=150)
     approved = fields.BooleanField(null=True)
     flag_color = fields.CharField(max_length=150, null=True)
+    flag_name = fields.CharField(max_length=150, null=True)
     account_id = fields.UUIDField(null=True)
     account_name = fields.CharField(max_length=150)
     payee_id = fields.UUIDField(null=True)
