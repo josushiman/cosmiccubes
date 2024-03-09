@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from tortoise.models import Model
 from tortoise.exceptions import IncompleteInstanceError, IntegrityError, FieldError
+from deepdiff import DeepDiff
 from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, YnabMonthSummaries, YnabMonthDetailCategories, YnabPayees, \
     YnabTransactions
 from app.config import settings
@@ -102,6 +103,31 @@ class YnabServerKnowledgeHelper():
             raise HTTPException(status_code=400)
     
     @classmethod
+    async def remove_unused_fields(cls, model: Model, resp_body: dict) -> dict:
+        # Get the DB fields
+        db_fields = model._meta.db_fields
+        resp_fields = set(resp_body.keys())
+        resp_fields.add('test_field')
+
+        diff = DeepDiff(t1=db_fields, t2=resp_fields)
+        
+        try:
+            new_items_added = diff['set_item_added']
+        except KeyError:
+            logging.debug("No new fields added.")
+            return
+        
+        if new_items_added:
+            logging.warning("New field from YNAB, remove it from the resp_body")
+            logging.info(new_items_added)
+            # TODO [root['subtransactions'], root['test_field']]
+            # pattern = r"root\['([^']+)'\]"
+            # input_string = 'root[\'subtransactions\']'
+            # match = re.search(pattern, input_string)
+
+        return
+
+    @classmethod
     async def update_route_entities(cls, model: Model, resp_body: dict) -> int:
         logging.debug(f"Entity already exists, updating it")
         try:
@@ -112,11 +138,17 @@ class YnabServerKnowledgeHelper():
             db_entity = await model.filter(month=resp_month_dt).get()
             entity_id = db_entity.id
             resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
+        
+        # Make sure all the fields which aren't supported on the DB are removed.
+        # await cls.remove_unused_fields(model=model, resp_body=resp_body)
+
         try:
+            if model._meta.full_name == 'models.YnabTransactions': resp_body.pop('subtransactions')
             await model.filter(id=entity_id).update(**resp_body)
             return 1
         except FieldError as e_field:
             logging.warning("Additional field identified in model", exc_info=e_field)
+            raise FieldError
             return 0
 
     @classmethod

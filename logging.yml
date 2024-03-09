@@ -15,7 +15,7 @@ formatters:
 handlers:
     console:
         class: logging.StreamHandler
-        level: INFO # Set to debug here
+        level: DEBUG # Set to debug here
         formatter: simple
         stream: ext://sys.stdout
 loggers:
@@ -55,7 +55,7 @@ loggers:
         formatter: simple
         propagate: no
 root:
-    level: INFO # Set to debug here
+    level: DEBUG # Set to debug here
     handlers: [console]
 # All Loggers: ['concurrent.futures', 'asyncio', 'uvicorn.error', 'uvicorn', 'watchfiles.watcher', 'watchfiles',
 # 'watchfiles.main', 'httpx', 'httpcore', 'gunicorn', 'tortoise', 'newrelic.api.import_hook', 'newrelic', 'newrelic.core.config',

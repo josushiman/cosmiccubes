@@ -373,7 +373,7 @@ class YnabHelpers():
 
             if category_entity is None:
                 if transaction.transfer_account_id is not None:
-                    logging.info(f"Transaction is a transfer, ignoring: {transaction.id}")    
+                    logging.debug(f"Transaction is a transfer, ignoring: {transaction.id}")    
                 else:
                     logging.warn(f"Category may not be set for transaction: {transaction.id}")
                 skipped_transactions += 1

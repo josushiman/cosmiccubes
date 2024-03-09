@@ -17,6 +17,7 @@ colorlog = "*"
 python-dateutil = "*"
 newrelic = "*"
 pydantic-settings = "*"
+deepdiff = "*"
 
 [dev-packages]
 
