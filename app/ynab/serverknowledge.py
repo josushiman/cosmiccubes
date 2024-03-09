@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 from fastapi import HTTPException
 from tortoise.models import Model
@@ -103,29 +104,42 @@ class YnabServerKnowledgeHelper():
             raise HTTPException(status_code=400)
     
     @classmethod
+    async def pop_new_field_from_response(cls, resp_body: dict, new_items_added: list[str]) -> dict:
+        logging.debug(f"{len(new_items_added)} new field(s) from YNAB attempting to remove them.")
+
+        pattern = r"root\['([^']+)'\]"
+
+        for new_field in new_items_added:
+            logging.debug(f"{new_field} needs to be removed.")
+            match = re.search(pattern, new_field)
+            try:
+                key_to_pop = match.group(1)
+            except IndexError:
+                logging.error("Issue with regex trying to extract key to pop.")
+                raise IndexError
+            resp_body.pop(key_to_pop)
+            logging.debug(f"Removed {new_field} from the response body.")
+
+        return resp_body
+
+    @classmethod
     async def remove_unused_fields(cls, model: Model, resp_body: dict) -> dict:
-        # Get the DB fields
+        # Get the DB fields (returns a set)
         db_fields = model._meta.db_fields
         resp_fields = set(resp_body.keys())
-        resp_fields.add('test_field')
-
+        
         diff = DeepDiff(t1=db_fields, t2=resp_fields)
         
         try:
             new_items_added = diff['set_item_added']
         except KeyError:
             logging.debug("No new fields added.")
-            return
+            return resp_body
         
         if new_items_added:
-            logging.warning("New field from YNAB, remove it from the resp_body")
-            logging.info(new_items_added)
-            # TODO [root['subtransactions'], root['test_field']]
-            # pattern = r"root\['([^']+)'\]"
-            # input_string = 'root[\'subtransactions\']'
-            # match = re.search(pattern, input_string)
+            resp_body = await cls.pop_new_field_from_response(resp_body=resp_body, new_items_added=new_items_added)
 
-        return
+        return resp_body
 
     @classmethod
     async def update_route_entities(cls, model: Model, resp_body: dict) -> int:
@@ -140,15 +154,13 @@ class YnabServerKnowledgeHelper():
             resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
         
         # Make sure all the fields which aren't supported on the DB are removed.
-        # await cls.remove_unused_fields(model=model, resp_body=resp_body)
+        resp_body = await cls.remove_unused_fields(model=model, resp_body=resp_body)
 
         try:
-            if model._meta.full_name == 'models.YnabTransactions': resp_body.pop('subtransactions')
             await model.filter(id=entity_id).update(**resp_body)
             return 1
         except FieldError as e_field:
             logging.warning("Additional field identified in model", exc_info=e_field)
-            raise FieldError
             return 0
 
     @classmethod

@@ -10,6 +10,8 @@ from app.reactadmin.helpers import ReactAdmin as ra
 from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
+from app.ynab.serverknowledge import YnabServerKnowledgeHelper
+from app.db.models import YnabTransactions
 from app.decorators import protected_endpoint
 
 dotenv_token = settings.env_token
@@ -231,6 +233,13 @@ async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()
+
+@app.get("/testpath")
+async def test_endpoint():
+    test_body = {'date': 'value', 'subtransactions': []}
+    test_model = YnabTransactions
+
+    return await YnabServerKnowledgeHelper.remove_unused_fields(model=test_model, resp_body=test_body)
 
 @app.route("/{path:path}")
 def catch_all(path: str):
