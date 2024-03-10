@@ -39,7 +39,7 @@ class YNAB():
         return AvailableBalanceResponse(**db_result)
     
     @classmethod
-    async def card_balances(cls) -> CardBalancesResponse:
+    async def card_balances(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CardBalancesResponse:
         db_queryset = YnabAccounts.filter(
             type__not='checking'
         ).values('name','balance',cleared='cleared_balance',uncleared='uncleared_balance')

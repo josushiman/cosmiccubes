@@ -10,8 +10,6 @@ from app.reactadmin.helpers import ReactAdmin as ra
 from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
-from app.ynab.serverknowledge import YnabServerKnowledgeHelper
-from app.db.models import YnabTransactions
 from app.decorators import protected_endpoint
 
 dotenv_token = settings.env_token
@@ -79,7 +77,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -92,9 +90,20 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-async def common_parameters(_end: int = 10, _start: int = 0, _order: str = Query(default="ASC", min_length=3, max_length=4, regex="ASC|DESC"), \
-    _sort: str = None):
+async def common_ra_parameters(
+        _end: int = 10,
+        _start: int = 0,
+        _order: str = Query(default="ASC", min_length=3, max_length=4, regex="ASC|DESC"),
+        _sort: str = None
+    ):
     return {"_end": _end, "_start": _start, "_order": _order, "_sort": _sort}
+
+async def common_cc_parameters(
+        year: SpecificYearOptions = None,
+        months: PeriodMonthOptions = None,
+        month: SpecificMonthOptions = None
+    ):
+    return {"year": year, "months": months, "month": month}
 
 @app.get("/health", status_code=200)
 async def get_health():
@@ -111,7 +120,7 @@ async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
 @app.get("/portal/admin/{resource}", include_in_schema=False)
-async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_parameters), \
+async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_ra_parameters), \
     _id: list[UUID] | None = Query(default=None, alias="id")):
     
     # Instansiate the kwargs object, incase no kwargs are passed
@@ -163,44 +172,45 @@ async def available_balance():
     return await ynab.available_balance()
 
 @app.get("/ynab/card-balances")
-async def card_balances():
-    return await ynab.card_balances()
+async def card_balances(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.card_balances(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/categories-spent")
-async def categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.categories_spent(year=year, months=months, specific_month=month)
+async def categories_spent(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.categories_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/earned-vs-spent")
-async def earned_vs_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.earned_vs_spent(year=year, months=months, specific_month=month)
+async def earned_vs_spent(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.earned_vs_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/income-vs-expenses")
-async def income_vs_expenses(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.income_vs_expenses(year=year, months=months, specific_month=month)
+async def income_vs_expenses(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.income_vs_expenses(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
+#TODO include amounts for the last paid dates. Accumulate if you received multiple in the same month.
 @app.get("/ynab/last-paid-date-for-accounts")
-async def last_paid_date_for_accounts(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.last_paid_date_for_accounts(year=year, months=months, specific_month=month)
+async def last_paid_date_for_accounts(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.last_paid_date_for_accounts(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/last-x-transactions")
-async def last_x_transactions(count: int, year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.last_x_transactions(count, year=year, months=months, specific_month=month)
+async def last_x_transactions(count: int, commons: dict = Depends(common_cc_parameters)):
+    return await ynab.last_x_transactions(count, year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/spent-in-period")
 async def spent_in_period(period: PeriodOptions):
     return await ynab.spent_in_period(period)
 
 @app.get("/ynab/spent-vs-budget")
-async def spent_vs_budget(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.spent_vs_budget(year=year, months=months, specific_month=month)
+async def spent_vs_budget(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.spent_vs_budget(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/sub-categories-spent")
-async def sub_categories_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.sub_categories_spent(year=year, months=months, specific_month=month)
+async def sub_categories_spent(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.sub_categories_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/total-spent")
-async def total_spent(year: SpecificYearOptions = None, months: PeriodMonthOptions = None, month: SpecificMonthOptions = None):
-    return await ynab.total_spent(year=year, months=months, specific_month=month)
+async def total_spent(commons: dict = Depends(common_cc_parameters)):
+    return await ynab.total_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
 
 @app.get("/ynab/transaction-by-month-for-year")
 async def transactions_by_month_for_year(year: SpecificYearOptions):
