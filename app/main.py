@@ -148,6 +148,16 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
         "message": f"Deleted {rows_deleted} rows."
     }
 
+# How much should i spend today?
+#   Get budget remaining for the month, divide by number of days remaining.
+#   Might need to calculate average cost of nights out/takeaways etc if thinking of buying one
+
+# On track
+#   Something to give a good indication of whether i'm on track or not.
+
+# TODO Look at bulk creating and updating to save DB calls
+# https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
+
 @app.get("/ynab/available-balance")
 async def available_balance():
     return await ynab.available_balance()
@@ -233,13 +243,6 @@ async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()
-
-@app.get("/testpath")
-async def test_endpoint():
-    test_body = {'date': 'value', 'subtransactions': []}
-    test_model = YnabTransactions
-
-    return await YnabServerKnowledgeHelper.remove_unused_fields(model=test_model, resp_body=test_body)
 
 @app.route("/{path:path}")
 def catch_all(path: str):

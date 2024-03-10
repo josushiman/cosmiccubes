@@ -175,10 +175,15 @@ class YnabHelpers():
         server_knowledge = await YnabServerKnowledgeHelper.check_if_exists(route_url=sk_route)
 
         # Return False if no entry of SK exists.
-        if not server_knowledge: return False, None
+        if not server_knowledge: 
+            logging.warning(f"No server knowledge found for {sk_route}")
+            return False, None
 
         is_up_to_date = await YnabServerKnowledgeHelper.current_date_check(server_knowledge.last_updated)
-        if is_up_to_date: return True, server_knowledge
+        if is_up_to_date:
+            logging.debug("Route is up to date.")
+            return True, server_knowledge
+        logging.info("Route is out of date, attempting to run a HTTP request to YNAB.")
         return False, server_knowledge
 
     @classmethod
@@ -222,15 +227,16 @@ class YnabHelpers():
                 logging.exception(exc)
                 raise HTTPException(status_code=500)
             finally:
-                if sk_eligible: return await cls.process_sk_route_request(
-                    response=response,
-                    action=action,
-                    param_1=param_1,
-                    server_knowledge=server_knowledge,
-                    since_date=since_date,
-                    month=month,
-                    year=year
-                )
+                if sk_eligible:
+                    return await cls.process_sk_route_request(
+                        response=response,
+                        action=action,
+                        param_1=param_1,
+                        server_knowledge=server_knowledge,
+                        since_date=since_date,
+                        month=month,
+                        year=year
+                    )
                 logging.info("Route is not sk eligible, returning the JSON response w/ pydantic models.")
                 return await cls.return_pydantic_model_entities(json_response=response.json(), action=action)
 
