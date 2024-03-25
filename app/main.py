@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 @repeat_at(cron="* * * * *")
 async def cronjobs():
     logging.info("kicking off cronjobs")
-    await update_accounts()
+    # await update_accounts()
     # await update_accounts(phrase=settings.ynab_phrase)
     return
 
@@ -193,7 +193,8 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
         # last months accumulation of bills
         # everything spent outside of bills
         # 'what's' left
-    return None
+    
+    return await ynab.month_breakdown()
 
 @app.get("/ynab/available-balance")
 async def available_balance():

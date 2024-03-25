@@ -339,6 +339,37 @@ class YNAB():
         return
 
     @classmethod
+    async def month_breakdown(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
+        # if not current month use the previous month summaries to work it out
+        # else work it out in here
+        last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
+        last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        
+        last_month_income = YnabTransactions.filter(
+            payee_name='BJSS LIMITED',
+            date__gte=last_month_start,
+            date__lt=last_month_end
+        ).first().values('amount')
+
+        #TODO replace below with something else, as currently banking on all last month expenses
+        upcoming_bills = YnabTransactions.filter(
+            category_fk__category_group_name__in=['Monthly Bills', 'Loans'],
+            date__gte=last_month_start,
+            date__lt=last_month_end
+        ).all().values('amount', 'payee_name', 'category_name')
+
+        #TODO make this call better
+        spent = YnabTransactions.filter(
+            category_fk__category_group_name__not_in=['Monthly Bills', 'Loans'],
+            date__gt=last_month_end
+        ).all().values('amount', 'payee_name', 'category_name')
+
+        # Need to convert the .all queries to return single sum values.
+        whats_left = last_month_income - upcoming_bills - spent
+
+        return None
+
+    @classmethod
     async def spent_in_period(cls, period: Enum) -> SpentInPeriodResponse:
         # Set the defaults to today.
         since_date = datetime.today().replace(hour=00, minute=00, second=00, microsecond=00)
