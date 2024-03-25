@@ -1,5 +1,6 @@
 import logging
 import newrelic.agent
+from fastapi_utilities import repeat_at, repeat_every
 from tortoise import Tortoise
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPException
@@ -34,10 +35,20 @@ async def lifespan(app: FastAPI):
     logging.info("Generating Schemas")
     await Tortoise.generate_schemas()
     logging.info("Schemas Generated")
+    cronjobs() # TODO figure out how to fix this not being an async thing
     yield
     # Close all connections when shutting down.
     logging.info("Shutting down application.")
     await Tortoise.close_connections()
+
+# @repeat_every(seconds=86400) # every 24hours
+# @repeat_at(cron="12 2 * * *") # at 02:12 everyday
+@repeat_at(cron="* * * * *")
+async def cronjobs():
+    logging.info("kicking off cronjobs")
+    await update_accounts()
+    # await update_accounts(phrase=settings.ynab_phrase)
+    return
 
 async def get_token_header(request: Request, x_token: UUID = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
@@ -167,6 +178,23 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 # TODO Look at bulk creating and updating to save DB calls
 # https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
 
+@app.get("/ynab/monthly-summary")
+async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
+    # Month overview
+        # Days left
+        # Get last months income
+        # Get last months accumulation of bills
+        # Subtract everything spent outside of bills
+        # Divide days left by amount left after subtracting costs outside of bills
+    # Subcategories
+        # most spent (top 3/4)
+    # Current month breakdown
+        # last month income
+        # last months accumulation of bills
+        # everything spent outside of bills
+        # 'what's' left
+    return None
+
 @app.get("/ynab/available-balance")
 async def available_balance():
     return await ynab.available_balance()
@@ -221,7 +249,7 @@ async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
-@protected_endpoint
+# @protected_endpoint
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
 

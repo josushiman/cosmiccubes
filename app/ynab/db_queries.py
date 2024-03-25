@@ -1,6 +1,8 @@
 import logging
 from enum import Enum, IntEnum
+from tortoise.queryset import QuerySet
 from tortoise.functions import Sum
+from tortoise.expressions import RawSQL, Q, Function
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse
@@ -8,9 +10,31 @@ from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategorie
 from app.ynab.main import YNAB
 from app.decorators import log_sql_query
 
-class YnabDBQueries():
+class YnabDBQueries(): #TODO
     @classmethod
-    async def categories_spent_db_q(cls,
+    async def log_query(cls, db_queryset: QuerySet) -> None:
+        logging.debug(f"DB Query: {db_queryset.sql()}")
+        # Maybe return the result instead of just logging the query?
+        # Could be an issue for queries which need can't just be called on the QuerySet.
+        return
+    
+    @classmethod
+    async def available_balance(cls):
+        db_queryset = YnabAccounts.annotate(
+            available=Sum('balance'),
+            spent=Sum(RawSQL('''CASE WHEN "type" != 'checking' THEN "balance" ELSE 0 END''')),
+            total=Sum(RawSQL('''CASE WHEN "type" = 'checking' THEN "balance" ELSE 0 END'''))
+        ).first().values('total','spent','available')
+        
+        db_result = await db_queryset
+
+        await cls.log_query(db_queryset=db_queryset)
+        logging.debug(f"DB Result: {db_result}")
+
+        return db_result
+
+    @classmethod
+    async def categories_spent(cls,
         current_month: bool = None, 
         since_date: str = None, 
         year: Enum = None, 
@@ -57,8 +81,3 @@ class YnabDBQueries():
         logging.debug(f"DB Result: {db_result}")
 
         return db_result
-
-    @classmethod
-    @log_sql_query
-    async def process_db_query(cls, queryset): #TODO
-        return
