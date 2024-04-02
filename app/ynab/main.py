@@ -10,11 +10,11 @@ from tortoise.functions import Sum
 from tortoise.expressions import RawSQL, Q, Function
 from pypika import CustomFunction
 from app.ynab.helpers import YnabHelpers
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
-    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse
+    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -339,35 +339,80 @@ class YNAB():
         return
 
     @classmethod
-    async def month_breakdown(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
-        # if not current month use the previous month summaries to work it out
-        # else work it out in here
-        last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
-        last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+    async def month_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> Month:
+        if not months and not year and not specific_month:
+            # Filters for income and bills for the entire of last month.
+            last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
+            last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        else:
+            # TODO finish this
+            # if not current month use the previous month summaries to work it out
+            logging.debug("not current month")
         
-        last_month_income = YnabTransactions.filter(
-            payee_name='BJSS LIMITED',
-            date__gte=last_month_start,
-            date__lt=last_month_end
-        ).first().values('amount')
+        db_query = await YnabTransactions.annotate(
+            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
+            bills=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        ).filter(
+            Q(
+                category_fk__category_group_name__in=['Monthly Bills', 'Loans'],
+                payee_name='BJSS LIMITED',
+                join_type='OR'
+            ),
+            Q(date__gte=last_month_start),
+            Q(date__lt=last_month_end)
+        ).group_by('cleared').first().values('income', 'bills')
 
-        #TODO replace below with something else, as currently banking on all last month expenses
-        upcoming_bills = YnabTransactions.filter(
-            category_fk__category_group_name__in=['Monthly Bills', 'Loans'],
-            date__gte=last_month_start,
-            date__lt=last_month_end
-        ).all().values('amount', 'payee_name', 'category_name')
+        income = db_query.get('income')
+        bills = db_query.get('bills')
+        logging.debug(f"Income: {income}. Bills: {bills}")
 
-        #TODO make this call better
-        spent = YnabTransactions.filter(
+        # update the from date to the beginning of the month for everything spent so far.
+        this_month_start = last_month_start + relativedelta(months=1)
+        this_month_end = last_month_end + relativedelta(months=1)
+
+        categories = await YnabTransactions.annotate(
+            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+        ).filter(
             category_fk__category_group_name__not_in=['Monthly Bills', 'Loans'],
-            date__gt=last_month_end
-        ).all().values('amount', 'payee_name', 'category_name')
+            date__gte=this_month_start,
+            date__lt=this_month_end,
+            transfer_account_id__isnull=True
+        ).group_by(
+            'category_fk__category_group_name','category_name','category_fk__budget__amount'
+        ).all().values('spent',name='category_name',group='category_fk__category_group_name',budget='category_fk__budget__amount')
+        # ex output: 
+        # [{'name': 'Coffee', 'group': 'Frequent', 'spent': -9950.0, 'budget': 50},
+        # {'name': 'Restaurants', 'group': 'Frequent', 'spent': -6000.0, 'budget': 50}]
+        
+        categories = sorted(categories, key=lambda x: x['spent'], reverse=False)
 
-        # Need to convert the .all queries to return single sum values.
-        whats_left = last_month_income - upcoming_bills - spent
+        balance_spent = sum(category['spent'] for category in categories)
+        logging.debug(f"Total spent this month: {balance_spent}")
 
-        return None
+        balance_budget = sum(category['budget'] for category in categories)
+        logging.debug(f"Total budgeted: {balance_budget}")
+
+        balance_available = income - (balance_spent - bills)
+
+        days_left = await YnabHelpers.get_days_left_from_current_month()
+        daily_spend = (income - (balance_spent - bills)) / days_left
+
+        return Month(
+            summary={
+                'days_left': days_left,
+                'balance_available': balance_available,
+                'balance_spent': balance_spent,
+                'balance_budget': balance_budget,
+                'daily_spend': daily_spend
+            },
+            categories=categories,
+            income_expenses={
+                'income': income,
+                'bills': bills,
+                'balance_spent': balance_spent,
+                'balance_available': balance_available
+            }
+        )
 
     @classmethod
     async def spent_in_period(cls, period: Enum) -> SpentInPeriodResponse:

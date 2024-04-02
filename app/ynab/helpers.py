@@ -54,6 +54,15 @@ class YnabHelpers():
         return datetime(year=since_date_dt.year, month=since_date_dt.month, day=last_day, hour=23, minute=59, second=59)
 
     @classmethod
+    async def get_days_left_from_current_month(cls) -> datetime:
+        today = datetime.today().replace(hour=0, minute=0, second=0)
+        last_day_of_month = await cls.get_last_date_from_since_date(today.strftime('%Y-%m-%d'))
+
+        days_left = (last_day_of_month - today).days
+        
+        return days_left
+
+    @classmethod
     async def get_route(cls, action: str, param_1: str = None, param_2: str = None, since_date: str = None, month: str = None) -> str:
         '''
         Get the route of the YNAB endpoint you want to call. Passed as a string, returned as a string.

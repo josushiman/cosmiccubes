@@ -247,3 +247,8 @@ class YnabTransactions(models.Model):
 
     class PydanticMeta:
         unique_together=("date", "amount", "account_id", "payee_id", "category_id")
+
+class Budgets(models.Model):
+    id = fields.UUIDField(pk=True)
+    category = fields.ForeignKeyField('models.YnabCategories', related_name='budget')
+    amount = fields.FloatField(default=0.0)

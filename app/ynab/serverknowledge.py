@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, UTC
 from fastapi import HTTPException
 from tortoise.models import Model
 from tortoise.exceptions import IncompleteInstanceError, IntegrityError, FieldError
@@ -149,12 +149,25 @@ class YnabServerKnowledgeHelper():
             resp_body.pop("id")
         except KeyError: # Happens on 'months-list' as no ID is returned.
             resp_month_dt = datetime.strptime(resp_body['month'], '%Y-%m-%d')
+            resp_month_dt = resp_month_dt.replace(tzinfo=UTC) # This can fail if there are timezone issues. So ensure the TZ is set.
+            logging.debug(f"datetime has been set to: {resp_month_dt}")
             db_entity = await model.filter(month=resp_month_dt).get()
             entity_id = db_entity.id
             resp_body.pop("month") # Need to pop the month as it doesnt need to be updated.
         
         # Make sure all the fields which aren't supported on the DB are removed.
         resp_body = await cls.remove_unused_fields(model=model, resp_body=resp_body)
+
+        # Make sure any dates passed into the update is a datetime value, not a string
+        try:
+            raw_date = resp_body.get('date')
+            logging.debug(f"String datetime: {raw_date}")
+            resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['date'] = resp_date_dt
+            logging.debug(f"Converted datetime: {resp_date_dt}")
+        except KeyError:
+            logging.debug('No date in response body, updating entity.')
 
         try:
             await model.filter(id=entity_id).update(**resp_body)

@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     logging.info("Generating Schemas")
     await Tortoise.generate_schemas()
     logging.info("Schemas Generated")
-    cronjobs() # TODO figure out how to fix this not being an async thing
+    # cronjobs() # TODO figure out how to fix this not being an async thing
     yield
     # Close all connections when shutting down.
     logging.info("Shutting down application.")
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
 
 # @repeat_every(seconds=86400) # every 24hours
 # @repeat_at(cron="12 2 * * *") # at 02:12 everyday
-@repeat_at(cron="* * * * *")
+@repeat_at(cron="* * * * *") # every minute
 async def cronjobs():
     logging.info("kicking off cronjobs")
     # await update_accounts()
@@ -180,21 +180,10 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 
 @app.get("/ynab/monthly-summary")
 async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
-    # Month overview
-        # Days left
-        # Get last months income
-        # Get last months accumulation of bills
-        # Subtract everything spent outside of bills
-        # Divide days left by amount left after subtracting costs outside of bills
-    # Subcategories
-        # most spent (top 3/4)
-    # Current month breakdown
-        # last month income
-        # last months accumulation of bills
-        # everything spent outside of bills
-        # 'what's' left
-    
-    return await ynab.month_breakdown()
+    year = commons.get('year')
+    months = commons.get('months')
+    month = commons.get('month')
+    return await ynab.month_summary(year=year, months=months, specific_month=month)
 
 @app.get("/ynab/available-balance")
 async def available_balance():
@@ -255,29 +244,29 @@ async def update_accounts():
     return await ynab_help.pydantic_accounts()
 
 @app.get("/ynab/update-categories", name="Update YNAB Categories")
-@protected_endpoint
+# @protected_endpoint
 async def update_categories():
     return await ynab_help.pydantic_categories()
 
 @app.get("/ynab/update-month-details", name="Update YNAB Month Details")
-@protected_endpoint
+# @protected_endpoint
 async def update_month_details():
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
 @app.get("/ynab/update-month-summaries", name="Update YNAB Month Summaries")
-@protected_endpoint
+# @protected_endpoint
 async def update_month_summaries():
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
 @app.get("/ynab/update-payees", name="Update YNAB Payees")
-@protected_endpoint
+# @protected_endpoint
 async def update_payees():
     return await ynab_help.pydantic_payees()
 
 @app.get("/ynab/update-transactions", name="Update YNAB Transactions")
-@protected_endpoint
+# @protected_endpoint
 async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.

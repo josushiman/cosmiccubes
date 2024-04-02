@@ -3,9 +3,9 @@ from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
 from uuid import UUID
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions, Budgets
 from app.db.schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
-    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic
+    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic
 
 # TODO make changes here to make sure can return Ynab stuff
 class ReactAdmin():
@@ -15,7 +15,7 @@ class ReactAdmin():
             # "accounts": Accounts,
             # "account-types": AccountTypes,
             # "balance-transfers": BalanceTransfers,
-            # "budgets": Budgets,
+            "budgets": Budgets,
             # "companies": Companies,
             # "company-categories": CompanyCategories,
             # "direct-debits": DirectDebits,
@@ -44,7 +44,7 @@ class ReactAdmin():
             # "accounts": Accounts_Pydantic,
             # "account-types": AccountTypes_Pydantic,
             # "balance-transfers": BalanceTransfers_Pydantic,
-            # "budgets": Budgets_Pydantic,
+            "budgets": Budgets_Pydantic,
             # "companies": Companies_Pydantic,
             # "company-categories": CompanyCategories_Pydantic,
             # "direct-debits": DirectDebits_Pydantic,

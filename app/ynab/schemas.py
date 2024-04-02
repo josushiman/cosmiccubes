@@ -95,6 +95,45 @@ class IncomeVsExpensesResponse(BaseModel):
     since_date: date_field
     data: List[IncomeVsExpense]
 
+class MonthCategory(BaseModel):
+    name: str
+    group: str
+    spent: float
+    budget: float
+
+    @validator("spent", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+class MonthIncomeExpenses(BaseModel):
+    balance_available: float
+    balance_spent: float
+    income: float
+    bills: float
+
+    @validator("balance_available", "balance_spent", "income", "bills", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+class MonthSummary(BaseModel):
+    days_left: int
+    balance_available: float
+    balance_spent: float
+    balance_budget: float
+    daily_spend: float
+
+    @validator("balance_available", "balance_spent", "daily_spend", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+    
+class Month(BaseModel):
+    summary: MonthSummary
+    categories: List[MonthCategory]
+    income_expenses: MonthIncomeExpenses
+
 class SpentInPeriodResponse(BaseModel):
     period: str
     spent: float
