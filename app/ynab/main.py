@@ -386,10 +386,16 @@ class YNAB():
         
         categories = sorted(categories, key=lambda x: x['spent'], reverse=False)
 
-        balance_spent = sum(category['spent'] for category in categories)
-        logging.debug(f"Total spent this month: {balance_spent}")
+        balance_spent = 0
+        balance_budget = 0
 
-        balance_budget = sum(category['budget'] for category in categories)
+        for category in categories:
+            if category['budget'] is None:
+                category['budget'] = 0
+            balance_spent += category.get('spent')
+            balance_budget +=  category.get('budget')
+
+        logging.debug(f"Total spent this month: {balance_spent}")
         logging.debug(f"Total budgeted: {balance_budget}")
 
         balance_available = income - (balance_spent - bills)

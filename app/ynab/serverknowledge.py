@@ -158,16 +158,17 @@ class YnabServerKnowledgeHelper():
         # Make sure all the fields which aren't supported on the DB are removed.
         resp_body = await cls.remove_unused_fields(model=model, resp_body=resp_body)
 
-        # Make sure any dates passed into the update is a datetime value, not a string
-        try:
-            raw_date = resp_body.get('date')
-            logging.debug(f"String datetime: {raw_date}")
-            resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
-            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
-            resp_body['date'] = resp_date_dt
-            logging.debug(f"Converted datetime: {resp_date_dt}")
-        except KeyError:
-            logging.debug('No date in response body, updating entity.')
+        # Make sure any dates passed into the update is a datetime value, not a string if its a transaction.
+        if type(model) == YnabTransactions:
+            try:
+                raw_date = resp_body.get('date')
+                logging.debug(f"String datetime: {raw_date}")
+                resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
+                resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+                resp_body['date'] = resp_date_dt
+                logging.debug(f"Converted datetime: {resp_date_dt}")
+            except KeyError:
+                logging.debug('No date in response body, updating entity.')
 
         try:
             await model.filter(id=entity_id).update(**resp_body)
