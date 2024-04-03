@@ -411,7 +411,7 @@ class YNAB():
                 'balance_budget': balance_budget,
                 'daily_spend': daily_spend
             },
-            categories=categories,
+            categories=categories[0:3],
             income_expenses={
                 'income': income,
                 'bills': bills,
