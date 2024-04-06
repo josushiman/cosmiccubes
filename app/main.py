@@ -239,37 +239,42 @@ async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
-# @protected_endpoint
+@protected_endpoint
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
 
 @app.get("/ynab/update-categories", name="Update YNAB Categories")
-# @protected_endpoint
+@protected_endpoint
 async def update_categories():
     return await ynab_help.pydantic_categories()
 
 @app.get("/ynab/update-month-details", name="Update YNAB Month Details")
-# @protected_endpoint
+@protected_endpoint
 async def update_month_details():
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
 @app.get("/ynab/update-month-summaries", name="Update YNAB Month Summaries")
-# @protected_endpoint
+@protected_endpoint
 async def update_month_summaries():
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
 @app.get("/ynab/update-payees", name="Update YNAB Payees")
-# @protected_endpoint
+@protected_endpoint
 async def update_payees():
     return await ynab_help.pydantic_payees()
 
 @app.get("/ynab/update-transactions", name="Update YNAB Transactions")
-# @protected_endpoint
+@protected_endpoint
 async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
+    return await ynab_help.sync_transaction_rels()
+
+@app.get("/ynab/update-transaction-rels", name="Update YNAB Transaction Relations")
+@protected_endpoint
+async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
 @app.route("/{path:path}")

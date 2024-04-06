@@ -97,7 +97,7 @@ class IncomeVsExpensesResponse(BaseModel):
 
 class MonthCategory(BaseModel):
     name: str
-    group: str | None
+    group: str
     spent: float
     budget: float
 
