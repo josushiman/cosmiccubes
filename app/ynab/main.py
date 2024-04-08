@@ -348,6 +348,8 @@ class YNAB():
             # TODO finish this
             # if not current month use the previous month summaries to work it out
             logging.debug("not current month")
+            last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
+            last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
         db_query = await YnabTransactions.annotate(
             income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
