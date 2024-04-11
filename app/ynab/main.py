@@ -965,7 +965,7 @@ class YNAB():
     async def transaction_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> TransactionSummary:
         if not months and not year and not specific_month:
             accounts = await YnabAccounts.filter(type='creditCard')\
-                .values('name', 'balance', cleared='cleared_balance', uncleared='uncleared_balance')
+                .values('id','name','balance',cleared='cleared_balance',uncleared='uncleared_balance')
             total_balance = sum(account['balance'] for account in accounts)
             # Filters for transactions for the entire of last month.
             month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
@@ -973,7 +973,7 @@ class YNAB():
         else:
             # TODO finish this
             accounts = await YnabAccounts.filter(type='creditCard')\
-                .values('name', 'balance', cleared='cleared_balance', uncleared='uncleared_balance')
+                .values('id','name','balance',cleared='cleared_balance',uncleared='uncleared_balance')
             total_balance = sum(account['balance'] for account in accounts)
             month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
             month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
@@ -983,7 +983,7 @@ class YNAB():
             date__gte=month_start,
             date__lt=month_end,
             transfer_account_id__isnull=True
-        ).order_by('-date').all().values('amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name')
+        ).order_by('-date').all().values('id','account_id','amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name')
 
         return TransactionSummary(
             summary={

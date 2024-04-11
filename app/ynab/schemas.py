@@ -16,6 +16,7 @@ class AvailableBalanceResponse(BaseModel):
         return value / 1000.0
 
 class CardBalance(BaseModel):
+    id: UUID
     name: str = Field(..., description='Account name for the card.')
     balance: float = Field(..., description='Current balance of the card.')
     cleared: float = Field(..., description='All transactions which have been cleared.')
@@ -169,6 +170,8 @@ class SubCategorySpentResponse(BaseModel):
     data: List[CategorySpent]
 
 class Transaction(BaseModel):
+    id: UUID
+    account_id: UUID
     payee: str = Field(..., description='Name of the merchant.')
     amount: float = Field(..., description='Amount that was charged against the transaction.')
     date: date_field = Field(..., description='Date of the transaction being cleared.')
