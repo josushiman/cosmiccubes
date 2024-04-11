@@ -130,6 +130,7 @@ class MonthSummary(BaseModel):
         return value / 1000.0
     
 class Month(BaseModel):
+    notif: str | None
     summary: MonthSummary
     categories: List[MonthCategory]
     income_expenses: MonthIncomeExpenses

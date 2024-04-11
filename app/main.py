@@ -12,6 +12,7 @@ from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, S
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
 from app.decorators import protected_endpoint
+from app.db.models import YnabTransactions
 
 dotenv_token = settings.env_token
 dotenv_hosts = settings.env_hosts
@@ -88,7 +89,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -239,34 +240,34 @@ async def transactions_by_months(months: PeriodMonthOptions):
     return await ynab.transactions_by_months(months)
 
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
-@protected_endpoint
+# @protected_endpoint
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
 
 @app.get("/ynab/update-categories", name="Update YNAB Categories")
-@protected_endpoint
+# @protected_endpoint
 async def update_categories():
     return await ynab_help.pydantic_categories()
 
 @app.get("/ynab/update-month-details", name="Update YNAB Month Details")
-@protected_endpoint
+# @protected_endpoint
 async def update_month_details():
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
 @app.get("/ynab/update-month-summaries", name="Update YNAB Month Summaries")
-@protected_endpoint
+# @protected_endpoint
 async def update_month_summaries():
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
 @app.get("/ynab/update-payees", name="Update YNAB Payees")
-@protected_endpoint
+# @protected_endpoint
 async def update_payees():
     return await ynab_help.pydantic_payees()
 
 @app.get("/ynab/update-transactions", name="Update YNAB Transactions")
-@protected_endpoint
+# @protected_endpoint
 async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
@@ -276,6 +277,10 @@ async def update_transactions():
 @protected_endpoint
 async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
+
+@app.get("/test/endpoint")
+async def test_endpoint():
+    return await YnabTransactions.filter(category_fk_id=None, transfer_account_id=None).count()
 
 @app.route("/{path:path}")
 def catch_all(path: str):

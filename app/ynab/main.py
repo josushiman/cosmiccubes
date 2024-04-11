@@ -405,7 +405,12 @@ class YNAB():
         days_left = await YnabHelpers.get_days_left_from_current_month()
         daily_spend = (income - (balance_spent - bills)) / days_left
 
+        uncategorised_transactions = await YnabTransactions.filter(category_fk_id=None, transfer_account_id=None).count()
+
+        notification_text = f"{uncategorised_transactions} uncategorised transactions" if uncategorised_transactions > 1 else "1 uncategorised transaction" if uncategorised_transactions > 0 else None
+
         return Month(
+            notif=notification_text,
             summary={
                 'days_left': days_left,
                 'balance_available': balance_available,
