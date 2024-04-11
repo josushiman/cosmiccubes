@@ -14,7 +14,7 @@ from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategorie
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
-    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary
+    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, CategorySummary, SubCategorySummary
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -134,6 +134,60 @@ class YNAB():
             since_date=since_date,
             data=db_result
         )
+
+    @classmethod
+    async def categories_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> list[CategorySummary]:
+        if not months and not year and not specific_month:
+            # Filters for income and bills for the entire of last month.
+            month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
+            month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        else:
+            # TODO finish this
+            # if not current month use the previous month summaries to work it out
+            month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
+            month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+
+        categories = await YnabCategories.annotate(
+            spent=Sum('activity')
+        ).filter(
+            category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+            spent__lt=0
+        ).group_by('id','category_group_id','category_group_name','name').order_by('spent'
+        ).values('spent',id='category_group_id',name='category_group_name',subcategory='name',subcategory_id='id')
+
+        budget_entities = await Budgets.all()
+        budgets = {budget.category_id: budget.amount for budget in budget_entities}
+
+        grouped_data = {}
+        for category in categories:
+            category_id = category['id']
+            category_name = category['name']
+            subcategory = category['subcategory']
+            subcategory_id = category['subcategory_id']
+            amount = category['spent']
+            if category_name not in grouped_data:
+                grouped_data[category_name] = {'id': category_id, 'amount': 0, 'budgeted': 0, 'subcategories': []}
+            grouped_data[category_name]['amount'] += amount
+            try:
+                grouped_data[category_name]['budgeted'] += budgets[subcategory_id]
+                grouped_data[category_name]['subcategories'].append({'name': subcategory, 'amount': amount, 'budgeted': budgets[subcategory_id]})
+            except KeyError:
+                grouped_data[category_name]['budgeted'] += 0
+                grouped_data[category_name]['subcategories'].append({'name': subcategory, 'amount': amount, 'budgeted': 0})
+
+        category_summaries = []
+        for category, summary in grouped_data.items():
+            category_summary = CategorySummary(
+                id=summary['id'],
+                category=category,
+                amount=summary['amount'],
+                budgeted=summary['budgeted'],
+                status="on track" if summary['budgeted'] >= summary['amount'] else "overspend",
+                subcategories=[SubCategorySummary(**subcat) for subcat in summary['subcategories']]
+            )
+            category_summaries.append(category_summary)
+
+        return category_summaries
 
     @classmethod
     async def earned_vs_spent_db_q(cls, since_date: str = None, end_date: str = None) -> dict:

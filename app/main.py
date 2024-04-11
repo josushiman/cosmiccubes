@@ -179,6 +179,13 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 # TODO Look at bulk creating and updating to save DB calls
 # https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
 
+@app.get("/ynab/categories-summary")
+async def categories_summary(commons: dict = Depends(common_cc_parameters)):
+    year = commons.get('year')
+    months = commons.get('months')
+    month = commons.get('month')
+    return await ynab.categories_summary(year=year, months=months, specific_month=month)
+
 @app.get("/ynab/monthly-summary")
 async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get('year')

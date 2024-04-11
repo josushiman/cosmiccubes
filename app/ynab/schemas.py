@@ -55,6 +55,40 @@ class CategorySpentResponse(BaseModel):
     since_date: date_field
     data: List[CategorySpent]
 
+class SubCategorySummary(BaseModel):
+    name: str
+    amount: float
+    budgeted: float = 0.0
+
+    @validator("amount", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        if value is None: return 0
+        return value / 1000.0
+    
+    @computed_field
+    @property # TODO make this better
+    def progress(self) -> float:
+        if self.budgeted is None and self.amount is None: return None
+        if self.amount >= self.budgeted: return 100 
+        if self.budgeted and self.budgeted != 0:
+            return (self.amount / self.budgeted) * 100
+        return 0
+
+class CategorySummary(BaseModel):
+    id: UUID
+    category: str
+    amount: float
+    budgeted: float = 0.0
+    status: Optional[str] = None
+    subcategories: List[SubCategorySummary]
+
+    @validator("amount", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        if value is None: return 0
+        return value / 1000.0
+
 class CreditAccount(BaseModel):
     id: Optional[UUID] = None
     date: Optional[date_field] = None
