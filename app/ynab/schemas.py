@@ -70,6 +70,15 @@ class CreditAccountResponse(BaseModel):
     since_date: date_field
     data: List[CreditAccount]
 
+class CreditSummary(BaseModel):
+    total: float
+    accounts: List[CardBalance]
+
+    @validator("total", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
 class EarnedVsSpentResponse(BaseModel):
     since_date: date_field
     earned: float
@@ -163,12 +172,17 @@ class Transaction(BaseModel):
     payee: str = Field(..., description='Name of the merchant.')
     amount: float = Field(..., description='Amount that was charged against the transaction.')
     date: date_field = Field(..., description='Date of the transaction being cleared.')
+    category: str = Field(..., description='Category of the transaction.')
     subcategory: str = Field(..., description='Subcategory of the transaction.')
 
     @validator("amount", pre=True)
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
+class TransactionSummary(BaseModel):
+    summary: CreditSummary
+    transactions: List[Transaction]
 
 class LastXTransactions(BaseModel):
     since_date: date_field

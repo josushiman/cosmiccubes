@@ -14,7 +14,7 @@ from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategorie
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
-    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month
+    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -407,7 +407,8 @@ class YNAB():
 
         uncategorised_transactions = await YnabTransactions.filter(category_fk_id=None, transfer_account_id=None).count()
 
-        notification_text = f"{uncategorised_transactions} uncategorised transactions" if uncategorised_transactions > 1 else "1 uncategorised transaction" if uncategorised_transactions > 0 else None
+        notification_text = f"{uncategorised_transactions} uncategorised transactions" \
+            if uncategorised_transactions > 1 else "1 uncategorised transaction" if uncategorised_transactions > 0 else None
 
         return Month(
             notif=notification_text,
@@ -958,4 +959,36 @@ class YNAB():
         return TransactionsByMonthResponse(
             since_date=since_date,
             data=month_list
+        )
+
+    @classmethod
+    async def transaction_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> TransactionSummary:
+        if not months and not year and not specific_month:
+            accounts = await YnabAccounts.filter(type='creditCard')\
+                .values('name', 'balance', cleared='cleared_balance', uncleared='uncleared_balance')
+            total_balance = sum(account['balance'] for account in accounts)
+            # Filters for transactions for the entire of last month.
+            month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
+            month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        else:
+            # TODO finish this
+            accounts = await YnabAccounts.filter(type='creditCard')\
+                .values('name', 'balance', cleared='cleared_balance', uncleared='uncleared_balance')
+            total_balance = sum(account['balance'] for account in accounts)
+            month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
+            month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        
+        transactions = await YnabTransactions.filter(
+            category_fk__category_group_name__not_in=['Monthly Bills', 'Loans'],
+            date__gte=month_start,
+            date__lt=month_end,
+            transfer_account_id__isnull=True
+        ).order_by('-date').all().values('amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name')
+
+        return TransactionSummary(
+            summary={
+                'total':total_balance,
+                'accounts': accounts
+            },
+            transactions=transactions
         )
