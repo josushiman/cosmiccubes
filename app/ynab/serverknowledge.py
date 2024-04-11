@@ -10,6 +10,40 @@ from app.db.models import YnabServerKnowledge, YnabAccounts, YnabCategories, Yna
 from app.config import settings
 
 class YnabServerKnowledgeHelper():
+    negative_amounts = [YnabTransactions, YnabMonthSummaries, YnabMonthDetailCategories, YnabCategories, YnabAccounts]
+
+    @classmethod
+    async def create_switch_negative_values(cls, model: Model) -> Model:
+        if type(model) == YnabAccounts:
+            if model.balance < 0: model.balance = -model.balance
+            if model.cleared_balance < 0: model.cleared_balance = -model.cleared_balance
+            if model.uncleared_balance < 0: model.uncleared_balance = -model.uncleared_balance
+        elif type(model) == YnabCategories or type(model) == YnabMonthDetailCategories:
+            if model.activity < 0: model.activity = -model.activity
+            if model.balance < 0: model.balance = -model.balance
+        elif type(model) == YnabMonthSummaries:
+            if model.activity < 0: model.activity = -model.activity
+        elif type(model) == YnabTransactions:
+            if model.amount < 0: model.amount = -model.amount
+
+        return model
+    
+    @classmethod
+    async def update_switch_negative_values(cls, model: Model, resp_body: dict) -> Model:
+        if type(model) == YnabAccounts:
+            if resp_body['balance'] < 0: resp_body['balance'] = -resp_body['balance']
+            if resp_body['cleared_balance'] < 0: resp_body['cleared_balance'] = -resp_body['cleared_balance']
+            if resp_body['uncleared_balance'] < 0: resp_body['uncleared_balance'] = -resp_body['uncleared_balance']
+        elif type(model) == YnabCategories or type(model) == YnabMonthDetailCategories:
+            if resp_body['activity'] < 0: resp_body['activity'] = -resp_body['activity']
+            if resp_body['balance'] < 0: resp_body['balance'] = -resp_body['balance']
+        elif type(model) == YnabMonthSummaries:
+            if resp_body['activity'] < 0: resp_body['activity'] = -resp_body['activity']
+        elif type(model) == YnabTransactions:
+            if resp_body['amount'] < 0: resp_body['amount'] = -resp_body['amount']
+
+        return resp_body
+
     @classmethod
     async def add_server_knowledge_to_url(cls, ynab_url: str, server_knowledge: int) -> bool:
         # If a ? exists in the URL then append the additional param.
@@ -30,6 +64,9 @@ class YnabServerKnowledgeHelper():
 
     @classmethod
     async def create_route_entities(cls, model: Model) -> int | IntegrityError:
+        if type(model) in cls.negative_amounts:
+            model = await cls.create_switch_negative_values(model)
+
         try:
             await model.save()
             logging.debug("New entity created")
@@ -169,6 +206,9 @@ class YnabServerKnowledgeHelper():
                 logging.debug(f"Converted datetime: {resp_date_dt}")
             except KeyError:
                 logging.debug('No date in response body, updating entity.')
+
+        if type(model) in cls.negative_amounts:
+            resp_body = await cls.update_switch_negative_values(model, resp_body)
 
         try:
             await model.filter(id=entity_id).update(**resp_body)

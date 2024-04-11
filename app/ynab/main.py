@@ -151,8 +151,8 @@ class YNAB():
             spent=Sum('activity')
         ).filter(
             category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
-            spent__lt=0
-        ).group_by('id','category_group_id','category_group_name','name').order_by('spent'
+            spent__gt=0
+        ).group_by('id','category_group_id','category_group_name','name').order_by('-spent'
         ).values('spent',id='category_group_id',name='category_group_name',subcategory='name',subcategory_id='id')
 
         budget_entities = await Budgets.all()
@@ -405,21 +405,23 @@ class YNAB():
             last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
             last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
-        db_query = await YnabTransactions.annotate(
-            income=Sum(RawSQL('CASE WHEN "amount" >= 0 THEN "amount" ELSE 0 END')),
-            bills=Sum(RawSQL('CASE WHEN "amount" < 0 THEN "amount" ELSE 0 END'))
+        bills_query = await YnabTransactions.annotate(
+            bills=Sum(RawSQL('"ynabtransactions"."amount"'))
         ).filter(
-            Q(
-                category_fk__category_group_name__in=['Monthly Bills', 'Loans'],
-                payee_name='BJSS LIMITED',
-                join_type='OR'
-            ),
+            Q(category_fk__category_group_name__in=['Monthly Bills', 'Loans']),
             Q(date__gte=last_month_start),
             Q(date__lt=last_month_end)
-        ).group_by('cleared').first().values('income', 'bills')
+        ).group_by('cleared').first().values('bills')
 
-        income = db_query.get('income')
-        bills = db_query.get('bills')
+        bills = bills_query.get('bills')
+        
+        income_query = await YnabTransactions.filter(
+            Q(payee_name='BJSS LIMITED'),
+            Q(date__gte=last_month_start),
+            Q(date__lt=last_month_end)
+        ).first().values('amount')
+        income = income_query.get('amount')
+
         logging.debug(f"Income: {income}. Bills: {bills}")
 
         # update the from date to the beginning of the month for everything spent so far.
@@ -440,7 +442,7 @@ class YNAB():
         # [{'name': 'Coffee', 'group': 'Frequent', 'spent': -9950.0, 'budget': 50},
         # {'name': 'Restaurants', 'group': 'Frequent', 'spent': -6000.0, 'budget': 50}]
         
-        categories = sorted(categories, key=lambda x: x['spent'], reverse=False)
+        categories = sorted(categories, key=lambda x: x['spent'], reverse=True)
 
         balance_spent = 0
         balance_budget = 0
@@ -454,10 +456,10 @@ class YNAB():
         logging.debug(f"Total spent this month: {balance_spent}")
         logging.debug(f"Total budgeted: {balance_budget}")
 
-        balance_available = income - (balance_spent - bills)
+        balance_available = income - (balance_spent + bills)
 
         days_left = await YnabHelpers.get_days_left_from_current_month()
-        daily_spend = (income - (balance_spent - bills)) / days_left
+        daily_spend = (income - (balance_spent + bills)) / days_left
 
         uncategorised_transactions = await YnabTransactions.filter(category_fk_id=None, transfer_account_id=None).count()
 
