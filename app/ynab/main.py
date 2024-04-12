@@ -1077,9 +1077,8 @@ class YNAB():
             Q(date__lt=last_month_end)
         ).group_by(
             'category_name',
-            'category_fk__category_group_name',
-            'amount'
-        ).order_by('-amount').all().values('total',name='category_name',category='category_fk__category_group_name')
+            'category_fk__category_group_name'
+        ).order_by('-total').all().values('total',name='category_name',category='category_fk__category_group_name')
 
         total_bills = sum(bill['total'] for bill in bills)
 

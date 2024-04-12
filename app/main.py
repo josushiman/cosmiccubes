@@ -105,7 +105,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -316,9 +316,9 @@ async def update_transactions():
 async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
-# @app.get("/test/endpoint")
-# async def test_endpoint():
-#     return await ynab.upcoming_bills()
+@app.get("/test/endpoint")
+async def test_endpoint():
+    return await ynab.upcoming_bills()
 
 @app.route("/{path:path}")
 def catch_all(path: str):
