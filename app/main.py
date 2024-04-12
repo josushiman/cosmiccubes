@@ -220,6 +220,10 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     month = commons.get('month')
     return await ynab.transaction_summary(year=year, months=months, specific_month=month)
 
+@app.get("/upcoming-bills")
+async def upcoming_bills():
+    return await ynab.upcoming_bills()
+
 @app.get("/ynab/available-balance")
 async def available_balance():
     return await ynab.available_balance()
@@ -314,7 +318,7 @@ async def update_transaction_rels():
 
 # @app.get("/test/endpoint")
 # async def test_endpoint():
-#     return await ynab.budgets_needed()
+#     return await ynab.upcoming_bills()
 
 @app.route("/{path:path}")
 def catch_all(path: str):

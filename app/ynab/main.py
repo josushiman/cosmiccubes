@@ -15,7 +15,7 @@ from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO 
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
-    CategorySummary, SubCategorySummary, BudgetsNeeded
+    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -1061,4 +1061,29 @@ class YNAB():
                 'accounts': accounts
             },
             transactions=transactions
+        )
+    
+    @classmethod
+    async def upcoming_bills(cls) -> UpcomingBills:
+        # Bills should not change on a regular basis, so just look at all the bills from the last month.
+        last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
+        last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        
+        bills = await YnabTransactions.annotate(
+            total=Sum(RawSQL('"ynabtransactions"."amount"'))
+        ).filter(
+            Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
+            Q(date__gte=last_month_start),
+            Q(date__lt=last_month_end)
+        ).group_by(
+            'category_name',
+            'category_fk__category_group_name',
+            'amount'
+        ).order_by('-amount').all().values('total',name='category_name',category='category_fk__category_group_name')
+
+        total_bills = sum(bill['total'] for bill in bills)
+
+        return UpcomingBills(
+            total=total_bills,
+            subcategories=bills
         )

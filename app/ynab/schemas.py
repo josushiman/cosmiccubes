@@ -260,3 +260,22 @@ class TransactionByMonth(BaseModel):
 class TransactionsByMonthResponse(BaseModel):
     since_date: date_field
     data: List[TransactionByMonth]
+
+class BillCategory(BaseModel):
+    name: str
+    category: str
+    total: float
+
+    @validator("total", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+class UpcomingBills(BaseModel):
+    total: float
+    subcategories: List[BillCategory]
+
+    @validator("total", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
