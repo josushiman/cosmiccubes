@@ -105,7 +105,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -143,7 +143,7 @@ async def get_health():
 async def create(resource: str, _body: dict):
     return await ra.create(resource, _body)
 
-@app.get("/portal/admin/{resource}/{_id}", include_in_schema=False)
+@app.get("/portal/admin/{resource}/{_id}")
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 

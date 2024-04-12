@@ -9,6 +9,7 @@ uvicorn = {extras = ["standard"], version = "*"}
 tortoise-orm = "*"
 asyncpg = "*"
 psycopg = "*"
+pydantic = "==2.6.4"
 python-dotenv = "*"
 async-lru = "*"
 httpx = "*"
