@@ -143,7 +143,7 @@ async def get_health():
 async def create(resource: str, _body: dict):
     return await ra.create(resource, _body)
 
-@app.get("/portal/admin/{resource}/{_id}")
+@app.get("/portal/admin/{resource}/{_id}", include_in_schema=False)
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
@@ -195,21 +195,25 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 # TODO Look at bulk creating and updating to save DB calls
 # https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
 
-@app.get("/ynab/categories-summary")
+@app.get("/budgets-needed")
+async def budgets_needed():
+    return await ynab.budgets_needed()
+
+@app.get("/categories-summary")
 async def categories_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get('year')
     months = commons.get('months')
     month = commons.get('month')
     return await ynab.categories_summary(year=year, months=months, specific_month=month)
 
-@app.get("/ynab/monthly-summary")
+@app.get("/monthly-summary")
 async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get('year')
     months = commons.get('months')
     month = commons.get('month')
     return await ynab.month_summary(year=year, months=months, specific_month=month)
 
-@app.get("/ynab/transaction-summary")
+@app.get("/transaction-summary")
 async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get('year')
     months = commons.get('months')
@@ -310,8 +314,7 @@ async def update_transaction_rels():
 
 @app.get("/test/endpoint")
 async def test_endpoint():
-    return await ynab.transaction_summary()
-    return await YnabTransactions.filter(category_fk_id=None, transfer_account_id=None).count()
+    return await ynab.budgets_needed()
 
 @app.route("/{path:path}")
 def catch_all(path: str):

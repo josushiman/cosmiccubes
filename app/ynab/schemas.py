@@ -15,6 +15,14 @@ class AvailableBalanceResponse(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+class SubCatBudgetReq(BaseModel):
+    name: str
+    category: str
+
+class BudgetsNeeded(BaseModel):
+    count: int
+    subcategories: List[SubCatBudgetReq]
+
 class CardBalance(BaseModel):
     id: UUID
     name: str = Field(..., description='Account name for the card.')

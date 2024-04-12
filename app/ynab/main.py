@@ -14,7 +14,8 @@ from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategorie
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
-    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, CategorySummary, SubCategorySummary
+    SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
+    CategorySummary, SubCategorySummary, BudgetsNeeded
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -22,6 +23,7 @@ from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, Cat
 
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
+    EXCLUDE_EXPENSE_NAMES = ['Monthly Bills', 'Loans', 'Credit Card Payments']
 
     @classmethod
     async def available_balance(cls) -> AvailableBalanceResponse:
@@ -38,6 +40,18 @@ class YNAB():
 
         return AvailableBalanceResponse(**db_result)
     
+    @classmethod
+    async def budgets_needed(cls) -> BudgetsNeeded:
+        subcategories = await YnabCategories.filter(
+            category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+            budget__isnull=True
+        ).all().values('name',category='category_group_name')
+
+        return BudgetsNeeded(
+            count=len(subcategories),
+            subcategories=subcategories
+        )
+
     @classmethod
     async def card_balances(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CardBalancesResponse:
         db_queryset = YnabAccounts.filter(
@@ -150,7 +164,7 @@ class YNAB():
         categories = await YnabCategories.annotate(
             spent=Sum('activity')
         ).filter(
-            category_group_name__in=YNAB.CAT_EXPENSE_NAMES,
+            category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             spent__gt=0
         ).group_by('id','category_group_id','category_group_name','name').order_by('-spent'
         ).values('spent',id='category_group_id',name='category_group_name',subcategory='name',subcategory_id='id')
@@ -408,7 +422,7 @@ class YNAB():
         bills_query = await YnabTransactions.annotate(
             bills=Sum(RawSQL('"ynabtransactions"."amount"'))
         ).filter(
-            Q(category_fk__category_group_name__in=['Monthly Bills', 'Loans']),
+            Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
             Q(date__gte=last_month_start),
             Q(date__lt=last_month_end)
         ).group_by('cleared').first().values('bills')
@@ -431,7 +445,7 @@ class YNAB():
         categories = await YnabTransactions.annotate(
             spent=Sum(RawSQL('"ynabtransactions"."amount"'))
         ).filter(
-            category_fk__category_group_name__not_in=['Monthly Bills', 'Loans'],
+            category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             date__gte=this_month_start,
             date__lt=this_month_end,
             transfer_account_id__isnull=True
@@ -1035,7 +1049,7 @@ class YNAB():
             month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
         transactions = await YnabTransactions.filter(
-            category_fk__category_group_name__not_in=['Monthly Bills', 'Loans'],
+            category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             date__gte=month_start,
             date__lt=month_end,
             transfer_account_id__isnull=True
