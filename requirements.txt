@@ -22,8 +22,8 @@ numpy==1.26.4 ; python_version == '3.11'
 ordered-set==4.1.0 ; python_version >= '3.7'
 pandas==2.2.2
 psycopg==3.1.18
-pydantic==2.7.0 ; python_version >= '3.8'
-pydantic-core==2.18.1 ; python_version >= '3.8'
+pydantic==2.6.4
+pydantic-core==2.16.3 ; python_version >= '3.8'
 pydantic-settings==2.2.1
 pypika-tortoise==0.1.6 ; python_version >= '3.7' and python_version < '4.0'
 python-dateutil==2.9.0.post0
