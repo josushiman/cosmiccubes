@@ -312,9 +312,9 @@ async def update_transactions():
 async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
-@app.get("/test/endpoint")
-async def test_endpoint():
-    return await ynab.budgets_needed()
+# @app.get("/test/endpoint")
+# async def test_endpoint():
+#     return await ynab.budgets_needed()
 
 @app.route("/{path:path}")
 def catch_all(path: str):

@@ -43,9 +43,9 @@ class YNAB():
     @classmethod
     async def budgets_needed(cls) -> BudgetsNeeded:
         subcategories = await YnabCategories.filter(
-            category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+            category_group_name__not_in=[*cls.EXCLUDE_EXPENSE_NAMES, 'Internal Master Category', 'Yearly Bills', 'Non-Monthly Expenses'],
             budget__isnull=True
-        ).all().values('name',category='category_group_name')
+        ).order_by('category_group_name','name').all().values('name',category='category_group_name')
 
         return BudgetsNeeded(
             count=len(subcategories),
