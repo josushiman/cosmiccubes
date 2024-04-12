@@ -1086,3 +1086,17 @@ class YNAB():
             total=total_bills,
             subcategories=bills
         )
+
+    @classmethod
+    async def upcoming_bills_dates(cls):
+        last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
+        last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        
+        bills = await YnabTransactions.filter(
+            Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
+            Q(date__gte=last_month_start),
+            Q(date__lt=last_month_end)
+        ).order_by('date','-amount').all().values('amount','date','memo',payee='payee_name',name='category_name',category='category_fk__category_group_name')
+
+        return bills
+    

@@ -224,6 +224,10 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
 async def upcoming_bills():
     return await ynab.upcoming_bills()
 
+@app.get("/upcoming-bills/dates")
+async def upcoming_bills_dates():
+    return await ynab.upcoming_bills_dates()
+
 @app.get("/ynab/available-balance")
 async def available_balance():
     return await ynab.available_balance()
