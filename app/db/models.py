@@ -1,4 +1,5 @@
-from tortoise import fields, models
+from tortoise import fields
+from tortoise.models import Model
 
 # class BalanceTransfers(models.Model):
 #     id = fields.UUIDField(pk=True)
@@ -110,7 +111,7 @@ from tortoise import fields, models
 #         computed = ["total"]
 #         unique_together=("name", "company", "category")
 
-class YnabServerKnowledge(models.Model):
+class YnabServerKnowledge(Model):
     id = fields.UUIDField(pk=True)
     budget_id = fields.UUIDField()
     route = fields.CharField(max_length=250, unique=True)
@@ -120,7 +121,7 @@ class YnabServerKnowledge(models.Model):
     class PydanticMeta:
         unique_together=("budget_id", "route")
 
-class YnabAccounts(models.Model):
+class YnabAccounts(Model):
     id = fields.UUIDField(pk=True)
     name = fields.CharField(max_length=150, unique=True)
     type = fields.CharField(max_length=150, null=True)
@@ -140,7 +141,7 @@ class YnabAccounts(models.Model):
     debt_escrow_amounts = fields.JSONField(null=True)
     deleted = fields.BooleanField(null=True)
 
-class YnabCategories(models.Model):
+class YnabCategories(Model):
     id = fields.UUIDField(pk=True)
     category_group_id = fields.UUIDField(null=True)
     category_group_name = fields.CharField(max_length=150, null=True)
@@ -168,7 +169,7 @@ class YnabCategories(models.Model):
     class PydanticMeta:
         unique_together=("category_group_name", "name")
 
-class YnabMonthSummaries(models.Model):
+class YnabMonthSummaries(Model):
     id = fields.UUIDField(pk=True)
     month = fields.DatetimeField(null=True, unique=True)
     note = fields.CharField(max_length=150, null=True)
@@ -182,7 +183,7 @@ class YnabMonthSummaries(models.Model):
     class PydanticMeta:
         unique_together=("month", "deleted")
 
-class YnabMonthDetailCategories(models.Model):
+class YnabMonthDetailCategories(Model):
     id = fields.UUIDField(pk=True)
     category_group_id = fields.UUIDField(null=True)
     category_group_name = fields.CharField(max_length=150, null=True)
@@ -211,7 +212,7 @@ class YnabMonthDetailCategories(models.Model):
     class PydanticMeta:
         unique_together=("month_summary_fk_id", "category_group_name", "name")
 
-class YnabPayees(models.Model):
+class YnabPayees(Model):
     id = fields.UUIDField(pk=True)
     name = fields.CharField(max_length=150, null=True)
     transfer_account_id = fields.UUIDField(null=True)
@@ -220,7 +221,7 @@ class YnabPayees(models.Model):
     class PydanticMeta:
         unique_together=("name", "deleted")
 
-class YnabTransactions(models.Model):
+class YnabTransactions(Model):
     id = fields.UUIDField(pk=True)
     date = fields.DatetimeField()
     amount = fields.FloatField(default=0.0)
@@ -248,7 +249,7 @@ class YnabTransactions(models.Model):
     class PydanticMeta:
         unique_together=("date", "amount", "account_id", "payee_id", "category_id")
 
-class Budgets(models.Model):
+class Budgets(Model):
     id = fields.UUIDField(pk=True)
     category = fields.ForeignKeyField('models.YnabCategories', related_name='budget')
     amount = fields.FloatField(default=0.0)

@@ -70,9 +70,8 @@ class ReactAdmin():
     @classmethod
     async def get_one(cls, resource: str, _id: UUID) -> Model:
         entity_model = await cls.get_entity_model(resource)
-        entity_schema = await cls.get_entity_schema(resource)
 
-        return await entity_schema.from_queryset_single(entity_model.get(id=_id))
+        return await entity_model.get(id=_id)
 
     @classmethod
     async def get_list(cls, resource: str, commons: dict, kwargs_raw: dict) -> tuple:
@@ -170,16 +169,14 @@ class ReactAdmin():
 
     @classmethod
     async def get_entity_list_data(cls, entity_model: Model, resource: str, limit: int, offset: int, order_by: str = None, filter: dict = None) -> list[Model]:
-        entity_schema = await cls.get_entity_schema(resource)
-
         try:
             if order_by is None:
-                if filter: return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset))
-                return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset))
+                if filter: return await entity_model.filter(**filter).limit(limit).offset(offset)
+                return await entity_model.all().limit(limit).offset(offset)
             elif filter is not None: 
-                return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset).order_by(order_by))
+                return await entity_model.filter(**filter).limit(limit).offset(offset).order_by(order_by)
             else:
-                return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset).order_by(order_by))
+                return await entity_model.all().limit(limit).offset(offset).order_by(order_by)
         except OperationalError as e_opp:
             logging.info("Incorrect sort field provided.")
             raise HTTPException(status_code=422) from e_opp
