@@ -1,6 +1,7 @@
 import logging
 import newrelic.agent
-from fastapi_utilities import repeat_at, repeat_every
+from time import sleep
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from tortoise import Tortoise
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response, Depends, Query, Request, Header, HTTPException
@@ -25,6 +26,26 @@ dotenv_path_to_ini = settings.newrelic_ini_path
 logging.info("Initialising NewRelic")
 newrelic.agent.initialize(dotenv_path_to_ini, settings.newrelic_env)
 
+scheduler = AsyncIOScheduler()
+async def update_ynab_data():
+    # Check YNAB is alive
+    # Update each one in a loop, error out when something happens
+    endpoints = [
+        update_accounts,
+        update_categories,
+        update_payees,
+        update_month_details,
+        update_month_summaries,
+        update_transactions
+    ]
+
+    for endpoint in endpoints:
+        try:
+            await endpoint(settings.ynab_phrase)
+            sleep(seconds=60)
+        except:
+            logging.error(f"issue updating endpoint {endpoint}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Initialising DB")
@@ -33,23 +54,18 @@ async def lifespan(app: FastAPI):
         modules={'models': ['app.db.models']},
     )
     # Generate the model schemas.
-    logging.info("Generating Schemas")
+    logging.info("Generating schemas.")
     await Tortoise.generate_schemas()
-    logging.info("Schemas Generated")
-    # cronjobs() # TODO figure out how to fix this not being an async thing
+    logging.info("Schemas generated.")
+    logging.info("Starting scheduler.")
+    # scheduler.add_job(update_ynab_data, trigger="cron", second=10)
+    scheduler.start()
     yield
     # Close all connections when shutting down.
+    logging.info("Shutting down scheduler.")
+    scheduler.shutdown()
     logging.info("Shutting down application.")
     await Tortoise.close_connections()
-
-# @repeat_every(seconds=86400) # every 24hours
-# @repeat_at(cron="12 2 * * *") # at 02:12 everyday
-@repeat_at(cron="* * * * *") # every minute
-async def cronjobs():
-    logging.info("kicking off cronjobs")
-    # await update_accounts()
-    # await update_accounts(phrase=settings.ynab_phrase)
-    return
 
 async def get_token_header(request: Request, x_token: UUID = Header(...)):
     if dotenv_origins != ['*'] or dotenv_hosts != ['*']:

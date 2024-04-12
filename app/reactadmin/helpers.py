@@ -174,12 +174,12 @@ class ReactAdmin():
 
         try:
             if order_by is None:
-                if filter:
-                    return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset))
+                if filter: return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset))
                 return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset))
-            elif filter is not None:
+            elif filter is not None: 
                 return await entity_schema.from_queryset(entity_model.filter(**filter).limit(limit).offset(offset).order_by(order_by))
-            return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset).order_by(order_by))
+            else:
+                return await entity_schema.from_queryset(entity_model.all().limit(limit).offset(offset).order_by(order_by))
         except OperationalError as e_opp:
             logging.info("Incorrect sort field provided.")
             raise HTTPException(status_code=422) from e_opp

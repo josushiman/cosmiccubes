@@ -18,7 +18,7 @@ python-dateutil = "*"
 newrelic = "*"
 pydantic-settings = "*"
 deepdiff = "*"
-fastapi-utilities = "*"
+apscheduler = "*"
 
 [dev-packages]
 
