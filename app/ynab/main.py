@@ -471,7 +471,7 @@ class YNAB():
         logging.debug(f"Total budgeted: {balance_budget}")
 
         savings = await Savings.filter(date__gte=this_month_start,date__lt=this_month_end).first()
-        savings_milliunit = savings.target * 1000
+        savings_milliunit = savings.target * 1000 if savings else 0
         logging.debug(f"Savings target: {savings_milliunit}")
 
         balance_available = (income - (balance_spent + bills)) - savings_milliunit
