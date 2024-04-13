@@ -10,7 +10,7 @@ from tortoise.functions import Sum
 from tortoise.expressions import RawSQL, Q, Function
 from pypika import CustomFunction
 from app.ynab.helpers import YnabHelpers
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets, Savings
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
@@ -470,10 +470,16 @@ class YNAB():
         logging.debug(f"Total spent this month: {balance_spent}")
         logging.debug(f"Total budgeted: {balance_budget}")
 
-        balance_available = income - (balance_spent + bills)
+        savings = await Savings.filter(date__gte=this_month_start,date__lt=this_month_end).first()
+        savings_milliunit = savings.target * 1000
+        logging.debug(f"Savings target: {savings_milliunit}")
+
+        balance_available = (income - (balance_spent + bills)) - savings_milliunit
+        logging.debug(f"Balance available: {balance_available}")
+
 
         days_left = await YnabHelpers.get_days_left_from_current_month()
-        daily_spend = (income - (balance_spent + bills)) / days_left
+        daily_spend = balance_available / days_left
 
         uncategorised_transactions = await YnabTransactions.filter(category_fk_id=None, transfer_account_id=None).count()
 
@@ -494,7 +500,8 @@ class YNAB():
                 'income': income,
                 'bills': bills,
                 'balance_spent': balance_spent,
-                'balance_available': balance_available
+                'balance_available': balance_available,
+                'savings': savings_milliunit
             }
         )
 

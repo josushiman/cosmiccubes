@@ -253,3 +253,9 @@ class Budgets(Model):
     id = fields.UUIDField(pk=True)
     category = fields.ForeignKeyField('models.YnabCategories', related_name='budget')
     amount = fields.FloatField(default=0.0)
+
+class Savings(Model):
+    id = fields.UUIDField(pk=True)
+    date = fields.DatetimeField(unique=True)
+    amount = fields.FloatField(default=0.0, null=True)
+    target = fields.FloatField(default=0.0)

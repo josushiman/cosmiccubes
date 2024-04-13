@@ -3,9 +3,9 @@ from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
 from uuid import UUID
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions, Budgets
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions, Budgets, Savings
 from app.db.schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
-    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic
+    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic, Savings_Pydantic
 
 # TODO make changes here to make sure can return Ynab stuff
 class ReactAdmin():
@@ -23,7 +23,7 @@ class ReactAdmin():
             # "mortgages": Mortgages,
             # "projects": Projects,
             # "project-item-categories": ProjectItemCategories,
-            # "project-items": ProjectItems,
+            "savings": Savings,
             "ynab-accounts": YnabAccounts,
             "ynab-categories": YnabCategories,
             "ynab-month-summaries": YnabMonthSummaries,
@@ -52,7 +52,7 @@ class ReactAdmin():
             # "mortgages": Mortgages_Pydantic,
             # "projects": Projects_Pydantic,
             # "project-item-categories": ProjectItemCategories_Pydantic,
-            # "project-items": ProjectItems_Pydantic,
+            "savings": Savings_Pydantic,
             "ynab-accounts": YnabAccounts_Pydantic,
             "ynab-categories": YnabCategories_Pydantic,
             "ynab-month-summaries": YnabMonthSummaries_Pydantic,

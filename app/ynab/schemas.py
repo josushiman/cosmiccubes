@@ -163,8 +163,9 @@ class MonthIncomeExpenses(BaseModel):
     balance_spent: float
     income: float
     bills: float
+    savings: float
 
-    @validator("balance_available", "balance_spent", "income", "bills", pre=True)
+    @validator("balance_available", "balance_spent", "income", "bills", "savings", pre=True)
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
