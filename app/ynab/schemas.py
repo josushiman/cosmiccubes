@@ -218,8 +218,8 @@ class Transaction(BaseModel):
     payee: str = Field(..., description='Name of the merchant.')
     amount: float = Field(..., description='Amount that was charged against the transaction.')
     date: date_field = Field(..., description='Date of the transaction being cleared.')
-    category: str = Field(..., description='Category of the transaction.')
-    subcategory: str = Field(..., description='Subcategory of the transaction.')
+    category: str | None = Field(..., description='Category of the transaction.')
+    subcategory: str | None = Field(..., description='Subcategory of the transaction.')
 
     @validator("amount", pre=True)
     def format_milliunits(cls, value):
