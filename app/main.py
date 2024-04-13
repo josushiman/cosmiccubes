@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     await Tortoise.generate_schemas()
     logging.info("Schemas generated.")
     logging.info("Starting scheduler.")
-    # scheduler.add_job(update_ynab_data, trigger="cron", second=10)
+    scheduler.add_job(update_ynab_data, trigger="cron", second=10)
     scheduler.start()
     yield
     # Close all connections when shutting down.
@@ -105,7 +105,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    # dependencies=[Depends(get_token_header)],
+    dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
