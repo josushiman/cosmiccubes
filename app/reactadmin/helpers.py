@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, UTC
 from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
@@ -200,12 +201,15 @@ class ReactAdmin():
             await entity_model.filter(id=_id).update(**resp_body)
             return await cls.get_one(resource, _id)
         except FieldError as e_field:
-            logging.info("Incorrect fields being passed to the model.")
-            raise HTTPException(status_code=422) from e_field
+            logging.info("Incorrect fields being passed to the model.", exc_info=e_field)
+            raise HTTPException(status_code=422)
         except IntegrityError as e_dupe:
-            logging.info("Potentially trying to create a duplicate.")
-            raise HTTPException(status_code=409) from e_dupe
-
+            logging.info("Potentially trying to create a duplicate.", exc_info=e_dupe)
+            raise HTTPException(status_code=409)
+        except OperationalError as e_op:
+            logging.info("Likely a datetime issue", exc_info=e_op)
+            raise HTTPException(status_code=500)
+        
     @classmethod
     async def delete(cls, resource: str, id: str):
         entity_model = await cls.get_entity_model(resource)
