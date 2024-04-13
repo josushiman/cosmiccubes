@@ -256,6 +256,7 @@ class Budgets(Model):
 
 class Savings(Model):
     id = fields.UUIDField(pk=True)
-    date = fields.DatetimeField(unique=True)
+    date = fields.DatetimeField()
+    name = fields.CharField(max_length=150, unique=True)
     amount = fields.FloatField(default=0.0, null=True)
     target = fields.FloatField(default=0.0)

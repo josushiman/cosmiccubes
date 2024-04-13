@@ -105,6 +105,16 @@ class ReactAdmin():
     @classmethod
     async def create(cls, resource: str, resp_body: dict):
         entity_model = await cls.get_entity_model(resource)
+
+        try:
+            raw_date = resp_body.get('date')
+            logging.debug(f"String datetime: {raw_date}")
+            resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['date'] = resp_date_dt
+        except KeyError:
+            logging.debug("No date field on response body.")
+
         try:
             return await entity_model.create(**resp_body)
         except ValidationError as e_val:
@@ -196,6 +206,15 @@ class ReactAdmin():
     @classmethod
     async def update(cls, resource: str, resp_body: dict, _id: UUID):
         entity_model = await cls.get_entity_model(resource)
+
+        try:
+            raw_date = resp_body.get('date')
+            logging.debug(f"String datetime: {raw_date}")
+            resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['date'] = resp_date_dt
+        except KeyError:
+            logging.debug("No date field on response body.")
 
         try:
             await entity_model.filter(id=_id).update(**resp_body)
