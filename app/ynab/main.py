@@ -15,7 +15,7 @@ from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO 
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
-    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills
+    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -147,6 +147,49 @@ class YNAB():
         return CategorySpentResponse(
             since_date=since_date,
             data=db_result
+        )
+
+    @classmethod
+    async def category_summary(cls, category_name: str, subcategory_name: str) -> CategoryTransactions:
+        month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
+        month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        
+        subcategory_name = subcategory_name.replace("-", " ")
+
+        category = await YnabCategories.filter(
+            category_group_name__iexact=category_name,
+            name__iexact=subcategory_name,
+        ).first().values('activity')
+
+        transactions = await YnabTransactions.filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_name__iexact=subcategory_name,
+            date__gte=month_start,
+            date__lt=month_end,
+        ).order_by('-date').all().values(
+            'id','account_id','amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name'
+        )
+
+        return CategoryTransactions(
+            total=category.get('activity'),
+            trends=[
+                {
+                    "period": "Last month",
+                    "trend": "up",
+                    "percentage": 10
+                },
+                {
+                    "period": "Last 3 months",
+                    "trend": "down",
+                    "percentage": 11
+                },
+                {
+                    "period": "Last 6 months",
+                    "trend": "flat",
+                    "percentage": "-"
+                }
+            ],
+            transactions=transactions
         )
 
     @classmethod

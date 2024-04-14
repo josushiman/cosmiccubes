@@ -272,6 +272,21 @@ class BillCategory(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+class CategoryTrends(BaseModel):
+    period: str
+    trend: str
+    percentage: float | str
+
+class CategoryTransactions(BaseModel):
+    total: float
+    trends: List[CategoryTrends]
+    transactions: List[Transaction]
+
+    @validator("total", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
 class UpcomingBills(BaseModel):
     total: float
     subcategories: List[BillCategory]
