@@ -171,7 +171,7 @@ class YNAB():
         )
 
         return CategoryTransactions(
-            total=category.get('activity'),
+            total=category.get('activity', default=0.0),
             trends=[
                 {
                     "period": "Last month",
