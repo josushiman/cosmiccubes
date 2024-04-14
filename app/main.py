@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     await Tortoise.generate_schemas()
     logging.info("Schemas generated.")
     logging.info("Starting scheduler.")
-    scheduler.add_job(update_ynab_data, trigger="cron", hour=2)
+    scheduler.add_job(update_ynab_data, trigger="cron", hour='4,12,18,22', minute=11)
     scheduler.start()
     yield
     # Close all connections when shutting down.
