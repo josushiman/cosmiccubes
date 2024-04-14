@@ -42,6 +42,7 @@ async def update_ynab_data():
     for endpoint in endpoints:
         try:
             await endpoint(settings.ynab_phrase)
+            logging.info(f"Triggered update for {endpoint.__name__}")
             sleep(seconds=60)
         except:
             logging.error(f"issue updating endpoint {endpoint}")
