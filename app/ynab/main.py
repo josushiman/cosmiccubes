@@ -161,6 +161,8 @@ class YNAB():
             name__iexact=subcategory_name,
         ).first().values('activity')
 
+        category_spent = category.get('activity')
+
         transactions = await YnabTransactions.filter(
             category_fk__category_group_name__iexact=category_name,
             category_name__iexact=subcategory_name,
@@ -170,25 +172,64 @@ class YNAB():
             'id','account_id','amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name'
         )
 
+        last_month_start = month_start - relativedelta(months=1)
+        last_3_month_start = month_start - relativedelta(months=3)
+        last_6_month_start = month_start - relativedelta(months=6)
+        last_month_end = month_end - relativedelta(months=1)
+
+        transactions_1_m = await YnabTransactions.annotate(
+            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+        ).filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_name__iexact=subcategory_name,
+            date__gte=last_month_start,
+            date__lt=last_month_end,
+        ).group_by('deleted').first().values('spent')
+
+        transactions_3_m = await YnabTransactions.annotate(
+            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+        ).filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_name__iexact=subcategory_name,
+            date__gte=last_3_month_start,
+            date__lt=last_month_end,
+        ).group_by('deleted').first().values('spent')
+
+        transactions_6_m = await YnabTransactions.annotate(
+            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+        ).filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_name__iexact=subcategory_name,
+            date__gte=last_6_month_start,
+            date__lt=last_month_end,
+        ).group_by('deleted').first().values('spent')
+
+        transactions_1_m['period'] = 1
+        transactions_3_m['period'] = 3
+        transactions_6_m['period'] = 6
+        logging.debug(f"Current monthly spend for category: {category_spent}")
+        transaction_totals = [transactions_1_m, transactions_3_m, transactions_6_m]
+        trends = []
+        for totals in transaction_totals:
+            average_spend = totals["spent"] / totals["period"]
+            logging.debug(f"Average spend for last {totals['period']}: {average_spend}")
+            
+            trend_percentage = round((category_spent / average_spend) * 100)
+            logging.debug(f"Trend percentage: {trend_percentage}")
+
+            trend_string = "up" if category_spent > average_spend else "down" if category_spent < average_spend else "flat"
+            period_string = f"Last {totals['period']} months" if totals["period"] > 1 else "Last month"
+
+            trends.append({
+                "avg_spend": average_spend,
+                "period": period_string,
+                "trend": trend_string,
+                "percentage": trend_percentage
+            })
+
         return CategoryTransactions(
-            total=category.get('activity', default=0.0),
-            trends=[
-                {
-                    "period": "Last month",
-                    "trend": "up",
-                    "percentage": 10
-                },
-                {
-                    "period": "Last 3 months",
-                    "trend": "down",
-                    "percentage": 11
-                },
-                {
-                    "period": "Last 6 months",
-                    "trend": "flat",
-                    "percentage": "-"
-                }
-            ],
+            total=category_spent,
+            trends=trends,
             transactions=transactions
         )
 
