@@ -301,3 +301,16 @@ class UpcomingBills(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
+class UpcomingBillsDetails(BaseModel):
+    amount: float
+    date: date_field
+    memo: Optional[str]
+    payee: str
+    name: str
+    category: str
+
+    @validator("amount", pre=True)
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0

@@ -15,7 +15,7 @@ from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO 
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
-    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions
+    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -1179,7 +1179,7 @@ class YNAB():
         )
 
     @classmethod
-    async def upcoming_bills_dates(cls):
+    async def upcoming_bills_details(cls) -> list[UpcomingBillsDetails]:
         last_month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1)
         last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
@@ -1189,5 +1189,5 @@ class YNAB():
             Q(date__lt=last_month_end)
         ).order_by('date','-amount').all().values('amount','date','memo',payee='payee_name',name='category_name',category='category_fk__category_group_name')
 
-        return bills
+        return [UpcomingBillsDetails(**bill) for bill in bills]
     
