@@ -325,7 +325,7 @@ async def update_transactions():
 async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
-@app.get("/test/endpoint")
+@app.get("/test/endpoint", include_in_schema=False)
 async def test_endpoint():
     return await ynab.upcoming_bills()
 
