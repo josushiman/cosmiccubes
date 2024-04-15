@@ -1134,26 +1134,67 @@ class YNAB():
     @classmethod
     async def transaction_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> TransactionSummary:
         if not months and not year and not specific_month:
-            accounts = await YnabAccounts.filter(type='creditCard')\
-                .values('id','name','balance',cleared='cleared_balance',uncleared='uncleared_balance')
-            total_balance = sum(account['balance'] for account in accounts)
             # Filters for transactions for the entire of last month.
             month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
             month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         else:
             # TODO finish this
-            accounts = await YnabAccounts.filter(type='creditCard')\
-                .values('id','name','balance',cleared='cleared_balance',uncleared='uncleared_balance')
-            total_balance = sum(account['balance'] for account in accounts)
             month_end = datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59) - relativedelta(days=1) + relativedelta(months=1)
             month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
+        db_accounts = await YnabAccounts.all().values('id', 'name')
+        accounts_match = {db_account['name']:db_account['id'] for db_account in db_accounts}
+
         transactions = await YnabTransactions.filter(
             category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             date__gte=month_start,
             date__lt=month_end,
             transfer_account_id__isnull=True
-        ).order_by('-date').all().values('id','account_id','amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name')
+        ).order_by('-date').all().values(
+            'id',
+            'account_id',
+            'amount',
+            'account_name',
+            'date',
+            category='category_fk__category_group_name',
+            subcategory='category_name',
+            payee='payee_name'
+        )
+        
+        card_types = ['BA AMEX', 'Barclays CC', 'HSBC CC', 'HSBC ADVANCE']
+        amex_balance = sum(transaction['amount'] if transaction['account_name'] == 'BA AMEX' else 0 for transaction in transactions)
+        barclays_balance = sum(transaction['amount'] if transaction['account_name'] == 'Barclays CC' else 0 for transaction in transactions)
+        hsbc_cc_balance = sum(transaction['amount'] if transaction['account_name'] == 'HSBC CC' else 0 for transaction in transactions)
+        hsbc_adv_balance = sum(transaction['amount'] if transaction['account_name'] == 'HSBC ADVANCE' else 0 for transaction in transactions)
+        misc_balance = sum(transaction['amount'] if transaction['account_name'] not in card_types else 0 for transaction in transactions)
+
+        if misc_balance > 0:
+            logging.warning("Transactions not in account list.")
+
+        total_balance = amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
+
+        accounts = [
+            {
+                "id": accounts_match['BA AMEX'],
+                "name": "BA AMEX",
+                "balance": amex_balance
+            },
+            {
+                "id": accounts_match['HSBC CC'],
+                "name": "HSBC CC",
+                "balance": hsbc_cc_balance
+            },
+            {
+                "id": accounts_match['HSBC ADVANCE'],
+                "name": "HSBC ADVANCE",
+                "balance": hsbc_adv_balance
+            },
+            {
+                "id": accounts_match['Barclays CC'],
+                "name": "Barclays CC",
+                "balance": barclays_balance
+            },
+        ]
 
         return TransactionSummary(
             summary={

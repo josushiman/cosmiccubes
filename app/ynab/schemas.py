@@ -27,10 +27,8 @@ class CardBalance(BaseModel):
     id: UUID
     name: str = Field(..., description='Account name for the card.')
     balance: float = Field(..., description='Current balance of the card.')
-    cleared: float = Field(..., description='All transactions which have been cleared.')
-    uncleared: float = Field(..., description='All transactions which are currently uncleared.')
 
-    @validator("balance", "cleared", "uncleared", pre=True)
+    @validator("balance", pre=True)
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0

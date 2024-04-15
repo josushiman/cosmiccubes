@@ -219,6 +219,7 @@ class YnabHelpers():
         sk_eligible = await YnabServerKnowledgeHelper.check_route_eligibility(action=action)
         sk_up_to_date, server_knowledge = await cls.check_server_knowledge_status(action=action, param_1=param_1)
 
+        # TODO update this so that when its called it always makes the call to YNAB.
         if sk_up_to_date:
             logging.info("Date is the same as today, returning the DB entities.")
             return await cls.return_db_model_entities(action=action, since_date=since_date, month=month, year=year)
