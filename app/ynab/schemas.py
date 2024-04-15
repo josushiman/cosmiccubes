@@ -181,10 +181,16 @@ class MonthSummary(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
-    
+
+class UpcomingRenewal(BaseModel):
+    name: str
+    date: date_field
+    amount: float
+
 class Month(BaseModel):
     notif: str | None
     summary: MonthSummary
+    renewals: Optional[List[UpcomingRenewal]] = None
     categories: List[MonthCategory]
     income_expenses: MonthIncomeExpenses
 

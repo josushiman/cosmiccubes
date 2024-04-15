@@ -4,9 +4,10 @@ from tortoise.models import Model
 from tortoise.exceptions import IntegrityError, OperationalError, FieldError, ValidationError, DoesNotExist
 from fastapi import HTTPException
 from uuid import UUID
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions, Budgets, Savings
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions, \
+    Budgets, Savings, LoansAndRenewals
 from app.db.schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
-    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic, Savings_Pydantic
+    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic, Savings_Pydantic, LoansAndRenewals_Pydantic
 
 # TODO make changes here to make sure can return Ynab stuff
 class ReactAdmin():
@@ -23,7 +24,7 @@ class ReactAdmin():
             # "incomes": Incomes,
             # "mortgages": Mortgages,
             # "projects": Projects,
-            # "project-item-categories": ProjectItemCategories,
+            "loans-and-renewals": LoansAndRenewals,
             "savings": Savings,
             "ynab-accounts": YnabAccounts,
             "ynab-categories": YnabCategories,
@@ -52,7 +53,7 @@ class ReactAdmin():
             # "incomes": Incomes_Pydantic,
             # "mortgages": Mortgages_Pydantic,
             # "projects": Projects_Pydantic,
-            # "project-item-categories": ProjectItemCategories_Pydantic,
+            "loans-and-renewals": LoansAndRenewals_Pydantic,
             "savings": Savings_Pydantic,
             "ynab-accounts": YnabAccounts_Pydantic,
             "ynab-categories": YnabCategories_Pydantic,
@@ -112,6 +113,20 @@ class ReactAdmin():
             resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
             resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
             resp_body['date'] = resp_date_dt
+
+        raw_start_date = resp_body.get('start_date')
+        if raw_start_date:
+            logging.debug(f"String datetime: {raw_start_date}")
+            resp_date_dt = datetime.strptime(raw_start_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['start_date'] = resp_date_dt
+            
+        raw_end_date = resp_body.get('end_date')
+        if raw_end_date:
+            logging.debug(f"String datetime: {raw_end_date}")
+            resp_date_dt = datetime.strptime(raw_end_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['end_date'] = resp_date_dt
 
         try:
             return await entity_model.create(**resp_body)
@@ -205,12 +220,25 @@ class ReactAdmin():
         entity_model = await cls.get_entity_model(resource)
 
         raw_date = resp_body.get('date')
-        logging.debug(raw_date)
         if raw_date:
             logging.debug(f"String datetime: {raw_date}")
             resp_date_dt = datetime.strptime(raw_date, '%Y-%m-%d')
             resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
             resp_body['date'] = resp_date_dt
+        
+        raw_start_date = resp_body.get('start_date')
+        if raw_start_date:
+            logging.debug(f"String datetime: {raw_start_date}")
+            resp_date_dt = datetime.strptime(raw_start_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['start_date'] = resp_date_dt
+            
+        raw_end_date = resp_body.get('end_date')
+        if raw_end_date:
+            logging.debug(f"String datetime: {raw_end_date}")
+            resp_date_dt = datetime.strptime(raw_end_date, '%Y-%m-%d')
+            resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
+            resp_body['end_date'] = resp_date_dt
 
         try:
             await entity_model.filter(id=_id).update(**resp_body)

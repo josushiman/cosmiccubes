@@ -10,7 +10,7 @@ from tortoise.functions import Sum
 from tortoise.expressions import RawSQL, Q, Function
 from pypika import CustomFunction
 from app.ynab.helpers import YnabHelpers
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets, Savings
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets, Savings, LoansAndRenewals
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
@@ -570,6 +570,14 @@ class YNAB():
         notification_text = f"{uncategorised_transactions} uncategorised transactions" \
             if uncategorised_transactions > 1 else "1 uncategorised transaction" if uncategorised_transactions > 0 else None
 
+        upcoming_renewals = await LoansAndRenewals.filter(
+            Q(period='yearly'),
+            Q(end_date__isnull=True),
+            Q(
+                Q(start_date__month=this_month_start.month) | Q(start_date__month=this_month_start.month + 1)
+            )
+        ).all().values('name',amount='payment_amount',date='start_date')
+
         return Month(
             notif=notification_text,
             summary={
@@ -579,6 +587,7 @@ class YNAB():
                 'balance_budget': balance_budget,
                 'daily_spend': daily_spend
             },
+            renewals=upcoming_renewals,
             categories=categories[0:3],
             income_expenses={
                 'income': income,
@@ -1187,7 +1196,9 @@ class YNAB():
             Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
             Q(date__gte=last_month_start),
             Q(date__lt=last_month_end)
-        ).order_by('date','-amount').all().values('amount','date','memo',payee='payee_name',name='category_name',category='category_fk__category_group_name')
+        ).order_by('date','-amount').all().values(
+            'amount','date','memo',payee='payee_name',name='category_name',category='category_fk__category_group_name'
+        )
 
         return [UpcomingBillsDetails(**bill) for bill in bills]
     

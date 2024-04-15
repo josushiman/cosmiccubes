@@ -1,5 +1,6 @@
 from tortoise import fields
 from tortoise.models import Model
+from datetime import datetime, timezone
 
 # class BalanceTransfers(models.Model):
 #     id = fields.UUIDField(pk=True)
@@ -254,11 +255,44 @@ class Budgets(Model):
     category = fields.ForeignKeyField('models.YnabCategories', related_name='budget')
     amount = fields.FloatField(default=0.0)
 
-# class LoansAndRenewals(Model):
-#     id = fields.UUIDField(pk=True)
-#     name = fields.CharField(max_length=150)
-#     date = fields.DatetimeField()
-#     amount = fields.FloatField(default=0.0, null=True)
+class LoansAndRenewals(Model):
+    id = fields.UUIDField(pk=True)
+    name = fields.CharField(max_length=150)
+    start_date = fields.DatetimeField()
+    end_date = fields.DatetimeField(null=True)
+    payment_date = fields.IntField(null=True)
+    payment_amount = fields.FloatField(default=0.0, null=True)
+    starting_balance = fields.FloatField(default=0.0, null=True)
+    period = fields.CharField(max_length=150, null=True)
+    notes = fields.CharField(max_length=255, null=True)
+    account = fields.ForeignKeyField('models.YnabAccounts', related_name='account', null=True)
+    category = fields.ForeignKeyField('models.YnabCategories', related_name='category', null=True)
+
+    def remaining_balance(self) -> float:
+        if self.starting_balance is None: return None
+
+        end_date = datetime.now(timezone.utc)
+
+        # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
+        if self.period == "monthly":
+            occurrences = (end_date.year - self.start_date.year) * 12 + (end_date.month - self.start_date.month)
+        else:
+            occurrences = 1
+        
+        remaining_balance = self.starting_balance - (self.payment_amount * occurrences)
+        
+        if remaining_balance <= 0: return None
+        return remaining_balance
+    
+    def status(self) -> str:
+        try:
+            return "Outstanding" if self.remaining_balance > 0 else "Paid"
+        except TypeError:
+            return "Ongoing"
+
+    class PydanticMeta:
+        computed = ["remaining_balance", "status"]
+        unique_together=("end_date", "start_date", "name")
 
 class Savings(Model):
     id = fields.UUIDField(pk=True)

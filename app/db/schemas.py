@@ -13,7 +13,7 @@ logging.info("Initialising Models")
 Tortoise.init_models(["app.db.models"], "models")
 
 from .models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, \
-    YnabServerKnowledge, YnabTransactions, Budgets, Savings
+    YnabServerKnowledge, YnabTransactions, Budgets, Savings, LoansAndRenewals
 
 # Accounts_Pydantic = pydantic_model_creator(Accounts, name="Accounts")
 # AccountTypes_Pydantic = pydantic_model_creator(AccountTypes, name="AccountTypes", exclude="accounts")
@@ -25,7 +25,7 @@ Budgets_Pydantic = pydantic_model_creator(Budgets, name="Budgets")
 # Incomes_Pydantic = pydantic_model_creator(Incomes, name="Incomes")
 # Mortgages_Pydantic = pydantic_model_creator(Mortgages, name="Mortgages")
 # Projects_Pydantic = pydantic_model_creator(Projects, name="Projects")
-# ProjectItems_Pydantic = pydantic_model_creator(ProjectItems, name="ProjectItems")
+LoansAndRenewals_Pydantic = pydantic_model_creator(LoansAndRenewals, name="LoansAndRenewals")
 Savings_Pydantic = pydantic_model_creator(Savings, name="Savings")
 YnabAccounts_Pydantic = pydantic_model_creator(YnabAccounts, name="YnabAccounts")
 YnabCategories_Pydantic = pydantic_model_creator(YnabCategories, name="YnabCategories")
