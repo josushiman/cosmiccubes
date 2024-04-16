@@ -99,13 +99,6 @@ class YnabServerKnowledgeHelper():
             raise HTTPException(status_code=500)
     
     @classmethod
-    async def current_date_check(cls, date_to_check: datetime) -> bool:
-        current_date = datetime.today().strftime('%Y-%m-%d')
-        date_to_check = date_to_check.strftime('%Y-%m-%d')
-        logging.debug(f"Checking if {current_date} is the same as {date_to_check}")
-        return current_date == date_to_check
-    
-    @classmethod
     async def get_route_data_name(cls, action: str) -> str | HTTPException:
         data_name_list = {
             "accounts-list": "accounts",

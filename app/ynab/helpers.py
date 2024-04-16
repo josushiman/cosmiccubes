@@ -179,21 +179,17 @@ class YnabHelpers():
             raise HTTPException(status_code=400)
 
     @classmethod
-    async def check_server_knowledge_status(cls, action: str, param_1: str = None) -> tuple[bool, YnabServerKnowledge | None]:
+    async def check_server_knowledge_status(cls, action: str, param_1: str = None) -> YnabServerKnowledge | None:
         sk_route = await cls.get_route(action, param_1)
         server_knowledge = await YnabServerKnowledgeHelper.check_if_exists(route_url=sk_route)
 
-        # Return False if no entry of SK exists.
+        # Return None if no entry of SK exists.
         if not server_knowledge: 
             logging.warning(f"No server knowledge found for {sk_route}")
-            return False, None
+            return None
 
-        is_up_to_date = await YnabServerKnowledgeHelper.current_date_check(server_knowledge.last_updated)
-        if is_up_to_date:
-            logging.debug("Route is up to date.")
-            return True, server_knowledge
-        logging.info("Route is out of date, attempting to run a HTTP request to YNAB.")
-        return False, server_knowledge
+        logging.info("Route server knowledge found, attempting to run a HTTP request to YNAB.")
+        return server_knowledge
 
     @classmethod
     @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
@@ -217,13 +213,9 @@ class YnabHelpers():
         ynab_url = settings.ext_ynab_url + ynab_route
 
         sk_eligible = await YnabServerKnowledgeHelper.check_route_eligibility(action=action)
-        sk_up_to_date, server_knowledge = await cls.check_server_knowledge_status(action=action, param_1=param_1)
+        server_knowledge = await cls.check_server_knowledge_status(action=action, param_1=param_1)
 
-        # TODO update this so that when its called it always makes the call to YNAB.
-        if sk_up_to_date:
-            logging.info("Date is the same as today, returning the DB entities.")
-            return await cls.return_db_model_entities(action=action, since_date=since_date, month=month, year=year)
-        elif not sk_up_to_date and server_knowledge:
+        if server_knowledge:
             logging.debug(f"Updating ynab url to include server_knowledge value: {ynab_url}")
             ynab_url = await YnabServerKnowledgeHelper.add_server_knowledge_to_url(
                 ynab_url=ynab_url,
@@ -238,16 +230,21 @@ class YnabHelpers():
                 raise HTTPException(status_code=500)
             finally:
                 if sk_eligible:
-                    return await cls.process_sk_route_request(
-                        response=response,
-                        action=action,
-                        param_1=param_1,
-                        server_knowledge=server_knowledge,
-                        since_date=since_date,
-                        month=month,
-                        year=year
-                    )
-                logging.info("Route is not sk eligible, returning the JSON response w/ pydantic models.")
+                    if response.json()['data']['server_knowledge'] > server_knowledge.server_knowledge:
+                        logging.info("Route has updated since last run. Processing request.")
+                        return await cls.process_sk_route_request(
+                            response=response,
+                            action=action,
+                            param_1=param_1,
+                            server_knowledge=server_knowledge,
+                            since_date=since_date,
+                            month=month,
+                            year=year
+                        )
+                    logging.info("Route has not changed since last run. Skipping processing request.")
+                else:
+                    logging.info("Route is not sk eligible, returning the JSON response w/ pydantic models.")
+
                 return await cls.return_pydantic_model_entities(json_response=response.json(), action=action)
 
     @classmethod
