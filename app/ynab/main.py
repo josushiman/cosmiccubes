@@ -2,7 +2,7 @@ import logging
 import calendar
 from enum import Enum, IntEnum
 from time import localtime, mktime
-from datetime import datetime
+from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException
 from itertools import groupby
@@ -10,12 +10,13 @@ from tortoise.functions import Sum
 from tortoise.expressions import RawSQL, Q, Function
 from pypika import CustomFunction
 from app.ynab.helpers import YnabHelpers
-from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets, Savings, LoansAndRenewals
+from app.db.models import YnabAccounts, YnabCategories, YnabMonthDetailCategories, YnabTransactions, Budgets, Savings, \
+    LoansAndRenewals
 from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO ensure enums are used in all functions
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
-    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails
+    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -484,11 +485,47 @@ class YNAB():
             data=db_results
         )
 
-    @classmethod #TODO
-    async def count_in_category(cls, category: Enum, subcategory: Enum, months: IntEnum = None, year: Enum = None, specific_month: Enum = None):
-        # e.g. how many transactions exist for category x, and subcat y.
-        # or just one or the other
-        return
+    @classmethod
+    async def loan_portfolio(cls) -> LoanPortfolio:
+        today = datetime.now(timezone.utc).replace(day=1, hour=00, minute=00, second=00, microsecond=00)
+        loans_count = await LoansAndRenewals.filter(end_date__gt=today).count()
+        loans = await LoansAndRenewals.filter(end_date__gt=today).order_by('-end_date').all()
+        
+        if loans_count < 1:
+            return LoanPortfolio(
+            count=0,
+            total_credit=0,
+            accounts=[]
+        )
+
+        total_credit = sum(loan.remaining_balance() for loan in loans)
+
+        # Get the number of months from the loan which ends last
+        # The first loan entity is the one furthest away based on the query to the DB.
+        loan_end_date = loans[0].end_date
+        logging.info(f"Loan end date: {loan_end_date}")
+
+        date_delta = relativedelta(loan_end_date, today)
+        months_to_end_date = date_delta.years * 12 + date_delta.months
+
+        # Go through the range from the months to end date
+        # Generate an entity for each loan and the amount of the remaining balance for each one.
+        data = []
+        for month in range(months_to_end_date):
+            data_entry = {
+                "date": today if month == 0 else today + relativedelta(months=month)
+            }
+            for loan in loans:
+                month_multiplier = month + 1
+                calc_remaining_balance = loan.remaining_balance() - (loan.payment_amount * month_multiplier)
+                data_entry[loan.name] = calc_remaining_balance if calc_remaining_balance >= 0 else 0
+            data.append(data_entry)
+
+        return LoanPortfolio(
+            count=loans_count,
+            total_credit=total_credit,
+            accounts=data
+        )
 
     @classmethod
     async def month_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> Month:

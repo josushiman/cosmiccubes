@@ -145,6 +145,11 @@ class IncomeVsExpensesResponse(BaseModel):
     since_date: date_field
     data: List[IncomeVsExpense]
 
+class LoanPortfolio(BaseModel):
+    count: int
+    total_credit: float
+    accounts: List[dict]
+
 class MonthCategory(BaseModel):
     name: str
     group: str | None
