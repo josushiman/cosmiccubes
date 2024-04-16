@@ -370,6 +370,7 @@ class YnabHelpers():
                 logging.exception(f"Tried to return an endpoint we don't support yet. {action}")
                 raise HTTPException(status_code=500)
 
+    # TODO add in syncing transactions which have been updated to ensure they are in the right category
     @classmethod
     async def sync_transaction_rels(cls):
         # Get all the transactions that don't have a category_fk set

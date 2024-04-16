@@ -218,7 +218,7 @@ class YNAB():
             logging.debug(f"Trend percentage: {trend_percentage}")
 
             trend_string = "up" if category_spent > average_spend else "down" if category_spent < average_spend else "flat"
-            period_string = f"Last {totals['period']} months" if totals["period"] > 1 else "Last month"
+            period_string = f"L{totals['period']} months" if totals["period"] > 1 else "Last month"
 
             trends.append({
                 "avg_spend": average_spend,

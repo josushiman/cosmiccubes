@@ -168,6 +168,8 @@ class ReactAdmin():
                 # Allow us to search the DB with like values
                 if key == 'name': 
                     kwargs['name__icontains'] = value
+                if key == 'payee_name': 
+                    kwargs['payee_name__icontains'] = value
                 # Otherwise just store the value in the new dict
                 else:
                     kwargs[key] = value
