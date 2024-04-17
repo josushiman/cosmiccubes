@@ -120,6 +120,11 @@ class CreditSummary(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+class DirectDebitSummary(BaseModel):
+    count: int
+    monthly_cost: float
+    yearly_cost: float
+
 class EarnedVsSpentResponse(BaseModel):
     since_date: date_field
     earned: float

@@ -16,7 +16,8 @@ from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions # TODO 
 from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, CategorySpentResponse, CategorySpent, \
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
-    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio
+    CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio, \
+    DirectDebitSummary
 
 # TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
 # TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
@@ -287,6 +288,20 @@ class YNAB():
             category_summaries.append(category_summary)
 
         return category_summaries
+
+    @classmethod
+    async def direct_debits(cls) -> DirectDebitSummary:
+        direct_debits_count = await LoansAndRenewals.filter(end_date__isnull=True).count()
+        direct_debits = await LoansAndRenewals.filter(end_date__isnull=True).order_by('-payment_amount').all()
+
+        monthly_cost = sum(dd.payment_amount if dd.status() == 'Ongoing' and dd.period == 'monthly' else 0 for dd in direct_debits)
+        yearly_cost = sum(dd.payment_amount if dd.status() == 'Ongoing' and dd.period == 'yearly' else 0 for dd in direct_debits)
+
+        return DirectDebitSummary(
+            count=direct_debits_count,
+            monthly_cost=monthly_cost,
+            yearly_cost=yearly_cost
+        )
 
     @classmethod
     async def earned_vs_spent_db_q(cls, since_date: str = None, end_date: str = None) -> dict:

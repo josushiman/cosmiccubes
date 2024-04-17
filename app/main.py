@@ -211,6 +211,10 @@ async def categories_summary(commons: dict = Depends(common_cc_parameters)):
 async def category_summary(category_name: str, subcategory_name: str):
     return await ynab.category_summary(category_name=category_name, subcategory_name=subcategory_name)
 
+@app.get("/direct-debits")
+async def direct_debits():
+    return await ynab.direct_debits()
+
 @app.get("/loan-portfolio")
 async def loan_portfolio():
     return await ynab.loan_portfolio()
