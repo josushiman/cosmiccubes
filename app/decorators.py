@@ -7,7 +7,7 @@ def protected_endpoint(func):
     # This needs to be async as FastAPI endpoints are async.
     # 'phrase' being set here forces the wrapped function to provide that value as a param.
     async def check_ynab_phrase(phrase: str):
-        logging.debug(f"Calling {func.__name__} with args: {phrase}")
+        logging.info(f"Calling {func.__name__}")
         if phrase != settings.ynab_phrase:
             raise HTTPException(status_code=403, detail="Not authorised")
         # You need to ensure you return AND await the function you're wrapping.

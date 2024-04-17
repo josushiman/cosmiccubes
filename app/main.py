@@ -42,10 +42,9 @@ async def update_ynab_data():
     for endpoint in endpoints:
         try:
             await endpoint(settings.ynab_phrase)
-            logging.info(f"Triggered update for {endpoint.__name__}")
             sleep(seconds=60)
-        except:
-            logging.error(f"issue updating endpoint {endpoint}")
+        except Exception as e_exc:
+            logging.error(f"issue updating endpoint {endpoint}", exc_info=e_exc)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

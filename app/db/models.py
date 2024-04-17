@@ -1,6 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 from datetime import datetime, timezone
+import logging
 
 # class BalanceTransfers(models.Model):
 #     id = fields.UUIDField(pk=True)
@@ -271,6 +272,7 @@ class LoansAndRenewals(Model):
     def remaining_balance(self) -> float:
         if self.starting_balance is None: return None
 
+        # Take todays date as the end date to calculate what the remaining balance will be.
         end_date = datetime.now(timezone.utc)
 
         # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
@@ -278,7 +280,15 @@ class LoansAndRenewals(Model):
             occurrences = (end_date.year - self.start_date.year) * 12 + (end_date.month - self.start_date.month)
         else:
             occurrences = 1
+        logging.debug(f"Number of occurences for {self.name}: {occurrences}")
         
+        # If the number of occurences is 0, check if todays date is past the payment_date.
+        # If it is, increase the occurences by 1.
+        # This accounts for when you are in the same month as the start_date.
+        if self.period == "monthly" and occurrences == 0:
+            logging.debug("Occurence is set to 0, checking if todays date has passed the initial payment.")
+            occurrences = 1 if self.payment_date <= end_date.day else 0
+
         remaining_balance = self.starting_balance - (self.payment_amount * occurrences)
         
         if remaining_balance <= 0: return None

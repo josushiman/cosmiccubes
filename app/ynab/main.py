@@ -19,10 +19,6 @@ from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, Cat
     CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio, \
     DirectDebitSummary
 
-# TODO ensure transactions are returned as non-negative values (e.g. ynab returns as -190222, alter to ensure its stored as 190222)
-# TODO learn how to use decorators in Python (e.g. if im logging all the sql and then running the query, can probably do that via a decorator)
-# Could also use decorators for processing params
-
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
     EXCLUDE_EXPENSE_NAMES = ['Monthly Bills', 'Loans', 'Credit Card Payments']
@@ -518,7 +514,7 @@ class YNAB():
         # Get the number of months from the loan which ends last
         # The first loan entity is the one furthest away based on the query to the DB.
         loan_end_date = loans[0].end_date
-        logging.info(f"Loan end date: {loan_end_date}")
+        logging.debug(f"Loan end date: {loan_end_date}")
 
         date_delta = relativedelta(loan_end_date, today)
         months_to_end_date = date_delta.years * 12 + date_delta.months
