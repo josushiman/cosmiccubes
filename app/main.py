@@ -42,7 +42,7 @@ async def update_ynab_data():
     for endpoint in endpoints:
         try:
             await endpoint(settings.ynab_phrase)
-            sleep(seconds=60)
+            sleep(60)
         except Exception as e_exc:
             logging.error(f"issue updating endpoint {endpoint}", exc_info=e_exc)
 
