@@ -619,7 +619,7 @@ class YNAB():
             if uncategorised_transactions > 1 else "1 uncategorised transaction" if uncategorised_transactions > 0 else None
 
         upcoming_renewals = await LoansAndRenewals.filter(
-            Q(period='yearly'),
+            Q(period__name='yearly'),
             Q(end_date__isnull=True),
             Q(
                 Q(start_date__month=this_month_start.month) | Q(start_date__month=this_month_start.month + 1)

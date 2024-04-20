@@ -5,26 +5,20 @@ from tortoise.exceptions import IntegrityError, OperationalError, FieldError, Va
 from fastapi import HTTPException
 from uuid import UUID
 from app.db.models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, YnabServerKnowledge, YnabTransactions, \
-    Budgets, Savings, LoansAndRenewals
+    Budgets, Savings, LoansAndRenewals, LoansAndRenewalsTypes, LoansAndRenewalsPeriods
 from app.db.schemas import YnabAccounts_Pydantic, YnabCategories_Pydantic, YnabMonthSummaries_Pydantic, YnabPayees_Pydantic, \
-    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic, Savings_Pydantic, LoansAndRenewals_Pydantic
+    YnabServerKnowledge_Pydantic, YnabTransactions_Pydantic, Budgets_Pydantic, Savings_Pydantic, LoansAndRenewals_Pydantic, \
+    LoansAndRenewalsPeriods_Pydantic, LoansAndRenewalsTypes_Pydantic
 
 # TODO make changes here to make sure can return Ynab stuff
 class ReactAdmin():
     @classmethod
     async def get_entity_model(cls, resource: str) -> Model:
         model_list ={
-            # "accounts": Accounts,
-            # "account-types": AccountTypes,
-            # "balance-transfers": BalanceTransfers,
             "budgets": Budgets,
-            # "companies": Companies,
-            # "company-categories": CompanyCategories,
-            # "direct-debits": DirectDebits,
-            # "incomes": Incomes,
-            # "mortgages": Mortgages,
-            # "projects": Projects,
             "loans-and-renewals": LoansAndRenewals,
+            "loans-and-renewals-periods": LoansAndRenewalsPeriods,
+            "loans-and-renewals-types": LoansAndRenewalsTypes,
             "savings": Savings,
             "ynab-accounts": YnabAccounts,
             "ynab-categories": YnabCategories,
@@ -43,17 +37,10 @@ class ReactAdmin():
     @classmethod
     async def get_entity_schema(cls, resource: str):
         schema_list ={
-            # "accounts": Accounts_Pydantic,
-            # "account-types": AccountTypes_Pydantic,
-            # "balance-transfers": BalanceTransfers_Pydantic,
             "budgets": Budgets_Pydantic,
-            # "companies": Companies_Pydantic,
-            # "company-categories": CompanyCategories_Pydantic,
-            # "direct-debits": DirectDebits_Pydantic,
-            # "incomes": Incomes_Pydantic,
-            # "mortgages": Mortgages_Pydantic,
-            # "projects": Projects_Pydantic,
             "loans-and-renewals": LoansAndRenewals_Pydantic,
+            "loans-and-renewals-periods": LoansAndRenewalsPeriods_Pydantic,
+            "loans-and-renewals-types": LoansAndRenewalsTypes_Pydantic,
             "savings": Savings_Pydantic,
             "ynab-accounts": YnabAccounts_Pydantic,
             "ynab-categories": YnabCategories_Pydantic,

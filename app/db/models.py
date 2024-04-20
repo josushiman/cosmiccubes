@@ -3,116 +3,6 @@ from tortoise.models import Model
 from datetime import datetime, timezone
 import logging
 
-# class BalanceTransfers(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     # TODO Link this to a YNAB category to be able to see the payments
-#     name = fields.CharField(max_length=150)
-#     account = fields.ForeignKeyField('models.Accounts', related_name='balancetransfers') # TODO link to Ynab account
-#     amount = fields.FloatField(default=0.0)
-#     end_date = fields.DateField(null=True)
-#     interest_rate = fields.FloatField(default=0.0, null=True)
-#     paid_instalments = fields.IntField(default=0, null=True)
-#     paid_date = fields.IntField(max=31, min=1, default=1)
-#     period = fields.CharField(max_length=150, null=True)
-#     start_date = fields.DateField()
-#     total_instalments = fields.IntField()
-
-#     def total(self) -> float:
-#         return self.amount * self.total_instalments
-
-#     class PydanticMeta:
-#         computed = ["total"]
-#         unique_together=("name", "account")
-
-# class DirectDebits(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     name = fields.CharField(max_length=150)
-#     paid_date = fields.IntField(max=31, min=1, default=1)
-#     start_date = fields.DateField(null=True)
-#     end_date = fields.DateField(null=True)
-#     account = fields.ForeignKeyField('models.Accounts', related_name='directdebits') # TODO link to Ynab account
-#     company = fields.ForeignKeyField('models.Companies', related_name='directdebits') # TODO link to Ynab payee
-#     amount = fields.FloatField(default=0.0)
-#     period = fields.CharField(max_length=150, null=True)
-#     notes = fields.CharField(max_length=250, null=True)
-    
-#     def annual_cost(self) -> float:
-#         if self.period == 'monthly': return self.amount * 12
-#         elif self.period == 'weekly': return self.amount * 52
-#         return self.amount
-
-#     class PydanticMeta:
-#         computed = ["annual_cost"]
-#         unique_together=("name", "account")
-
-# class Incomes(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     # TODO Link this to a YNAB category to be able to see the payments
-#     name = fields.CharField(max_length=150)
-#     account = fields.ForeignKeyField('models.Accounts', related_name='incomes') # TODO link to Ynab account
-#     company = fields.ForeignKeyField('models.Companies', related_name='incomes') # TODO link to Ynab payee
-#     amount = fields.FloatField(default=0.0)
-#     period = fields.CharField(max_length=150, null=True)
-#     paid_date = fields.IntField(max=31, min=1, default=1)
-#     notes = fields.CharField(max_length=250)
-
-#     def pre_tax(self) -> float:
-#         return self.amount / 12
-    
-#     def post_tax(self) -> float:
-#         return self.amount / 12
-
-#     class PydanticMeta:
-#         computed = ["pre_tax", "post_tax"]
-#         unique_together=("name", "company")
-
-# class Mortgages(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     # TODO Link this to a YNAB category to be able to see the payments
-#     name = fields.CharField(max_length=150, unique=True)
-#     interest_rate = fields.FloatField(default=0.0)
-#     paid_date = fields.IntField(max=31, min=1, default=1)
-#     start_date = fields.DateField(null=True)
-#     end_date = fields.DateField(null=True)
-#     account = fields.ForeignKeyField('models.Accounts', related_name='mortgages') # TODO link to Ynab account
-#     company = fields.ForeignKeyField('models.Companies', related_name='mortgages') # TODO link to Ynab payee
-#     amount = fields.FloatField(default=0.0)
-#     period = fields.CharField(max_length=150, null=True)
-
-#     def annual_cost(self) -> float:
-#         if self.period == 'monthly': return self.amount * 12
-#         elif self.period == 'weekly': return self.amount * 52
-#         return self.amount
-
-#     class PydanticMeta:
-#         computed = ["annual_cost"]
-
-# class Projects(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     name = fields.CharField(max_length=150, unique=True)
-
-# class ProjectItemCategories(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     name = fields.CharField(max_length=150, unique=True)
-
-# class ProjectItems(models.Model):
-#     id = fields.UUIDField(pk=True)
-#     # TODO link paid items from Ynab to this. Will need to be via transactions.
-#     name = fields.CharField(max_length=150)
-#     company = fields.ForeignKeyField('models.Companies', related_name='projectitems')
-#     project_name = fields.ForeignKeyField('models.Projects', related_name='projectitems')
-#     category = fields.ForeignKeyField('models.ProjectItemCategories', related_name='projectitems')
-#     quantity = fields.IntField(default=1, null=True)
-#     amount = fields.FloatField(default=0.0)
-#     link = fields.CharField(max_length=250, null=True)
-
-#     def total(self) -> float:
-#         return self.amount * self.quantity
-
-#     class PydanticMeta:
-#         computed = ["total"]
-#         unique_together=("name", "company", "category")
-
 class YnabServerKnowledge(Model):
     id = fields.UUIDField(pk=True)
     budget_id = fields.UUIDField()
@@ -256,6 +146,14 @@ class Budgets(Model):
     category = fields.ForeignKeyField('models.YnabCategories', related_name='budget')
     amount = fields.FloatField(default=0.0)
 
+class LoansAndRenewalsPeriods(Model):
+    id = fields.UUIDField(pk=True)
+    name = fields.CharField(max_length=150) 
+
+class LoansAndRenewalsTypes(Model):
+    id = fields.UUIDField(pk=True)
+    name = fields.CharField(max_length=150) 
+
 class LoansAndRenewals(Model):
     id = fields.UUIDField(pk=True)
     name = fields.CharField(max_length=150)
@@ -264,19 +162,23 @@ class LoansAndRenewals(Model):
     payment_date = fields.IntField(null=True)
     payment_amount = fields.FloatField(default=0.0, null=True)
     starting_balance = fields.FloatField(default=0.0, null=True)
-    period = fields.CharField(max_length=150, null=True)
     notes = fields.CharField(max_length=255, null=True)
+    period = fields.ForeignKeyField('models.LoansAndRenewalsPeriods', related_name=False, null=True)
+    type = fields.ForeignKeyField('models.LoansAndRenewalsTypes', related_name='type', null=True)
     account = fields.ForeignKeyField('models.YnabAccounts', related_name='account', null=True)
     category = fields.ForeignKeyField('models.YnabCategories', related_name='category', null=True)
+
+    def period_name(self) -> str:
+        return self.period if self.period else None
 
     def remaining_balance(self) -> float:
         if self.starting_balance is None: return None
 
         # Take todays date as the end date to calculate what the remaining balance will be.
         end_date = datetime.now(timezone.utc)
-
+        
         # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
-        if self.period == "monthly":
+        if self.period_name == "monthly":
             occurrences = (end_date.year - self.start_date.year) * 12 + (end_date.month - self.start_date.month)
         else:
             occurrences = 1
@@ -285,7 +187,7 @@ class LoansAndRenewals(Model):
         # If the number of occurences is 0, check if todays date is past the payment_date.
         # If it is, increase the occurences by 1.
         # This accounts for when you are in the same month as the start_date.
-        if self.period == "monthly" and occurrences == 0:
+        if self.period_name == "monthly" and occurrences == 0:
             logging.debug("Occurence is set to 0, checking if todays date has passed the initial payment.")
             occurrences = 1 if self.payment_date <= end_date.day else 0
 
@@ -301,7 +203,7 @@ class LoansAndRenewals(Model):
             return "Ongoing"
 
     class PydanticMeta:
-        computed = ["remaining_balance", "status"]
+        computed = ["period_name", "remaining_balance", "status"]
         unique_together=("end_date", "start_date", "name")
 
 class Savings(Model):

@@ -13,19 +13,12 @@ logging.info("Initialising Models")
 Tortoise.init_models(["app.db.models"], "models")
 
 from .models import YnabAccounts, YnabCategories, YnabMonthSummaries, YnabPayees, \
-    YnabServerKnowledge, YnabTransactions, Budgets, Savings, LoansAndRenewals
+    YnabServerKnowledge, YnabTransactions, Budgets, Savings, LoansAndRenewals, LoansAndRenewalsPeriods, LoansAndRenewalsTypes
 
-# Accounts_Pydantic = pydantic_model_creator(Accounts, name="Accounts")
-# AccountTypes_Pydantic = pydantic_model_creator(AccountTypes, name="AccountTypes", exclude="accounts")
-# BalanceTransfers_Pydantic = pydantic_model_creator(BalanceTransfers, name="BalanceTransfers")
 Budgets_Pydantic = pydantic_model_creator(Budgets, name="Budgets")
-# Companies_Pydantic = pydantic_model_creator(Companies, name="Companies")
-# CompanyCategories_Pydantic = pydantic_model_creator(CompanyCategories, name="CompanyCategories")
-# DirectDebits_Pydantic = pydantic_model_creator(DirectDebits, name="DirectDebits")
-# Incomes_Pydantic = pydantic_model_creator(Incomes, name="Incomes")
-# Mortgages_Pydantic = pydantic_model_creator(Mortgages, name="Mortgages")
-# Projects_Pydantic = pydantic_model_creator(Projects, name="Projects")
 LoansAndRenewals_Pydantic = pydantic_model_creator(LoansAndRenewals, name="LoansAndRenewals")
+LoansAndRenewalsPeriods_Pydantic = pydantic_model_creator(LoansAndRenewalsPeriods, name="LoansAndRenewalsPeriods")
+LoansAndRenewalsTypes_Pydantic = pydantic_model_creator(LoansAndRenewalsTypes, name="LoansAndRenewalsTypes")
 Savings_Pydantic = pydantic_model_creator(Savings, name="Savings")
 YnabAccounts_Pydantic = pydantic_model_creator(YnabAccounts, name="YnabAccounts")
 YnabCategories_Pydantic = pydantic_model_creator(YnabCategories, name="YnabCategories")

@@ -13,7 +13,6 @@ from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, S
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
 from app.decorators import protected_endpoint
-from app.db.models import YnabTransactions
 
 dotenv_token = settings.env_token
 dotenv_hosts = settings.env_hosts
@@ -58,7 +57,7 @@ async def lifespan(app: FastAPI):
     await Tortoise.generate_schemas()
     logging.info("Schemas generated.")
     logging.info("Starting scheduler.")
-    scheduler.add_job(update_ynab_data, trigger="cron", hour='4,12,18,22', minute=11)
+    scheduler.add_job(update_ynab_data, trigger="cron", hour='*', minute=4)
     scheduler.start()
     yield
     # Close all connections when shutting down.
@@ -143,11 +142,11 @@ async def get_health():
 async def create(resource: str, _body: dict):
     return await ra.create(resource, _body)
 
-@app.get("/portal/admin/{resource}/{_id}", include_in_schema=False)
+@app.get("/portal/admin/{resource}/{_id}")
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
-@app.get("/portal/admin/{resource}", include_in_schema=False)
+@app.get("/portal/admin/{resource}")
 async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_ra_parameters), \
     _id: list[UUID] | None = Query(default=None, alias="id")):
     
