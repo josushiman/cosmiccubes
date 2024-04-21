@@ -287,11 +287,17 @@ class YNAB():
 
     @classmethod
     async def direct_debits(cls) -> DirectDebitSummary:
-        direct_debits_count = await LoansAndRenewals.filter(end_date__isnull=True).count()
-        direct_debits = await LoansAndRenewals.filter(end_date__isnull=True).order_by('-payment_amount').all()
+        direct_debits_count = await LoansAndRenewals.filter(type__name='subscription').count()
+        direct_debits = await LoansAndRenewals.annotate(
+            total=Sum("payment_amount")
+        ).filter(type__name='subscription').group_by('period__name').all().values('total',period='period__name')
+        
+        monthly_cost = 0
+        yearly_cost = 0
 
-        monthly_cost = sum(dd.payment_amount if dd.status() == 'Ongoing' and dd.period == 'monthly' else 0 for dd in direct_debits)
-        yearly_cost = sum(dd.payment_amount if dd.status() == 'Ongoing' and dd.period == 'yearly' else 0 for dd in direct_debits)
+        for debit in direct_debits:
+            if debit["period"] == 'monthly': monthly_cost = debit['total']
+            if debit["period"] == 'yearly': yearly_cost = debit['total']
 
         return DirectDebitSummary(
             count=direct_debits_count,
