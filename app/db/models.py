@@ -169,7 +169,7 @@ class LoansAndRenewals(Model):
     category = fields.ForeignKeyField('models.YnabCategories', related_name='category', null=True)
 
     def period_name(self) -> str:
-        return self.period if self.period else None
+        return self.period.name if self.period else None
 
     def remaining_balance(self) -> float:
         if self.starting_balance is None: return None
@@ -177,6 +177,7 @@ class LoansAndRenewals(Model):
         # Take todays date as the end date to calculate what the remaining balance will be.
         end_date = datetime.now(timezone.utc)
         
+        logging.debug(f"Period for entry: {self.period_name}")
         # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
         if self.period_name == "monthly":
             occurrences = (end_date.year - self.start_date.year) * 12 + (end_date.month - self.start_date.month)
