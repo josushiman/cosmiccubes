@@ -499,8 +499,8 @@ class YNAB():
     @classmethod
     async def loan_portfolio(cls) -> LoanPortfolio:
         today = datetime.now(timezone.utc).replace(day=1, hour=00, minute=00, second=00, microsecond=00)
-        loans_count = await LoansAndRenewals.filter(end_date__gt=today, type__name__not='insurance').count()
-        loans = await LoansAndRenewals.filter(end_date__gt=today, type__name__not='insurance').order_by('-end_date').all()
+        loans_count = await LoansAndRenewals.filter(end_date__gt=today, type__name='loan').count()
+        loans = await LoansAndRenewals.filter(end_date__gt=today, type__name='loan').order_by('-end_date').all()
         
         if loans_count < 1:
             return LoanPortfolio(
