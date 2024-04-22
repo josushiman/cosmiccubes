@@ -195,6 +195,10 @@ class TransactionSummary(BaseModel):
     summary: CreditSummary
     transactions: List[Transaction]
 
+class Refunds(BaseModel):
+    count: int
+    transactions: List[Transaction]
+
 class TransactionByMonth(BaseModel):
     month_long: str
     month_short: str

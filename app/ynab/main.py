@@ -3,12 +3,13 @@ from enum import Enum, IntEnum
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from tortoise.functions import Sum
-from tortoise.expressions import RawSQL, Q
+from tortoise.expressions import Q
 from app.ynab.helpers import YnabHelpers
 from app.enums import LoansAndRenewalsEnum
 from app.db.models import YnabAccounts, YnabCategories, YnabTransactions, Budgets, Savings, LoansAndRenewals
 from app.ynab.schemas import Month, TransactionSummary, CategorySummary, SubCategorySummary, BudgetsNeeded, \
-    UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio, DirectDebitSummary, Insurance
+    UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio, DirectDebitSummary, Insurance, \
+    Refunds
 
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
@@ -366,6 +367,32 @@ class YNAB():
             }
         )
     
+    @classmethod
+    async def refunds(cls) -> Refunds:
+        refunds_count = await YnabTransactions.filter(
+            debit=False,
+            category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES
+        ).count()
+
+        refunds = await YnabTransactions.filter(
+            debit=False,
+            category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES
+        ).order_by('date','-amount').all().values(
+            'id',
+            'account_id',
+            'amount',
+            'account_name',
+            'date',
+            category='category_fk__category_group_name',
+            subcategory='category_name',
+            payee='payee_name'
+        )
+
+        return Refunds(
+            count=refunds_count,
+            transactions=refunds
+        )
+
     @classmethod
     async def transaction_summary(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> TransactionSummary:
         if not months and not year and not specific_month:
