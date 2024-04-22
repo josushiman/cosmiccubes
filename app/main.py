@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.config import settings
 from app.reactadmin.helpers import ReactAdmin as ra
-from app.enums import PeriodOptions, PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
+from app.enums import PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
 from app.decorators import protected_endpoint
@@ -104,7 +104,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs
     )
 
@@ -276,6 +276,11 @@ async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()
+
+@app.get("/ynab/update-transaction-debit", name="Update YNAB Transaction Debit Vals")
+@protected_endpoint
+async def update_transaction_debit():
+    return await ynab_help.sync_transaction_debits()
 
 @app.get("/ynab/update-transaction-rels", name="Update YNAB Transaction Relations")
 @protected_endpoint

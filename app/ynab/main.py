@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from tortoise.functions import Sum
 from tortoise.expressions import RawSQL, Q
 from app.ynab.helpers import YnabHelpers
-from app.enums import TransactionTypeOptions, FilterTypes, PeriodOptions 
+from app.enums import LoansAndRenewalsEnum
 from app.db.models import YnabAccounts, YnabCategories, YnabTransactions, Budgets, Savings, LoansAndRenewals
 from app.ynab.schemas import Month, TransactionSummary, CategorySummary, SubCategorySummary, BudgetsNeeded, \
     UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio, DirectDebitSummary, Insurance
@@ -16,13 +16,18 @@ class YNAB():
     
     @classmethod
     async def budgets_needed(cls) -> BudgetsNeeded:
+        subcategories_count = await YnabCategories.filter(
+            category_group_name__not_in=[*cls.EXCLUDE_EXPENSE_NAMES, 'Internal Master Category', 'Yearly Bills', 'Non-Monthly Expenses'],
+            budget__isnull=True
+        ).count()
+
         subcategories = await YnabCategories.filter(
             category_group_name__not_in=[*cls.EXCLUDE_EXPENSE_NAMES, 'Internal Master Category', 'Yearly Bills', 'Non-Monthly Expenses'],
             budget__isnull=True
         ).order_by('category_group_name','name').all().values('name',category='category_group_name')
 
         return BudgetsNeeded(
-            count=len(subcategories),
+            count=subcategories_count,
             subcategories=subcategories
         )
 
@@ -39,7 +44,7 @@ class YNAB():
             month_start = month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
 
         categories = await YnabCategories.annotate(
-            spent=Sum('activity')
+            spent=Sum("activity")
         ).filter(
             category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             spent__gt=0
@@ -99,6 +104,7 @@ class YNAB():
             category_name__iexact=subcategory_name,
             date__gte=month_start,
             date__lt=month_end,
+            debit=True
         ).order_by('-date').all().values(
             'id','account_id','amount','date',category='category_fk__category_group_name',subcategory='category_name',payee='payee_name'
         )
@@ -109,30 +115,33 @@ class YNAB():
         last_month_end = month_end - relativedelta(months=1)
 
         transactions_1_m = await YnabTransactions.annotate(
-            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+            spent=Sum("amount")
         ).filter(
             category_fk__category_group_name__iexact=category_name,
             category_name__iexact=subcategory_name,
             date__gte=last_month_start,
             date__lt=last_month_end,
+            debit=True
         ).group_by('deleted').first().values('spent')
 
         transactions_3_m = await YnabTransactions.annotate(
-            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+            spent=Sum("amount")
         ).filter(
             category_fk__category_group_name__iexact=category_name,
             category_name__iexact=subcategory_name,
             date__gte=last_3_month_start,
             date__lt=last_month_end,
+            debit=True
         ).group_by('deleted').first().values('spent')
 
         transactions_6_m = await YnabTransactions.annotate(
-            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+            spent=Sum("amount")
         ).filter(
             category_fk__category_group_name__iexact=category_name,
             category_name__iexact=subcategory_name,
             date__gte=last_6_month_start,
             date__lt=last_month_end,
+            debit=True
         ).group_by('deleted').first().values('spent')
 
         transactions_1_m['period'] = 1
@@ -166,10 +175,15 @@ class YNAB():
 
     @classmethod
     async def direct_debits(cls) -> DirectDebitSummary:
-        direct_debits_count = await LoansAndRenewals.filter(type__name='subscription').count()
+        direct_debits_count = await LoansAndRenewals.filter(
+            type__name=LoansAndRenewalsEnum.SUBSCRIPTION.value
+        ).count()
+
         direct_debits = await LoansAndRenewals.annotate(
             total=Sum("payment_amount")
-        ).filter(type__name='subscription').group_by('period__name').all().values('total',period='period__name')
+        ).filter(
+            type__name=LoansAndRenewalsEnum.SUBSCRIPTION.value
+        ).group_by('period__name').all().values('total',period='period__name')
         
         monthly_cost = 0
         yearly_cost = 0
@@ -186,15 +200,24 @@ class YNAB():
 
     @classmethod
     async def insurance(cls) -> list[Insurance]:
-        insruance_renewals = await LoansAndRenewals.filter(type__name='insurance').order_by('end_date').all()
+        insruance_renewals = await LoansAndRenewals.filter(
+            type__name=LoansAndRenewalsEnum.INSRUANCE.value
+        ).order_by('end_date').all()
 
         return [Insurance(**insurance.__dict__) for insurance in insruance_renewals]
 
     @classmethod
     async def loan_portfolio(cls) -> LoanPortfolio:
         today = datetime.now(timezone.utc).replace(day=1, hour=00, minute=00, second=00, microsecond=00)
-        loans_count = await LoansAndRenewals.filter(end_date__gt=today, type__name='loan').count()
-        loans = await LoansAndRenewals.filter(end_date__gt=today, type__name='loan').order_by('-end_date').all()
+        loans_count = await LoansAndRenewals.filter(
+            end_date__gt=today,
+            type__name=LoansAndRenewalsEnum.LOAN.value
+        ).count()
+        
+        loans = await LoansAndRenewals.filter(
+            end_date__gt=today,
+            type__name=LoansAndRenewalsEnum.LOAN.value
+        ).order_by('-end_date').all()
         
         if loans_count < 1:
             return LoanPortfolio(
@@ -246,11 +269,12 @@ class YNAB():
             last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
         bills_query = await YnabTransactions.annotate(
-            bills=Sum(RawSQL('"ynabtransactions"."amount"'))
+            bills=Sum("amount")
         ).filter(
             Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
             Q(date__gte=last_month_start),
-            Q(date__lt=last_month_end)
+            Q(date__lt=last_month_end),
+            Q(debit=True)
         ).group_by('cleared').first().values('bills')
 
         bills = bills_query.get('bills')
@@ -258,7 +282,8 @@ class YNAB():
         income_query = await YnabTransactions.filter(
             Q(payee_name='BJSS LIMITED'),
             Q(date__gte=last_month_start),
-            Q(date__lt=last_month_end)
+            Q(date__lt=last_month_end),
+            Q(debit=False)
         ).first().values('amount')
         income = income_query.get('amount')
 
@@ -269,12 +294,13 @@ class YNAB():
         this_month_end = last_month_end + relativedelta(months=1)
 
         categories = await YnabTransactions.annotate(
-            spent=Sum(RawSQL('"ynabtransactions"."amount"'))
+            spent=Sum("amount")
         ).filter(
             category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             date__gte=this_month_start,
             date__lt=this_month_end,
-            transfer_account_id__isnull=True
+            transfer_account_id__isnull=True,
+            debit=True
         ).group_by(
             'category_fk__category_group_name','category_name','category_fk__budget__amount'
         ).all().values('spent',name='category_name',group='category_fk__category_group_name',budget='category_fk__budget__amount')
@@ -358,7 +384,8 @@ class YNAB():
             category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
             date__gte=month_start,
             date__lt=month_end,
-            transfer_account_id__isnull=True
+            transfer_account_id__isnull=True,
+            debit=True
         ).order_by('-date').all().values(
             'id',
             'account_id',
@@ -420,11 +447,12 @@ class YNAB():
         last_month_start = last_month_end.replace(day=1, hour=00, minute=00, second=00, microsecond=00)
         
         bills = await YnabTransactions.annotate(
-            total=Sum(RawSQL('"ynabtransactions"."amount"'))
+            total=Sum("amount")
         ).filter(
             Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
             Q(date__gte=last_month_start),
-            Q(date__lt=last_month_end)
+            Q(date__lt=last_month_end),
+            Q(debit=True)
         ).group_by(
             'category_name',
             'category_fk__category_group_name'
@@ -445,7 +473,8 @@ class YNAB():
         bills = await YnabTransactions.filter(
             Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
             Q(date__gte=last_month_start),
-            Q(date__lt=last_month_end)
+            Q(date__lt=last_month_end),
+            Q(debit=True)
         ).order_by('date','-amount').all().values(
             'amount','date','memo',payee='payee_name',name='category_name',category='category_fk__category_group_name'
         )

@@ -195,6 +195,7 @@ class YnabHelpers():
     @alru_cache(maxsize=32) # Caches requests so we don't overuse them.
     async def make_request(cls,
             action: str,
+            bypass: bool = False,
             param_1: str = settings.ynab_budget_id,
             param_2: str = None,
             since_date: str = None,
@@ -245,6 +246,18 @@ class YnabHelpers():
                 else:
                     logging.info("Route is not sk eligible, returning the JSON response w/ pydantic models.")
 
+                if bypass:
+                    logging.info("Bypass enabled, processing request.")
+                    return await cls.process_sk_route_request(
+                        response=response,
+                        action=action,
+                        param_1=param_1,
+                        server_knowledge=server_knowledge,
+                        since_date=since_date,
+                        month=month,
+                        year=year
+                    )
+                
                 return await cls.return_pydantic_model_entities(json_response=response.json(), action=action)
 
     @classmethod
@@ -369,6 +382,10 @@ class YnabHelpers():
             case _:
                 logging.exception(f"Tried to return an endpoint we don't support yet. {action}")
                 raise HTTPException(status_code=500)
+
+    @classmethod
+    async def sync_transaction_debits(cls):
+        transactions = await cls.make_request('transactions-list', bypass=True)
 
     # TODO add in syncing transactions which have been updated to ensure they are in the right category
     @classmethod

@@ -1,15 +1,9 @@
 from enum import Enum, IntEnum
 
-class FilterTypes(Enum):
-    ACCOUNT = 'account'
-    CATEGORY = 'category'
-    PAYEE = 'payee'
-
-class PeriodOptions(Enum):
-    TODAY = 'TODAY'
-    YESTERDAY = 'YESTERDAY'
-    THIS_WEEK = 'THIS_WEEK'
-    LAST_WEEK = 'LAST_WEEK'
+class LoansAndRenewalsEnum(Enum):
+    INSRUANCE = 'insurance'
+    SUBSCRIPTION = 'subscription'
+    LOAN = 'loan'
 
 class PeriodMonthOptions(IntEnum):
     MONTHS_1 = 1
@@ -36,12 +30,3 @@ class SpecificYearOptions(Enum):
     YEAR_23 = '2023'
     YEAR_24 = '2024'
     YEAR_25 = '2025'
-
-class TopXOptions(IntEnum):
-    TOP_3 = 3
-    TOP_5 = 5
-    TOP_10 = 10
-
-class TransactionTypeOptions(Enum):
-    INCOME = 'income'
-    EXPENSES = 'expenses'

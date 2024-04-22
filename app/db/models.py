@@ -119,6 +119,7 @@ class YnabTransactions(Model):
     amount = fields.FloatField(default=0.0)
     memo = fields.CharField(max_length=150, null=True)
     cleared = fields.CharField(max_length=150)
+    debit = fields.BooleanField(default=True, null=True)
     approved = fields.BooleanField(null=True)
     flag_color = fields.CharField(max_length=150, null=True)
     flag_name = fields.CharField(max_length=150, null=True)

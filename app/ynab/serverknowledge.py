@@ -64,6 +64,9 @@ class YnabServerKnowledgeHelper():
 
     @classmethod
     async def create_route_entities(cls, model: Model) -> int | IntegrityError:
+        if type(model) == YnabTransactions:
+            model.debit = False if model.amount > 0 else True
+
         if type(model) in cls.negative_amounts:
             model = await cls.create_switch_negative_values(model)
 
@@ -190,6 +193,8 @@ class YnabServerKnowledgeHelper():
 
         # Make sure any dates passed into the update is a datetime value, not a string if its a transaction.
         if type(model) == YnabTransactions:
+            resp_body['debit'] = False if resp_body['amount'] > 0 else True
+
             try:
                 raw_date = resp_body.get('date')
                 logging.debug(f"String datetime: {raw_date}")
@@ -199,7 +204,7 @@ class YnabServerKnowledgeHelper():
                 logging.debug(f"Converted datetime: {resp_date_dt}")
             except KeyError:
                 logging.debug('No date in response body, updating entity.')
-
+            
         if type(model) in cls.negative_amounts:
             resp_body = await cls.update_switch_negative_values(model, resp_body)
 
