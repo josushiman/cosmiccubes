@@ -17,7 +17,7 @@ from app.ynab.schemas import AvailableBalanceResponse, CardBalancesResponse, Cat
     CreditAccountResponse, EarnedVsSpentResponse, IncomeVsExpensesResponse, LastXTransactions, SpentInPeriodResponse, \
     SpentVsBudgetResponse, SubCategorySpentResponse, TotalSpentResponse, TransactionsByMonthResponse, Month, TransactionSummary, \
     CategorySummary, SubCategorySummary, BudgetsNeeded, UpcomingBills, CategoryTransactions, UpcomingBillsDetails, LoanPortfolio, \
-    DirectDebitSummary
+    DirectDebitSummary, Insurance
 
 class YNAB():
     CAT_EXPENSE_NAMES = ['Frequent', 'Giving', 'Non-Monthly Expenses', 'Work']
@@ -439,6 +439,12 @@ class YNAB():
             since_date=since_date,
             data=result_json
         )
+
+    @classmethod
+    async def insurance(cls) -> list[Insurance]:
+        insruance_renewals = await LoansAndRenewals.filter(type__name='insurance').order_by('end_date').all()
+
+        return [Insurance(**insurance.__dict__) for insurance in insruance_renewals]
 
     @classmethod
     async def last_paid_date_for_accounts(cls, months: IntEnum = None, year: Enum = None, specific_month: Enum = None) -> CreditAccountResponse:

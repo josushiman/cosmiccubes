@@ -213,6 +213,10 @@ async def category_summary(category_name: str, subcategory_name: str):
 async def direct_debits():
     return await ynab.direct_debits()
 
+@app.get("/insurance")
+async def insurance():
+    return await ynab.insurance()
+
 @app.get("/loan-portfolio")
 async def loan_portfolio():
     return await ynab.loan_portfolio()

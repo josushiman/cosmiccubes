@@ -150,6 +150,12 @@ class IncomeVsExpensesResponse(BaseModel):
     since_date: date_field
     data: List[IncomeVsExpense]
 
+class Insurance(BaseModel):
+    name: str
+    payment_amount: float
+    end_date: date_field
+    provider: Optional[str] = None
+
 class LoanPortfolio(BaseModel):
     count: int
     total_credit: float
