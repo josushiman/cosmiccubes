@@ -229,7 +229,7 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     return await ynab.month_summary(year=year, months=months, specific_month=month)
 
 @app.get("/transaction-summary")
-async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
+async def transaction_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get('year')
     months = commons.get('months')
     month = commons.get('month')
@@ -242,59 +242,6 @@ async def upcoming_bills():
 @app.get("/upcoming-bills/details")
 async def upcoming_bills_details():
     return await ynab.upcoming_bills_details()
-
-@app.get("/ynab/available-balance")
-async def available_balance():
-    return await ynab.available_balance()
-
-@app.get("/ynab/card-balances")
-async def card_balances(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.card_balances(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/categories-spent")
-async def categories_spent(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.categories_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/earned-vs-spent")
-async def earned_vs_spent(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.earned_vs_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/income-vs-expenses")
-async def income_vs_expenses(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.income_vs_expenses(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-#TODO include amounts for the last paid dates. Accumulate if you received multiple in the same month.
-@app.get("/ynab/last-paid-date-for-accounts")
-async def last_paid_date_for_accounts(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.last_paid_date_for_accounts(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/last-x-transactions")
-async def last_x_transactions(count: int, commons: dict = Depends(common_cc_parameters)):
-    return await ynab.last_x_transactions(count, year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/spent-in-period")
-async def spent_in_period(period: PeriodOptions):
-    return await ynab.spent_in_period(period)
-
-@app.get("/ynab/spent-vs-budget")
-async def spent_vs_budget(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.spent_vs_budget(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/sub-categories-spent")
-async def sub_categories_spent(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.sub_categories_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/total-spent")
-async def total_spent(commons: dict = Depends(common_cc_parameters)):
-    return await ynab.total_spent(year=commons['year'], months=commons['months'], specific_month=commons['month'])
-
-@app.get("/ynab/transaction-by-month-for-year")
-async def transactions_by_month_for_year(year: SpecificYearOptions):
-    return await ynab.transactions_by_month_for_year(year)
-
-@app.get("/ynab/transaction-by-months")
-async def transactions_by_months(months: PeriodMonthOptions):
-    return await ynab.transactions_by_months(months)
 
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
 @protected_endpoint

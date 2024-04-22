@@ -5,16 +5,6 @@ from pydantic import BaseModel, Field, validator, computed_field
 from datetime import date as date_field
 from app.ynab.models import TransactionDetail
 
-class AvailableBalanceResponse(BaseModel):
-    total: float = Field(..., description='Total balance currently available across all accounts.')
-    spent: float = Field(..., description='The total spent across all accounts.')
-    available: float = Field(..., description='The left over balance after all outstanding credit is paid off.')
-
-    @validator("total", "spent", "available", pre=True)
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
 class SubCatBudgetReq(BaseModel):
     name: str
     category: str
@@ -33,9 +23,6 @@ class CardBalance(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
-class CardBalancesResponse(BaseModel):
-    data: List[CardBalance]
-
 class CategorySpent(BaseModel):
     name: str
     spent: float
@@ -43,7 +30,7 @@ class CategorySpent(BaseModel):
     total_spent: Optional[float] = None
 
     @computed_field
-    @property # TODO make this better
+    @property
     def progress(self) -> float:
         if self.budget is None and self.total_spent is None: return None
         if self.budget and self.budget != 0:
@@ -57,10 +44,6 @@ class CategorySpent(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
-class CategorySpentResponse(BaseModel):
-    since_date: date_field
-    data: List[CategorySpent]
-
 class SubCategorySummary(BaseModel):
     name: str
     amount: float
@@ -73,7 +56,7 @@ class SubCategorySummary(BaseModel):
         return value / 1000.0
     
     @computed_field
-    @property # TODO make this better
+    @property
     def progress(self) -> float:
         if self.budgeted is None and self.amount is None: return None
         if self.amount >= self.budgeted: return 100 
@@ -107,10 +90,6 @@ class CreditAccount(BaseModel):
         if value is None: return 0
         return value / 1000.0
 
-class CreditAccountResponse(BaseModel):
-    since_date: date_field
-    data: List[CreditAccount]
-
 class CreditSummary(BaseModel):
     total: float
     accounts: List[CardBalance]
@@ -125,16 +104,6 @@ class DirectDebitSummary(BaseModel):
     monthly_cost: float
     yearly_cost: float
 
-class EarnedVsSpentResponse(BaseModel):
-    since_date: date_field
-    earned: float
-    spent: float
-
-    @validator("spent", "earned", pre=True)
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
 class IncomeVsExpense(BaseModel):
     month: str
     year: str
@@ -145,10 +114,6 @@ class IncomeVsExpense(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
-
-class IncomeVsExpensesResponse(BaseModel):
-    since_date: date_field
-    data: List[IncomeVsExpense]
 
 class Insurance(BaseModel):
     name: str
@@ -208,26 +173,6 @@ class Month(BaseModel):
     categories: List[MonthCategory]
     income_expenses: MonthIncomeExpenses
 
-class SpentInPeriodResponse(BaseModel):
-    period: str
-    spent: float
-
-    @validator("spent", pre=True)
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
-class SpentVsBudgetResponse(BaseModel):
-    balance: float
-    budget: float
-    spent: float
-
-    @computed_field
-    @property
-    def progress(self) -> float:
-        if self.budget == 0: return 0
-        return (self.spent / self.budget) * 100
-
 class SubCategorySpentResponse(BaseModel):
     since_date: date_field
     data: List[CategorySpent]
@@ -250,23 +195,6 @@ class TransactionSummary(BaseModel):
     summary: CreditSummary
     transactions: List[Transaction]
 
-class LastXTransactions(BaseModel):
-    since_date: date_field
-    data: List[Transaction]
-
-class TotalSpentResponse(BaseModel):
-    since_date: date_field
-    total_spent: float = Field(..., description='Total amount spent across all accounts from the since_date to today.')
-
-    @validator("total_spent", pre=True)
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
-class TransactionsByFilterResponse(BaseModel):
-    since_date: date_field
-    data: List[TransactionDetail]
-    
 class TransactionByMonth(BaseModel):
     month_long: str
     month_short: str
