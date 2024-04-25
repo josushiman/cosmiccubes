@@ -282,7 +282,7 @@ class YNAB:
                 trend_percentage = round(
                     ((category_spent - average_spend) / average_spend) * 100
                 )
-                logging.error(f"Test trend percentage: {trend_percentage}")
+                logging.debug(f"Test trend percentage: {trend_percentage}")
             except ZeroDivisionError:
                 trend_percentage = 0
                 pass
