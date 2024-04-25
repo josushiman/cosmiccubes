@@ -157,7 +157,7 @@ class YNAB:
                 budgeted=summary["budgeted"],
                 status=(
                     "on track"
-                    if summary["budgeted"] >= summary["amount"]
+                    if summary["budgeted"] * 1000 >= summary["amount"]
                     else "overspend"
                 ),
                 subcategories=[

@@ -100,6 +100,7 @@ class ReactAdmin:
             return await cls.get_many(resource, kwargs_raw["id"])
 
         kwargs = await cls.process_raw_kwargs(kwargs_raw)
+        logging.debug(f"Processed kwargs: {kwargs}")
         order_by, limit = await cls.get_order_limit_value(commons)
 
         entity_model = await cls.get_entity_model(resource)
@@ -187,6 +188,7 @@ class ReactAdmin:
     @classmethod
     async def process_raw_kwargs(cls, kwargs_raw: dict):
         # Only add values which exist from the request
+        logging.debug(f"Raw kwargs: {kwargs_raw}")
         kwargs = {}
         for key, value in kwargs_raw.items():
             # Only store values which exist
@@ -194,8 +196,10 @@ class ReactAdmin:
                 # Allow us to search the DB with like values
                 if key == "name":
                     kwargs["name__icontains"] = value
+                    continue
                 if key == "payee_name":
                     kwargs["payee_name__icontains"] = value
+                    continue
                 # Otherwise just store the value in the new dict
                 else:
                     kwargs[key] = value
