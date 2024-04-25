@@ -278,19 +278,15 @@ class YNAB:
             average_spend = totals["spent"] / totals["period"]
             logging.debug(f"Average spend for last {totals['period']}: {average_spend}")
 
-            # TODO maybe swap this out for the current calc?
-            # try:
-            #     trend_perc = (
-            #         (category_spent - totals["spent"]) / totals["spent"]
-            #     ) * 100
-            #     logging.error(f"Test trend percentage: {trend_perc}")
-            # except ZeroDivisionError:
-            #     pass
-
-            if average_spend > 0:
-                trend_percentage = round((category_spent / average_spend) * 100)
-            else:
+            try:
+                trend_percentage = round(
+                    ((category_spent - average_spend) / average_spend) * 100
+                )
+                logging.error(f"Test trend percentage: {trend_percentage}")
+            except ZeroDivisionError:
                 trend_percentage = 0
+                pass
+
             logging.debug(f"Trend percentage: {trend_percentage}")
 
             trend_string = (
@@ -307,7 +303,9 @@ class YNAB:
                     "avg_spend": average_spend,
                     "period": period_string,
                     "trend": trend_string,
-                    "percentage": trend_percentage,
+                    "percentage": (
+                        trend_percentage if trend_percentage > 0 else -trend_percentage
+                    ),
                 }
             )
 
