@@ -328,15 +328,27 @@ class YNAB:
 
     @classmethod
     async def insurance(cls) -> list[Insurance]:
-        insruance_renewals = (
+        insurance_renewals = (
             await LoansAndRenewals.filter(
                 type__name=LoansAndRenewalsEnum.INSRUANCE.value
             )
+            .prefetch_related("period")
             .order_by("end_date")
             .all()
         )
 
-        return [Insurance(**insurance.__dict__) for insurance in insruance_renewals]
+        return [
+            Insurance(
+                name=insurance.name,
+                payment_amount=insurance.payment_amount,
+                start_date=insurance.start_date,
+                end_date=insurance.end_date,
+                period=insurance.period.name,
+                provider=insurance.provider,
+                notes=insurance.notes,
+            )
+            for insurance in insurance_renewals
+        ]
 
     @classmethod
     async def loan_portfolio(cls) -> LoanPortfolio:

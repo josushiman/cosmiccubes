@@ -148,7 +148,7 @@ class LoanPortfolio(BaseModel):
 
 class MonthCategory(BaseModel):
     name: str
-    group: str | None
+    group: Optional[str] = None
     spent: float
     budget: float
 
