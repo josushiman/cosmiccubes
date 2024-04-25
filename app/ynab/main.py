@@ -230,9 +230,11 @@ class YNAB:
                 debit=True,
             )
             .group_by("deleted")
-            .first()
+            .get_or_none()
             .values("spent")
         )
+        if not transactions_1_m:
+            transactions_1_m = {"spent": 0}
 
         transactions_3_m = (
             await YnabTransactions.annotate(spent=Sum("amount"))
@@ -244,9 +246,11 @@ class YNAB:
                 debit=True,
             )
             .group_by("deleted")
-            .first()
+            .get_or_none()
             .values("spent")
         )
+        if not transactions_3_m:
+            transactions_3_m = {"spent": 0}
 
         transactions_6_m = (
             await YnabTransactions.annotate(spent=Sum("amount"))
@@ -258,9 +262,11 @@ class YNAB:
                 debit=True,
             )
             .group_by("deleted")
-            .first()
+            .get_or_none()
             .values("spent")
         )
+        if not transactions_6_m:
+            transactions_6_m = {"spent": 0}
 
         transactions_1_m["period"] = 1
         transactions_3_m["period"] = 3
@@ -272,13 +278,25 @@ class YNAB:
             average_spend = totals["spent"] / totals["period"]
             logging.debug(f"Average spend for last {totals['period']}: {average_spend}")
 
-            trend_percentage = round((category_spent / average_spend) * 100)
+            # TODO maybe swap this out for the current calc?
+            # try:
+            #     trend_perc = (
+            #         (category_spent - totals["spent"]) / totals["spent"]
+            #     ) * 100
+            #     logging.error(f"Test trend percentage: {trend_perc}")
+            # except ZeroDivisionError:
+            #     pass
+
+            if average_spend > 0:
+                trend_percentage = round((category_spent / average_spend) * 100)
+            else:
+                trend_percentage = 0
             logging.debug(f"Trend percentage: {trend_percentage}")
 
             trend_string = (
                 "up"
-                if category_spent > average_spend
-                else "down" if category_spent < average_spend else "flat"
+                if trend_percentage > 0
+                else "down" if trend_percentage < 0 else "flat"
             )
             period_string = (
                 f"L{totals['period']} months" if totals["period"] > 1 else "Last month"
@@ -339,6 +357,7 @@ class YNAB:
 
         return [
             Insurance(
+                id=insurance.id,
                 name=insurance.name,
                 payment_amount=insurance.payment_amount,
                 start_date=insurance.start_date,

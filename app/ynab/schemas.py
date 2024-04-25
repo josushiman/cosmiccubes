@@ -131,6 +131,7 @@ class IncomeVsExpense(BaseModel):
 
 
 class Insurance(BaseModel):
+    id: UUID
     name: str
     payment_amount: float
     start_date: date_field
