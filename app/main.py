@@ -9,7 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID
 from app.config import settings
 from app.reactadmin.helpers import ReactAdmin as ra
-from app.enums import PeriodMonthOptions, SpecificMonthOptions, SpecificYearOptions
+from app.enums import (
+    PeriodMonthOptionsIntEnum,
+    SpecificMonthOptionsEnum,
+    SpecificYearOptionsEnum,
+)
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
 from app.decorators import protected_endpoint
@@ -26,6 +30,8 @@ logging.info("Initialising NewRelic")
 newrelic.agent.initialize(dotenv_path_to_ini, settings.newrelic_env)
 
 scheduler = AsyncIOScheduler()
+
+
 async def update_ynab_data():
     # Check YNAB is alive
     # Update each one in a loop, error out when something happens
@@ -35,29 +41,30 @@ async def update_ynab_data():
         update_payees,
         update_month_details,
         update_month_summaries,
-        update_transactions
+        update_transactions,
     ]
 
     for endpoint in endpoints:
+        sleep(13)
         try:
             await endpoint(settings.ynab_phrase)
-            sleep(60)
         except Exception as e_exc:
             logging.error(f"issue updating endpoint {endpoint}", exc_info=e_exc)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Initialising DB")
     await Tortoise.init(
         db_url=settings.db_url,
-        modules={'models': ['app.db.models']},
+        modules={"models": ["app.db.models"]},
     )
     # Generate the model schemas.
     logging.info("Generating schemas.")
     await Tortoise.generate_schemas()
     logging.info("Schemas generated.")
     logging.info("Starting scheduler.")
-    scheduler.add_job(update_ynab_data, trigger="cron", hour='*', minute=4)
+    scheduler.add_job(update_ynab_data, trigger="cron", hour="*", minute=4)
     scheduler.start()
     yield
     # Close all connections when shutting down.
@@ -66,15 +73,18 @@ async def lifespan(app: FastAPI):
     logging.info("Shutting down application.")
     await Tortoise.close_connections()
 
+
 async def get_token_header(request: Request, x_token: UUID = Header(...)):
-    if dotenv_origins != ['*'] or dotenv_hosts != ['*']:
+    if dotenv_origins != ["*"] or dotenv_hosts != ["*"]:
         logging.debug(request.headers.raw)
         try:
             referer = request.headers["referer"]
             host = request.headers["host"]
             if referer != dotenv_referer:
                 logging.debug(f"Referer: {referer}")
-                logging.warning(f"Referer {referer} attempted access using a valid token")
+                logging.warning(
+                    f"Referer {referer} attempted access using a valid token"
+                )
                 raise HTTPException(status_code=403)
             if dotenv_hosts != host:
                 logging.debug(f"Host: {host}")
@@ -83,7 +93,7 @@ async def get_token_header(request: Request, x_token: UUID = Header(...)):
         except KeyError as e_key:
             logging.warning(f"Either Referer or Host was not set", exc_info=e_key)
             raise HTTPException(status_code=403)
-        
+
         try:
             origin = request.headers["origin"]
             if origin != dotenv_origins:
@@ -91,75 +101,85 @@ async def get_token_header(request: Request, x_token: UUID = Header(...)):
                 logging.warning(f"Origin {origin} attempted access using a valid token")
                 raise HTTPException(status_code=403)
         except KeyError as e_key:
-            user_agent = request.headers['user-agent']
+            user_agent = request.headers["user-agent"]
             if user_agent != dotenv_user_agent:
-                logging.warning(f"Origin was not set for {request.headers['host']} on IP: {request.headers['true-client-ip']}. User Agent string: {user_agent}")
+                logging.warning(
+                    f"Origin was not set for {request.headers['host']} on IP: {request.headers['true-client-ip']}. User Agent string: {user_agent}"
+                )
 
     if x_token != dotenv_token:
         logging.warning(f"Invalid token provided from Origin and/or Host")
         raise HTTPException(status_code=403)
 
+
 logging.debug(f"{dotenv_docs}")
 logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
-    lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
-    openapi_url=dotenv_docs
-    )
+    lifespan=lifespan, dependencies=[Depends(get_token_header)], openapi_url=dotenv_docs
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[dotenv_origins],
-    expose_headers=['x-total-count'],
+    expose_headers=["x-total-count"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
+
 async def common_ra_parameters(
-        _end: int = 10,
-        _start: int = 0,
-        _order: str = Query(default="ASC", min_length=3, max_length=4, regex="ASC|DESC"),
-        _sort: str = None
-    ):
+    _end: int = 10,
+    _start: int = 0,
+    _order: str = Query(default="ASC", min_length=3, max_length=4, regex="ASC|DESC"),
+    _sort: str = None,
+):
     return {"_end": _end, "_start": _start, "_order": _order, "_sort": _sort}
 
+
 async def common_cc_parameters(
-        year: SpecificYearOptions = None,
-        months: PeriodMonthOptions = None,
-        month: SpecificMonthOptions = None
-    ):
+    year: SpecificYearOptionsEnum = None,
+    months: PeriodMonthOptionsIntEnum = None,
+    month: SpecificMonthOptionsEnum = None,
+):
     return {"year": year, "months": months, "month": month}
+
 
 @app.get("/health", status_code=200)
 async def get_health():
-    return {
-        "status": "OK"
-    }
+    return {"status": "OK"}
+
 
 @app.post("/portal/admin/{resource}", status_code=201, include_in_schema=False)
 async def create(resource: str, _body: dict):
     return await ra.create(resource, _body)
 
+
 @app.get("/portal/admin/{resource}/{_id}")
 async def get_one(resource: str, _id: UUID):
     return await ra.get_one(resource, _id)
 
+
 @app.get("/portal/admin/{resource}")
-async def get_list(request: Request, response: Response, resource: str, commons: dict = Depends(common_ra_parameters), \
-    _id: list[UUID] | None = Query(default=None, alias="id")):
-    
+async def get_list(
+    request: Request,
+    response: Response,
+    resource: str,
+    commons: dict = Depends(common_ra_parameters),
+    _id: list[UUID] | None = Query(default=None, alias="id"),
+):
+
     # Instansiate the kwargs object, incase no kwargs are passed
     kwargs = {}
     # Iterate through the query parameters
     for query, value in request.query_params.items():
         # Skip any that are in commons, as well as if they are "id"
-        if query not in commons.keys() and query != 'id':
+        if query not in commons.keys() and query != "id":
             kwargs[query] = value
         # This can sometimes be a list of id's so we want to capture all of them in a list.
-        elif query == 'id':
-            kwargs['id'] = _id
+        elif query == "id":
+            kwargs["id"] = _id
 
     # Get the entities and the count.
     entities, count = await ra.get_list(resource, commons, kwargs)
@@ -168,21 +188,25 @@ async def get_list(request: Request, response: Response, resource: str, commons:
     response.headers["X-Total-Count"] = count
     return entities
 
+
 @app.put("/portal/admin/{resource}/{_id}", include_in_schema=False)
 async def update(resource: str, _body: dict, _id: UUID):
     return await ra.update(resource, _body, _id)
+
 
 @app.delete("/portal/admin/{resource}/{_id}", include_in_schema=False)
 async def delete(resource: str, _id: UUID):
     return await ra.delete(resource, _id)
 
+
 @app.delete("/portal/admin/{resource}", include_in_schema=False)
-async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alias="ids")):
+async def delete_many(
+    resource: str, _ids: list[UUID] = Query(default=None, alias="ids")
+):
     for _id in _ids:
         rows_deleted = await ra.delete(resource, _id)
-    return {
-        "message": f"Deleted {rows_deleted} rows."
-    }
+    return {"message": f"Deleted {rows_deleted} rows."}
+
 
 # How much should i spend today?
 #   Get budget remaining for the month, divide by number of days remaining.
@@ -191,71 +215,89 @@ async def delete_many(resource: str, _ids: list[UUID] = Query(default=None, alia
 # On track
 #   Something to give a good indication of whether i'm on track or not.
 
-# TODO Look at bulk creating and updating to save DB calls
+# TODO Look at bulk creating and updating to save DB calls.
 # https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
+
 
 @app.get("/budgets-needed")
 async def budgets_needed():
     return await ynab.budgets_needed()
 
+
 @app.get("/categories-summary")
 async def categories_summary(commons: dict = Depends(common_cc_parameters)):
-    year = commons.get('year')
-    months = commons.get('months')
-    month = commons.get('month')
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
     return await ynab.categories_summary(year=year, months=months, specific_month=month)
+
 
 @app.get("/categories-summary/{category_name}/{subcategory_name}")
 async def category_summary(category_name: str, subcategory_name: str):
-    return await ynab.category_summary(category_name=category_name, subcategory_name=subcategory_name)
+    return await ynab.category_summary(
+        category_name=category_name, subcategory_name=subcategory_name
+    )
+
 
 @app.get("/direct-debits")
 async def direct_debits():
     return await ynab.direct_debits()
 
+
 @app.get("/insurance")
 async def insurance():
     return await ynab.insurance()
+
 
 @app.get("/loan-portfolio")
 async def loan_portfolio():
     return await ynab.loan_portfolio()
 
+
 @app.get("/monthly-summary")
 async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
-    year = commons.get('year')
-    months = commons.get('months')
-    month = commons.get('month')
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
     return await ynab.month_summary(year=year, months=months, specific_month=month)
+
 
 @app.get("/refunds")
 async def refunds():
     return await ynab.refunds()
 
+
 @app.get("/transaction-summary")
 async def transaction_summary(commons: dict = Depends(common_cc_parameters)):
-    year = commons.get('year')
-    months = commons.get('months')
-    month = commons.get('month')
-    return await ynab.transaction_summary(year=year, months=months, specific_month=month)
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
+    return await ynab.transaction_summary(
+        year=year, months=months, specific_month=month
+    )
+
 
 @app.get("/upcoming-bills")
 async def upcoming_bills():
     return await ynab.upcoming_bills()
 
+
 @app.get("/upcoming-bills/details")
 async def upcoming_bills_details():
     return await ynab.upcoming_bills_details()
+
 
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
 @protected_endpoint
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
 
+
 @app.get("/ynab/update-categories", name="Update YNAB Categories")
 @protected_endpoint
 async def update_categories():
     return await ynab_help.pydantic_categories()
+
 
 @app.get("/ynab/update-month-details", name="Update YNAB Month Details")
 @protected_endpoint
@@ -263,16 +305,19 @@ async def update_month_details():
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
+
 @app.get("/ynab/update-month-summaries", name="Update YNAB Month Summaries")
 @protected_endpoint
 async def update_month_summaries():
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
+
 @app.get("/ynab/update-payees", name="Update YNAB Payees")
 @protected_endpoint
 async def update_payees():
     return await ynab_help.pydantic_payees()
+
 
 @app.get("/ynab/update-transactions", name="Update YNAB Transactions")
 @protected_endpoint
@@ -281,19 +326,23 @@ async def update_transactions():
     # Below needs categories to exist.
     return await ynab_help.sync_transaction_rels()
 
+
 @app.get("/ynab/update-transaction-debit", name="Update YNAB Transaction Debit Vals")
 @protected_endpoint
 async def update_transaction_debit():
     return await ynab_help.sync_transaction_debits()
+
 
 @app.get("/ynab/update-transaction-rels", name="Update YNAB Transaction Relations")
 @protected_endpoint
 async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
+
 @app.get("/test/endpoint", include_in_schema=False)
 async def test_endpoint():
     return await ynab.upcoming_bills()
+
 
 @app.route("/{path:path}")
 def catch_all(path: str):

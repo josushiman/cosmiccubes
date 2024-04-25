@@ -3,6 +3,7 @@ from tortoise.models import Model
 from datetime import datetime, timezone
 import logging
 
+
 class YnabServerKnowledge(Model):
     id = fields.UUIDField(pk=True)
     budget_id = fields.UUIDField()
@@ -11,7 +12,8 @@ class YnabServerKnowledge(Model):
     last_updated = fields.DatetimeField(auto_now=True)
 
     class PydanticMeta:
-        unique_together=("budget_id", "route")
+        unique_together = ("budget_id", "route")
+
 
 class YnabAccounts(Model):
     id = fields.UUIDField(pk=True)
@@ -32,6 +34,7 @@ class YnabAccounts(Model):
     debt_minimum_payments = fields.JSONField(null=True)
     debt_escrow_amounts = fields.JSONField(null=True)
     deleted = fields.BooleanField(null=True)
+
 
 class YnabCategories(Model):
     id = fields.UUIDField(pk=True)
@@ -59,7 +62,8 @@ class YnabCategories(Model):
     deleted = fields.BooleanField(null=True)
 
     class PydanticMeta:
-        unique_together=("category_group_name", "name")
+        unique_together = ("category_group_name", "name")
+
 
 class YnabMonthSummaries(Model):
     id = fields.UUIDField(pk=True)
@@ -73,7 +77,8 @@ class YnabMonthSummaries(Model):
     deleted = fields.BooleanField(null=True)
 
     class PydanticMeta:
-        unique_together=("month", "deleted")
+        unique_together = ("month", "deleted")
+
 
 class YnabMonthDetailCategories(Model):
     id = fields.UUIDField(pk=True)
@@ -99,10 +104,13 @@ class YnabMonthDetailCategories(Model):
     goal_overall_funded = fields.IntField(default=0, null=True)
     goal_overall_left = fields.IntField(default=0, null=True)
     deleted = fields.BooleanField(null=True)
-    month_summary_fk = fields.ForeignKeyField('models.YnabMonthSummaries', related_name='summaries', null=True)
+    month_summary_fk = fields.ForeignKeyField(
+        "models.YnabMonthSummaries", related_name="summaries", null=True
+    )
 
     class PydanticMeta:
-        unique_together=("month_summary_fk_id", "category_group_name", "name")
+        unique_together = ("month_summary_fk_id", "category_group_name", "name")
+
 
 class YnabPayees(Model):
     id = fields.UUIDField(pk=True)
@@ -111,7 +119,8 @@ class YnabPayees(Model):
     deleted = fields.BooleanField(null=True)
 
     class PydanticMeta:
-        unique_together=("name", "deleted")
+        unique_together = ("name", "deleted")
+
 
 class YnabTransactions(Model):
     id = fields.UUIDField(pk=True)
@@ -137,23 +146,29 @@ class YnabTransactions(Model):
     import_payee_name_original = fields.CharField(max_length=150, null=True)
     debt_transaction_type = fields.CharField(max_length=150, null=True)
     deleted = fields.BooleanField(null=True)
-    category_fk = fields.ForeignKeyField('models.YnabCategories', related_name='transactions', null=True)
+    category_fk = fields.ForeignKeyField(
+        "models.YnabCategories", related_name="transactions", null=True
+    )
 
     class PydanticMeta:
-        unique_together=("date", "amount", "account_id", "payee_id", "category_id")
+        unique_together = ("date", "amount", "account_id", "payee_id", "category_id")
+
 
 class Budgets(Model):
     id = fields.UUIDField(pk=True)
-    category = fields.ForeignKeyField('models.YnabCategories', related_name='budget')
+    category = fields.ForeignKeyField("models.YnabCategories", related_name="budget")
     amount = fields.FloatField(default=0.0)
+
 
 class LoansAndRenewalsPeriods(Model):
     id = fields.UUIDField(pk=True)
-    name = fields.CharField(max_length=150) 
+    name = fields.CharField(max_length=150)
+
 
 class LoansAndRenewalsTypes(Model):
     id = fields.UUIDField(pk=True)
-    name = fields.CharField(max_length=150) 
+    name = fields.CharField(max_length=150)
+
 
 class LoansAndRenewals(Model):
     id = fields.UUIDField(pk=True)
@@ -164,40 +179,55 @@ class LoansAndRenewals(Model):
     payment_amount = fields.FloatField(default=0.0, null=True)
     starting_balance = fields.FloatField(default=0.0, null=True)
     notes = fields.CharField(max_length=255, null=True)
-    period = fields.ForeignKeyField('models.LoansAndRenewalsPeriods', related_name=False, null=True)
-    type = fields.ForeignKeyField('models.LoansAndRenewalsTypes', related_name='type', null=True)
-    account = fields.ForeignKeyField('models.YnabAccounts', related_name='account', null=True)
-    category = fields.ForeignKeyField('models.YnabCategories', related_name='category', null=True)
+    provider = fields.CharField(max_length=255, null=True)
+    period = fields.ForeignKeyField(
+        "models.LoansAndRenewalsPeriods", related_name=False, null=True
+    )
+    type = fields.ForeignKeyField(
+        "models.LoansAndRenewalsTypes", related_name="type", null=True
+    )
+    account = fields.ForeignKeyField(
+        "models.YnabAccounts", related_name="account", null=True
+    )
+    category = fields.ForeignKeyField(
+        "models.YnabCategories", related_name="category", null=True
+    )
 
     def period_name(self) -> str:
         return self.period.name if self.period else None
 
     def remaining_balance(self) -> float:
-        if self.starting_balance is None: return None
+        if self.starting_balance is None:
+            return None
 
         # Take todays date as the end date to calculate what the remaining balance will be.
         end_date = datetime.now(timezone.utc)
-        
+
         logging.debug(f"Period for entry: {self.period_name}")
         # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
         if self.period_name == "monthly":
-            occurrences = (end_date.year - self.start_date.year) * 12 + (end_date.month - self.start_date.month)
+            occurrences = (end_date.year - self.start_date.year) * 12 + (
+                end_date.month - self.start_date.month
+            )
         else:
             occurrences = 1
         logging.debug(f"Number of occurences for {self.name}: {occurrences}")
-        
+
         # If the number of occurences is 0, check if todays date is past the payment_date.
         # If it is, increase the occurences by 1.
         # This accounts for when you are in the same month as the start_date.
         if self.period_name == "monthly" and occurrences == 0:
-            logging.debug("Occurence is set to 0, checking if todays date has passed the initial payment.")
+            logging.debug(
+                "Occurence is set to 0, checking if todays date has passed the initial payment."
+            )
             occurrences = 1 if self.payment_date <= end_date.day else 0
 
         remaining_balance = self.starting_balance - (self.payment_amount * occurrences)
-        
-        if remaining_balance <= 0: return None
+
+        if remaining_balance <= 0:
+            return None
         return remaining_balance
-    
+
     def status(self) -> str:
         try:
             return "Outstanding" if self.remaining_balance > 0 else "Paid"
@@ -206,7 +236,8 @@ class LoansAndRenewals(Model):
 
     class PydanticMeta:
         computed = ["period_name", "remaining_balance", "status"]
-        unique_together=("end_date", "start_date", "name")
+        unique_together = ("end_date", "start_date", "name")
+
 
 class Savings(Model):
     id = fields.UUIDField(pk=True)
@@ -216,4 +247,4 @@ class Savings(Model):
     target = fields.FloatField(default=0.0)
 
     class PydanticMeta:
-        unique_together=("date", "name")
+        unique_together = ("date", "name")

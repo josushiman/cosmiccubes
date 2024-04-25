@@ -1,27 +1,29 @@
-from enum import Enum
-from typing import Dict, List, Optional
+from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, validator, computed_field
+from pydantic import BaseModel, Field, field_validator, computed_field
 from datetime import date as date_field
-from app.ynab.models import TransactionDetail
+
 
 class SubCatBudgetReq(BaseModel):
     name: str
     category: str
 
+
 class BudgetsNeeded(BaseModel):
     count: int
     subcategories: List[SubCatBudgetReq]
 
+
 class CardBalance(BaseModel):
     id: UUID
-    name: str = Field(..., description='Account name for the card.')
-    balance: float = Field(..., description='Current balance of the card.')
+    name: str = Field(..., description="Account name for the card.")
+    balance: float = Field(..., description="Current balance of the card.")
 
-    @validator("balance", pre=True)
+    @field_validator("balance")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class CategorySpent(BaseModel):
     name: str
@@ -32,37 +34,43 @@ class CategorySpent(BaseModel):
     @computed_field
     @property
     def progress(self) -> float:
-        if self.budget is None and self.total_spent is None: return None
+        if self.budget is None and self.total_spent is None:
+            return None
         if self.budget and self.budget != 0:
             return (self.spent / self.budget) * 100
         elif self.total_spent and self.total_spent != 0:
             return (self.spent / self.total_spent) * 100
         return 0
-    
-    @validator("spent", "budget", "total_spent", pre=True)
+
+    @field_validator("spent", "budget", "total_spent")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class SubCategorySummary(BaseModel):
     name: str
     amount: float
     budgeted: float = 0.0
 
-    @validator("amount", pre=True)
+    @field_validator("amount")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
-        if value is None: return 0
+        if value is None:
+            return 0
         return value / 1000.0
-    
+
     @computed_field
     @property
     def progress(self) -> float:
-        if self.budgeted is None and self.amount is None: return None
-        if self.amount >= self.budgeted: return 100 
+        if self.budgeted is None and self.amount is None:
+            return None
+        if self.amount >= self.budgeted:
+            return 100
         if self.budgeted and self.budgeted != 0:
             return (self.amount / self.budgeted) * 100
         return 0
+
 
 class CategorySummary(BaseModel):
     id: UUID
@@ -72,11 +80,13 @@ class CategorySummary(BaseModel):
     status: Optional[str] = None
     subcategories: List[SubCategorySummary]
 
-    @validator("amount", pre=True)
+    @field_validator("amount")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
-        if value is None: return 0
+        if value is None:
+            return 0
         return value / 1000.0
+
 
 class CreditAccount(BaseModel):
     id: Optional[UUID] = None
@@ -84,25 +94,29 @@ class CreditAccount(BaseModel):
     amount: Optional[float] = None
     account_name: str
 
-    @validator("amount", pre=True)
+    @field_validator("amount")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
-        if value is None: return 0
+        if value is None:
+            return 0
         return value / 1000.0
+
 
 class CreditSummary(BaseModel):
     total: float
     accounts: List[CardBalance]
 
-    @validator("total", pre=True)
+    @field_validator("total")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class DirectDebitSummary(BaseModel):
     count: int
     monthly_cost: float
     yearly_cost: float
+
 
 class IncomeVsExpense(BaseModel):
     month: str
@@ -110,21 +124,27 @@ class IncomeVsExpense(BaseModel):
     income: float
     expenses: float
 
-    @validator("income", "expenses", pre=True)
+    @field_validator("income", "expenses")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+
 class Insurance(BaseModel):
     name: str
     payment_amount: float
-    end_date: date_field
+    start_date: date_field
+    end_date: Optional[date_field] = None
+    period: Optional[str] = None
     provider: Optional[str] = None
+    notes: Optional[str] = None
+
 
 class LoanPortfolio(BaseModel):
     count: int
     total_credit: float
     accounts: List[dict]
+
 
 class MonthCategory(BaseModel):
     name: str
@@ -132,10 +152,11 @@ class MonthCategory(BaseModel):
     spent: float
     budget: float
 
-    @validator("spent", pre=True)
+    @field_validator("spent")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class MonthIncomeExpenses(BaseModel):
     balance_available: float
@@ -144,10 +165,11 @@ class MonthIncomeExpenses(BaseModel):
     bills: float
     savings: float
 
-    @validator("balance_available", "balance_spent", "income", "bills", "savings", pre=True)
+    @field_validator("balance_available", "balance_spent", "income", "bills", "savings")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class MonthSummary(BaseModel):
     days_left: int
@@ -156,15 +178,17 @@ class MonthSummary(BaseModel):
     balance_budget: float
     daily_spend: float
 
-    @validator("balance_available", "balance_spent", "daily_spend", pre=True)
+    @field_validator("balance_available", "balance_spent", "daily_spend")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class UpcomingRenewal(BaseModel):
     name: str
     date: date_field
     amount: float
+
 
 class Month(BaseModel):
     notif: str | None
@@ -173,31 +197,38 @@ class Month(BaseModel):
     categories: List[MonthCategory]
     income_expenses: MonthIncomeExpenses
 
+
 class SubCategorySpentResponse(BaseModel):
     since_date: date_field
     data: List[CategorySpent]
 
+
 class Transaction(BaseModel):
     id: UUID
     account_id: UUID
-    payee: str = Field(..., description='Name of the merchant.')
-    amount: float = Field(..., description='Amount that was charged against the transaction.')
-    date: date_field = Field(..., description='Date of the transaction being cleared.')
-    category: str | None = Field(..., description='Category of the transaction.')
-    subcategory: str | None = Field(..., description='Subcategory of the transaction.')
+    payee: str = Field(..., description="Name of the merchant.")
+    amount: float = Field(
+        ..., description="Amount that was charged against the transaction."
+    )
+    date: date_field = Field(..., description="Date of the transaction being cleared.")
+    category: str | None = Field(..., description="Category of the transaction.")
+    subcategory: str | None = Field(..., description="Subcategory of the transaction.")
 
-    @validator("amount", pre=True)
+    @field_validator("amount")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class TransactionSummary(BaseModel):
     summary: CreditSummary
     transactions: List[Transaction]
 
+
 class Refunds(BaseModel):
     count: int
     transactions: List[Transaction]
+
 
 class TransactionByMonth(BaseModel):
     month_long: str
@@ -205,24 +236,27 @@ class TransactionByMonth(BaseModel):
     total_spent: float
     total_earned: float
 
-    @validator("total_spent", "total_earned", pre=True)
+    @field_validator("total_spent", "total_earned")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+
 class TransactionsByMonthResponse(BaseModel):
     since_date: date_field
     data: List[TransactionByMonth]
+
 
 class BillCategory(BaseModel):
     name: str
     category: str
     total: float
 
-    @validator("total", pre=True)
+    @field_validator("total")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class CategoryTrends(BaseModel):
     period: str
@@ -230,29 +264,32 @@ class CategoryTrends(BaseModel):
     avg_spend: float
     percentage: float | str
 
-    @validator("avg_spend", pre=True)
+    @field_validator("avg_spend")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class CategoryTransactions(BaseModel):
     total: float
     trends: List[CategoryTrends]
     transactions: List[Transaction]
 
-    @validator("total", pre=True)
+    @field_validator("total")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class UpcomingBills(BaseModel):
     total: float
     subcategories: List[BillCategory]
 
-    @validator("total", pre=True)
+    @field_validator("total")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class UpcomingBillsDetails(BaseModel):
     amount: float
@@ -262,7 +299,7 @@ class UpcomingBillsDetails(BaseModel):
     name: str
     category: str
 
-    @validator("amount", pre=True)
+    @field_validator("amount")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
