@@ -38,7 +38,6 @@ from app.db.schemas import (
 )
 
 
-# TODO make changes here to make sure can return Ynab stuff
 class ReactAdmin:
     @classmethod
     async def get_entity_model(cls, resource: str) -> Model:

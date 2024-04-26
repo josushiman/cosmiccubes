@@ -251,6 +251,12 @@ class YnabServerKnowledgeHelper:
         if type(model) == YnabTransactions:
             resp_body["debit"] = False if resp_body["amount"] > 0 else True
 
+            # Set the category ID for those that may have changed.
+            resp_body["category_fk_id"] = resp_body["category_id"]
+            logging.debug(
+                f"Attempting to set Category to transaction: {resp_body['category_id']}"
+            )
+
             try:
                 raw_date = resp_body.get("date")
                 logging.debug(f"String datetime: {raw_date}")
@@ -259,7 +265,7 @@ class YnabServerKnowledgeHelper:
                 resp_body["date"] = resp_date_dt
                 logging.debug(f"Converted datetime: {resp_date_dt}")
             except KeyError:
-                logging.debug("No date in response body, updating entity.")
+                logging.debug("No date in response body.")
 
         if type(model) in cls.negative_amounts:
             resp_body = await cls.update_switch_negative_values(model, resp_body)

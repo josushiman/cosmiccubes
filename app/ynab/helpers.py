@@ -525,37 +525,32 @@ class YnabHelpers:
                 )
                 raise HTTPException(status_code=500)
 
-    @classmethod
-    async def sync_transaction_debits(cls):
-        transactions = await cls.make_request("transactions-list", bypass=True)
-
     # TODO add in syncing transactions which have been updated to ensure they are in the right category
     @classmethod
     async def sync_transaction_rels(cls):
-        # Get all the transactions that don't have a category_fk set
-        transactions_no_cat_fk = await YnabTransactions.filter(category_fk=None)
-        transactions_to_update = await YnabTransactions.filter(category_fk=None).count()
+        # Get all the transactions that don't have a category_fk set nad isnt a payment transfer
+        transactions = await YnabTransactions.filter(
+            category_fk=None, transfer_account_id=None
+        )
+        transactions_count = await YnabTransactions.filter(
+            category_fk=None, transfer_account_id=None
+        ).count()
 
-        if transactions_to_update < 1:
+        if transactions_count < 1:
             return {"message": "All transactions have category fk's synced."}
 
         skipped_transactions = 0
         # Go through each transaction that doesn't have a category_fk set
-        for transaction in transactions_no_cat_fk:
+        for transaction in transactions:
             # Search on the ynabcategories table for the ID
             category_entity = await YnabCategories.filter(
                 id=transaction.category_id
             ).get_or_none()
 
             if category_entity is None:
-                if transaction.transfer_account_id is not None:
-                    logging.debug(
-                        f"Transaction is a transfer, ignoring: {transaction.id}"
-                    )
-                else:
-                    logging.warn(
-                        f"Category may not be set for transaction: {transaction.id}"
-                    )
+                logging.warn(
+                    f"Category may not be set for transaction: {transaction.id}"
+                )
                 skipped_transactions += 1
                 continue
 
@@ -568,9 +563,9 @@ class YnabHelpers:
 
         logging.info(
             f"""
-        Total to sync: {transactions_to_update}
+        Total to sync: {transactions_count}
         Total skipped: {skipped_transactions}
-        Total synced: {transactions_to_update-skipped_transactions}
+        Total synced: {transactions_count - skipped_transactions}
         """
         )
         return {"message": "Complete."}

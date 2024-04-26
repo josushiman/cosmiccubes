@@ -150,6 +150,10 @@ class YNAB:
 
         category_summaries = []
         for category, summary in grouped_data.items():
+            logging.debug(
+                f"Budgeted: {summary['budgeted'] * 1000} \
+                          Spent: {summary['amount']}"
+            )
             category_summary = CategorySummary(
                 id=summary["id"],
                 category=category,

@@ -45,7 +45,7 @@ async def update_ynab_data():
     ]
 
     for endpoint in endpoints:
-        sleep(13)
+        sleep(60)
         try:
             await endpoint(settings.ynab_phrase)
         except Exception as e_exc:
@@ -116,7 +116,9 @@ logging.debug(f"{dotenv_docs}")
 logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
-    lifespan=lifespan, dependencies=[Depends(get_token_header)], openapi_url=dotenv_docs
+    lifespan=lifespan,
+    dependencies=[Depends(get_token_header)],
+    openapi_url=dotenv_docs,
 )
 
 app.add_middleware(
@@ -327,12 +329,6 @@ async def update_transactions():
     return await ynab_help.sync_transaction_rels()
 
 
-@app.get("/ynab/update-transaction-debit", name="Update YNAB Transaction Debit Vals")
-@protected_endpoint
-async def update_transaction_debit():
-    return await ynab_help.sync_transaction_debits()
-
-
 @app.get("/ynab/update-transaction-rels", name="Update YNAB Transaction Relations")
 @protected_endpoint
 async def update_transaction_rels():
@@ -340,8 +336,15 @@ async def update_transaction_rels():
 
 
 @app.get("/test/endpoint", include_in_schema=False)
-async def test_endpoint():
-    return await ynab.upcoming_bills()
+async def test_get_endpoint():
+    return {"message": "done"}
+
+
+@app.post("/test/endpoint/{resource}", include_in_schema=False)
+async def test_post_endpoint(resource: str, _body: dict):
+    logging.info(resource)
+    logging.error(_body)
+    return {"message": "done"}
 
 
 @app.route("/{path:path}")
