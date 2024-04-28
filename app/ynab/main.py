@@ -41,7 +41,7 @@ class YNAB:
 
     @classmethod
     async def budgets_needed(cls) -> BudgetsNeeded:
-        subcategories_count = await YnabCategories.filter(
+        categories_count = await YnabCategories.filter(
             category_group_name__not_in=[
                 *cls.EXCLUDE_EXPENSE_NAMES,
                 "Internal Master Category",
@@ -51,7 +51,7 @@ class YNAB:
             budget__isnull=True,
         ).count()
 
-        subcategories = (
+        categories = (
             await YnabCategories.filter(
                 category_group_name__not_in=[
                     *cls.EXCLUDE_EXPENSE_NAMES,
@@ -61,12 +61,28 @@ class YNAB:
                 ],
                 budget__isnull=True,
             )
-            .order_by("category_group_name", "name")
             .all()
             .values("name", category="category_group_name")
         )
 
-        return BudgetsNeeded(count=subcategories_count, subcategories=subcategories)
+        if categories_count == 0:
+            return BudgetsNeeded(count=0, categories=[])
+
+        grouped_categories = {}
+        for item in categories:
+            category = item["category"]
+            name = item["name"]
+            grouped_categories.setdefault(category, []).append(name)
+
+        results = []
+        for category, names in grouped_categories.items():
+            results.append(
+                {"name": category, "count": len(names), "subcategories": names}
+            )
+
+        results = sorted(results, key=lambda x: x["count"], reverse=True)
+
+        return BudgetsNeeded(count=categories_count, categories=results)
 
     @classmethod
     async def categories_summary(

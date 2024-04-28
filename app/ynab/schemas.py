@@ -4,14 +4,15 @@ from pydantic import BaseModel, Field, field_validator, computed_field
 from datetime import date as date_field
 
 
-class SubCatBudgetReq(BaseModel):
+class CatBudgetReq(BaseModel):
     name: str
-    category: str
+    count: int
+    subcategories: List[str]
 
 
 class BudgetsNeeded(BaseModel):
     count: int
-    subcategories: List[SubCatBudgetReq]
+    categories: Optional[List[CatBudgetReq]] = []
 
 
 class CardBalance(BaseModel):
