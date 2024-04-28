@@ -117,7 +117,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    # dependencies=[Depends(get_token_header)],
+    dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs,
 )
 
