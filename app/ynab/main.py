@@ -25,6 +25,7 @@ from app.ynab.schemas import (
     CategorySummary,
     SubCategorySummary,
     BudgetsNeeded,
+    BudgetsSummary,
     UpcomingBills,
     CategoryTransactions,
     UpcomingBillsDetails,
@@ -38,6 +39,32 @@ from app.ynab.schemas import (
 class YNAB:
     CAT_EXPENSE_NAMES = ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]
     EXCLUDE_EXPENSE_NAMES = ["Monthly Bills", "Loans", "Credit Card Payments"]
+
+    @classmethod
+    async def budgets_summary(cls) -> BudgetsSummary:
+        budgets = await Budgets.all().prefetch_related("category")
+
+        grouped_categories = {}
+        for item in budgets:
+            category = item.category.category_group_name
+            name = item.category.name
+            budgeted = item.amount
+            grouped_categories.setdefault(category, []).append(
+                {"name": name, "budgeted": budgeted}
+            )
+
+        results = []
+        for category, subcats in grouped_categories.items():
+            total_budgeted = sum(subcat["budgeted"] for subcat in subcats)
+            results.append(
+                {"name": category, "budgeted": total_budgeted, "subcategories": subcats}
+            )
+
+        total_budgeted = sum(cat["budgeted"] for cat in results)
+
+        results = sorted(results, key=lambda x: x["budgeted"], reverse=True)
+
+        return BudgetsSummary(total=total_budgeted, categories=results)
 
     @classmethod
     async def budgets_needed(cls) -> BudgetsNeeded:

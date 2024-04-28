@@ -15,6 +15,24 @@ class BudgetsNeeded(BaseModel):
     categories: Optional[List[CatBudgetReq]] = []
 
 
+class SubCatBudgetSummary(BaseModel):
+    name: str
+    budgeted: float
+
+
+class CatBudgetSummary(BaseModel):
+    name: str
+    budgeted: float
+    subcategories: List[SubCatBudgetSummary]
+
+
+class BudgetsSummary(BaseModel):
+    total: Optional[float] = 0.0
+    on_track: Optional[int] = 0  # TODO
+    overspent: Optional[int] = 0  # TODO
+    categories: Optional[List[CatBudgetSummary]] = []
+
+
 class CardBalance(BaseModel):
     id: UUID
     name: str = Field(..., description="Account name for the card.")

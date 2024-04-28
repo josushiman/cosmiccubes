@@ -117,7 +117,7 @@ logging.debug(f"{dotenv_hosts}, {dotenv_origins}, {dotenv_referer}")
 
 app = FastAPI(
     lifespan=lifespan,
-    dependencies=[Depends(get_token_header)],
+    # dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs,
 )
 
@@ -224,6 +224,11 @@ async def delete_many(
 @app.get("/budgets-needed")
 async def budgets_needed():
     return await ynab.budgets_needed()
+
+
+@app.get("/budgets-summary")
+async def budgets_summary():
+    return await ynab.budgets_summary()
 
 
 @app.get("/categories-summary")
