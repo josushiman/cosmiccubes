@@ -1,5 +1,4 @@
 import logging
-from enum import Enum, IntEnum
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from tortoise.functions import Sum
@@ -26,6 +25,7 @@ from app.ynab.schemas import (
     SubCategorySummary,
     BudgetsNeeded,
     BudgetsSummary,
+    SubCatBudgetSummary,
     UpcomingBills,
     CategoryTransactions,
     UpcomingBillsDetails,
@@ -49,22 +49,47 @@ class YNAB:
             category = item.category.category_group_name
             name = item.category.name
             budgeted = item.amount
+            spent = item.category.activity
             grouped_categories.setdefault(category, []).append(
-                {"name": name, "budgeted": budgeted}
+                {"name": name, "budgeted": budgeted, "spent": spent}
             )
 
         results = []
         for category, subcats in grouped_categories.items():
-            total_budgeted = sum(subcat["budgeted"] for subcat in subcats)
+            total_budgeted = 0
+            total_spent = 0
+            total_subcats_on_track = 0
+            total_subcats_overspent = 0
+            for subcat in subcats:
+                pydantic_subcat = SubCatBudgetSummary(**subcat)
+                total_budgeted += pydantic_subcat.budgeted
+                total_spent += pydantic_subcat.spent
+                total_subcats_on_track += (
+                    1 if pydantic_subcat.status == "on track" else 0
+                )
+                total_subcats_overspent += (
+                    1 if pydantic_subcat.status != "on track" else 0
+                )
+
             results.append(
-                {"name": category, "budgeted": total_budgeted, "subcategories": subcats}
+                {
+                    "name": category,
+                    "budgeted": total_budgeted,
+                    "spent": total_spent,
+                    "on_track": total_subcats_on_track,
+                    "overspent": total_subcats_overspent,
+                    "subcategories": subcats,
+                }
             )
 
         total_budgeted = sum(cat["budgeted"] for cat in results)
 
         results = sorted(results, key=lambda x: x["budgeted"], reverse=True)
 
-        return BudgetsSummary(total=total_budgeted, categories=results)
+        return BudgetsSummary(
+            total=total_budgeted,
+            categories=results,
+        )
 
     @classmethod
     async def budgets_needed(cls) -> BudgetsNeeded:
@@ -144,6 +169,7 @@ class YNAB:
                 day=1, hour=00, minute=00, second=00, microsecond=00
             )
 
+        # TODO change from ynab.categories to transactions to allow for month/year filtering
         categories = (
             await YnabCategories.annotate(spent=Sum("activity"))
             .filter(category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES, spent__gt=0)
@@ -193,20 +219,11 @@ class YNAB:
 
         category_summaries = []
         for category, summary in grouped_data.items():
-            logging.debug(
-                f"Budgeted: {summary['budgeted'] * 1000} \
-                          Spent: {summary['amount']}"
-            )
             category_summary = CategorySummary(
                 id=summary["id"],
                 category=category,
                 amount=summary["amount"],
                 budgeted=summary["budgeted"],
-                status=(
-                    "on track"
-                    if summary["budgeted"] * 1000 >= summary["amount"]
-                    else "overspend"
-                ),
                 subcategories=[
                     SubCategorySummary(**subcat) for subcat in summary["subcategories"]
                 ],

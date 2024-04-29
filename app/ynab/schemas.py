@@ -18,18 +18,39 @@ class BudgetsNeeded(BaseModel):
 class SubCatBudgetSummary(BaseModel):
     name: str
     budgeted: float
+    spent: float
+
+    @field_validator("spent")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+    @computed_field
+    @property
+    def status(self) -> float:
+        if self.spent > self.budgeted:
+            return "overspent"
+        return "on track"
 
 
 class CatBudgetSummary(BaseModel):
     name: str
     budgeted: float
+    spent: float
+    on_track: Optional[int] = 0
+    overspent: Optional[int] = 0
     subcategories: List[SubCatBudgetSummary]
+
+    @computed_field
+    @property
+    def status(self) -> float:
+        if self.spent > self.budgeted:
+            return "overspent"
+        return "on track"
 
 
 class BudgetsSummary(BaseModel):
     total: Optional[float] = 0.0
-    on_track: Optional[int] = 0  # TODO
-    overspent: Optional[int] = 0  # TODO
     categories: Optional[List[CatBudgetSummary]] = []
 
 
@@ -90,13 +111,19 @@ class SubCategorySummary(BaseModel):
             return (self.amount / self.budgeted) * 100
         return 0
 
+    @computed_field
+    @property
+    def status(self) -> float:
+        if self.amount > self.budgeted:
+            return "overspent"
+        return "on track"
+
 
 class CategorySummary(BaseModel):
     id: UUID
     category: str
     amount: float
     budgeted: float = 0.0
-    status: Optional[str] = None
     subcategories: List[SubCategorySummary]
 
     @field_validator("amount")
@@ -105,6 +132,13 @@ class CategorySummary(BaseModel):
         if value is None:
             return 0
         return value / 1000.0
+
+    @computed_field
+    @property
+    def status(self) -> float:
+        if self.amount > self.budgeted:
+            return "overspent"
+        return "on track"
 
 
 class CreditAccount(BaseModel):
