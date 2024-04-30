@@ -591,7 +591,10 @@ class YNAB:
         logging.debug(f"Balance available: {balance_available}")
 
         days_left = await YnabHelpers.get_days_left_from_current_month()
-        daily_spend = balance_available / days_left
+        if days_left != 0:
+            daily_spend = balance_available / days_left
+        else:
+            daily_spend = balance_available
 
         uncategorised_transactions = await YnabTransactions.filter(
             category_fk_id=None, transfer_account_id=None
