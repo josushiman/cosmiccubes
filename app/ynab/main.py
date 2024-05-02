@@ -521,7 +521,7 @@ class YNAB:
             .values("bills")
         )
 
-        bills = bills_query.get("bills")
+        bills = bills_query.get("bills", 0.0)
 
         income_query = (
             await YnabTransactions.filter(
@@ -533,7 +533,11 @@ class YNAB:
             .first()
             .values("amount")
         )
-        income = income_query.get("amount")
+
+        try:
+            income = income_query.get("amount")
+        except AttributeError:
+            income = 0.0
 
         logging.debug(f"Income: {income}. Bills: {bills}")
 
