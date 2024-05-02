@@ -32,24 +32,48 @@ newrelic.agent.initialize(dotenv_path_to_ini, settings.newrelic_env)
 scheduler = AsyncIOScheduler()
 
 
-async def update_ynab_data():
-    # Check YNAB is alive
-    # Update each one in a loop, error out when something happens
-    endpoints = [
-        update_accounts,
-        update_categories,
-        update_payees,
-        update_month_details,
-        update_month_summaries,
-        update_transactions,
-    ]
+async def update_account_data():
+    try:
+        await update_accounts(settings.ynab_phrase)
+    except Exception as e_exc:
+        logging.error(f"issue updating endpoint {update_accounts}", exc_info=e_exc)
 
-    for endpoint in endpoints:
-        sleep(60)
-        try:
-            await endpoint(settings.ynab_phrase)
-        except Exception as e_exc:
-            logging.error(f"issue updating endpoint {endpoint}", exc_info=e_exc)
+
+async def update_category_data():
+    try:
+        await update_categories(settings.ynab_phrase)
+    except Exception as e_exc:
+        logging.error(f"issue updating endpoint {update_accounts}", exc_info=e_exc)
+
+
+async def update_payee_data():
+    try:
+        await update_payees(settings.ynab_phrase)
+    except Exception as e_exc:
+        logging.error(f"issue updating endpoint {update_payees}", exc_info=e_exc)
+
+
+async def update_month_detail_data():
+    try:
+        await update_month_details(settings.ynab_phrase)
+    except Exception as e_exc:
+        logging.error(f"issue updating endpoint {update_month_details}", exc_info=e_exc)
+
+
+async def update_month_summary_data():
+    try:
+        await update_month_summaries(settings.ynab_phrase)
+    except Exception as e_exc:
+        logging.error(
+            f"issue updating endpoint {update_month_summaries}", exc_info=e_exc
+        )
+
+
+async def update_transaction_data():
+    try:
+        await update_transactions(settings.ynab_phrase)
+    except Exception as e_exc:
+        logging.error(f"issue updating endpoint {update_transactions}", exc_info=e_exc)
 
 
 @asynccontextmanager
@@ -64,7 +88,12 @@ async def lifespan(app: FastAPI):
     await Tortoise.generate_schemas()
     logging.info("Schemas generated.")
     logging.info("Starting scheduler.")
-    scheduler.add_job(update_ynab_data, trigger="cron", hour="*", minute=4)
+    scheduler.add_job(update_account_data, trigger="cron", hour="*", minute=4)
+    scheduler.add_job(update_category_data, trigger="cron", hour="*", minute=5)
+    scheduler.add_job(update_payee_data, trigger="cron", hour="*", minute=6)
+    scheduler.add_job(update_month_detail_data, trigger="cron", hour="*", minute=8)
+    scheduler.add_job(update_month_summary_data, trigger="cron", hour="*", minute=9)
+    scheduler.add_job(update_transaction_data, trigger="cron", hour="*", minute=10)
     scheduler.start()
     yield
     # Close all connections when shutting down.
