@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
-from tortoise.functions import Sum
+from tortoise.functions import Sum, Count
 from tortoise.expressions import Q
 from app.ynab.helpers import YnabHelpers
 from app.enums import (
@@ -615,7 +615,10 @@ class YNAB:
         )
 
         upcoming_renewals = (
-            await LoansAndRenewals.filter(
+            await LoansAndRenewals.annotate(
+                total=Sum("payment_amount"), count=Count("id")
+            )
+            .filter(
                 Q(period__name="yearly"),
                 Q(end_date__isnull=True),
                 Q(
@@ -623,8 +626,8 @@ class YNAB:
                     | Q(start_date__month=this_month_start.month + 1)
                 ),
             )
-            .all()
-            .values("name", amount="payment_amount", date="start_date")
+            .first()
+            .values("total", "count")
         )
 
         return Month(

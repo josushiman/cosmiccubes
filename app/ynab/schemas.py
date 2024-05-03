@@ -238,16 +238,15 @@ class MonthSummary(BaseModel):
         return value / 1000.0
 
 
-class UpcomingRenewal(BaseModel):
-    name: str
-    date: date_field
-    amount: float
+class UpcomingRenewalSummary(BaseModel):
+    count: int
+    total: float
 
 
 class Month(BaseModel):
     notif: str | None
     summary: MonthSummary
-    renewals: Optional[List[UpcomingRenewal]] = None
+    renewals: Optional[UpcomingRenewalSummary] = None
     categories: List[MonthCategory]
     income_expenses: MonthIncomeExpenses
 
