@@ -15,21 +15,21 @@ class PeriodMonthOptionsIntEnum(IntEnum):
     MONTHS_12 = 12
 
 
-class SpecificMonthOptionsEnum(Enum):
-    JANUARY = "01"
-    FEBRUARY = "02"
-    MARCH = "03"
-    APRIL = "04"
-    MAY = "05"
-    JUNE = "06"
-    JULY = "07"
-    AUGUST = "08"
-    SEPTEMBER = "09"
-    OCTOBER = "10"
-    NOVEMBER = "11"
-    DECEMBER = "12"
+class SpecificMonthOptionsEnum(IntEnum):
+    JANUARY = 1
+    FEBRUARY = 2
+    MARCH = 3
+    APRIL = 4
+    MAY = 5
+    JUNE = 6
+    JULY = 7
+    AUGUST = 8
+    SEPTEMBER = 9
+    OCTOBER = 10
+    NOVEMBER = 11
+    DECEMBER = 12
 
 
-class SpecificYearOptionsEnum(Enum):
-    YEAR_24 = "2024"
-    YEAR_25 = "2025"
+class SpecificYearOptionsEnum(IntEnum):
+    YEAR_24 = 2024
+    YEAR_25 = 2025

@@ -88,12 +88,13 @@ async def lifespan(app: FastAPI):
     await Tortoise.generate_schemas()
     logging.info("Schemas generated.")
     logging.info("Starting scheduler.")
-    scheduler.add_job(update_account_data, trigger="cron", hour="*", minute=4)
-    scheduler.add_job(update_category_data, trigger="cron", hour="*", minute=5)
-    scheduler.add_job(update_payee_data, trigger="cron", hour="*", minute=6)
-    scheduler.add_job(update_month_detail_data, trigger="cron", hour="*", minute=8)
-    scheduler.add_job(update_month_summary_data, trigger="cron", hour="*", minute=9)
-    scheduler.add_job(update_transaction_data, trigger="cron", hour="*", minute=10)
+    if settings.newrelic_env != "development":
+        scheduler.add_job(update_account_data, trigger="cron", hour="*", minute=4)
+        scheduler.add_job(update_category_data, trigger="cron", hour="*", minute=5)
+        scheduler.add_job(update_payee_data, trigger="cron", hour="*", minute=6)
+        scheduler.add_job(update_month_detail_data, trigger="cron", hour="*", minute=8)
+        scheduler.add_job(update_month_summary_data, trigger="cron", hour="*", minute=9)
+        scheduler.add_job(update_transaction_data, trigger="cron", hour="*", minute=10)
     scheduler.start()
     yield
     # Close all connections when shutting down.
@@ -149,6 +150,15 @@ app = FastAPI(
     dependencies=[Depends(get_token_header)],
     openapi_url=dotenv_docs,
 )
+
+
+async def token_override():
+    # This override means it will accept any UUID thats used when making calls on the development environment only.
+    return
+
+
+if settings.newrelic_env == "development":
+    app.dependency_overrides[get_token_header] = token_override
 
 app.add_middleware(
     CORSMiddleware,
@@ -362,9 +372,16 @@ async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
 
-@app.get("/test/endpoint", include_in_schema=False)
-async def test_get_endpoint():
-    return {"message": "done"}
+@app.get("/test/endpoint")
+async def test_get_endpoint(commons: dict = Depends(common_cc_parameters)):
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
+
+    start_date, end_date = await ynab_help.get_dates_for_transaction_queries(
+        year=year, months=months, specific_month=month
+    )
+    return {"start_date": start_date, "end_date": end_date}
 
 
 @app.post("/test/endpoint/{resource}", include_in_schema=False)

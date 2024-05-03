@@ -39,6 +39,22 @@ from app.ynab.schemas import (
 class YNAB:
     CAT_EXPENSE_NAMES = ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]
     EXCLUDE_EXPENSE_NAMES = ["Monthly Bills", "Loans", "Credit Card Payments"]
+    EXCLUDE_CATS = [
+        "Monthly Bills",
+        "Loans",
+        "Credit Card Payments",
+        "Internal Master Category",
+    ]
+    EXCLUDE_BUDGETS = [
+        "Monthly Bills",
+        "Yearly Bills",
+        "Loans",
+        "Credit Card Payments",
+        "Internal Master Category",
+        "Non-Monthly Expenses",
+        "Saving Goals",
+        "Holidays",
+    ]
 
     @classmethod
     async def budgets_summary(cls) -> BudgetsSummary:
@@ -94,23 +110,13 @@ class YNAB:
     @classmethod
     async def budgets_needed(cls) -> BudgetsNeeded:
         categories_count = await YnabCategories.filter(
-            category_group_name__not_in=[
-                *cls.EXCLUDE_EXPENSE_NAMES,
-                "Internal Master Category",
-                "Yearly Bills",
-                "Non-Monthly Expenses",
-            ],
+            category_group_name__not_in=cls.EXCLUDE_BUDGETS,
             budget__isnull=True,
         ).count()
 
         categories = (
             await YnabCategories.filter(
-                category_group_name__not_in=[
-                    *cls.EXCLUDE_EXPENSE_NAMES,
-                    "Internal Master Category",
-                    "Yearly Bills",
-                    "Non-Monthly Expenses",
-                ],
+                category_group_name__not_in=cls.EXCLUDE_BUDGETS,
                 budget__isnull=True,
             )
             .all()
@@ -143,49 +149,50 @@ class YNAB:
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None,
     ) -> list[CategorySummary]:
-        if not months and not year and not specific_month:
-            # Filters for income and bills for the entire of last month.
-            month_end = (
-                datetime.now().replace(
-                    day=1, hour=23, minute=59, second=59, microsecond=59
-                )
-                - relativedelta(days=1)
-                + relativedelta(months=1)
-            )
-            month_start = month_end.replace(
-                day=1, hour=00, minute=00, second=00, microsecond=00
-            )
-        else:
-            # TODO finish this
-            # if not current month use the previous month summaries to work it out
-            month_end = (
-                datetime.now().replace(
-                    day=1, hour=23, minute=59, second=59, microsecond=59
-                )
-                - relativedelta(days=1)
-                + relativedelta(months=1)
-            )
-            month_start = month_end.replace(
-                day=1, hour=00, minute=00, second=00, microsecond=00
-            )
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
 
-        # TODO change from ynab.categories to transactions to allow for month/year filtering
         categories = (
-            await YnabCategories.annotate(spent=Sum("activity"))
-            .filter(category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES, spent__gt=0)
-            .group_by("id", "category_group_id", "category_group_name", "name")
+            await YnabTransactions.annotate(spent=Sum("amount"))
+            .filter(
+                category_fk__category_group_name__isnull=False,
+                category_fk__category_group_name__not_in=cls.EXCLUDE_CATS,
+                date__gte=start_date,
+                date__lte=end_date,
+                debit=True,
+            )
+            .prefetch_related("category_fk")
+            .group_by(
+                "category_id",
+                "category_name",
+                "category_fk__category_group_id",
+                "category_fk__category_group_name",
+            )
             .order_by("-spent")
             .values(
                 "spent",
-                id="category_group_id",
-                name="category_group_name",
-                subcategory="name",
-                subcategory_id="id",
+                id="category_fk__category_group_id",
+                name="category_fk__category_group_name",
+                subcategory="category_name",
+                subcategory_id="category_id",
             )
+        )
+        # Example output:
+        #   [{
+        #       'id': UUID('b648037e-29f8-4d02-ac00-9e71ba409af6'), 'name': 'Frequent', 'subcategory': 'Other Shopping',
+        #       'subcategory_id': UUID('6fad4995-fb1d-4620-bd22-4fcba391a5df'), 'spent': 69000
+        #   }...]
+
+        budget_multiplier = await YnabHelpers.months_between(
+            start_date=start_date, end_date=end_date, months=months
         )
 
         budget_entities = await Budgets.all()
-        budgets = {budget.category_id: budget.amount for budget in budget_entities}
+        budgets = {
+            budget.category_id: (budget.amount * budget_multiplier)
+            for budget in budget_entities
+        }
 
         grouped_data = {}
         for category in categories:

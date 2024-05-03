@@ -2,6 +2,7 @@ import logging
 import httpx
 import json
 import calendar
+from typing import Tuple
 from async_lru import alru_cache
 from enum import Enum, IntEnum
 from datetime import datetime, timedelta
@@ -32,90 +33,119 @@ from app.ynab.models import (
     Payee,
     TransactionDetail,
 )
+from app.enums import (
+    SpecificMonthOptionsEnum,
+    SpecificYearOptionsEnum,
+    PeriodMonthOptionsIntEnum,
+)
 from app.config import settings
 
 
 class YnabHelpers:
     @classmethod
-    async def get_date_for_transactions(
-        cls, year: Enum = None, months: IntEnum = None, specific_month: Enum = None
-    ) -> str:
-        logging.debug(
-            f"""
-        Year: {year}
-        Months: {months}
-        Specific Month: {specific_month}
-        """
+    async def get_start_date_for_transactions(
+        cls,
+        year: SpecificYearOptionsEnum = None,
+        months: PeriodMonthOptionsIntEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> datetime:
+        start_date = datetime.now().replace(
+            hour=00, minute=00, second=00, microsecond=00
         )
-        if year and not specific_month:
-            date_value = (
-                datetime.today()
-                .replace(year=int(year.value), month=1, day=1)
-                .strftime("%Y-%m-%d")
-            )
-            return date_value
 
-        if specific_month and year:
-            date_value = (
-                datetime.today()
-                .replace(year=int(year.value), month=int(specific_month.value), day=1)
-                .strftime("%Y-%m-%d")
-            )
-            return date_value
-
-        if specific_month:
-            date_value = (
-                datetime.today()
-                .replace(month=int(specific_month.value), day=1)
-                .strftime("%Y-%m-%d")
-            )
-            return date_value
-
-        # If this condition is not set, it'll always return the current month, which would also meet the need for months=1
         if months:
-            current_date = datetime.now().replace(
-                day=1, hour=0, minute=0, second=0, microsecond=0
+            start_date = start_date - relativedelta(months=months.value)
+        elif year and not specific_month:
+            start_date = start_date.replace(
+                year=year.value,
+                month=1,
+                day=1,
             )
-            # When returning months, you need to include the current month. So you therefore need to subtract 1 from the months value.
-            month_delta = current_date - relativedelta(months=months - 1)
-            return month_delta.strftime("%Y-%m-%d")
+        elif specific_month and not year:
+            start_date = start_date.replace(
+                month=specific_month.value,
+                day=1,
+            )
+        elif year and specific_month:
+            start_date = start_date.replace(
+                year=year.value,
+                month=specific_month.value,
+                day=1,
+            )
+        else:
+            # Covers when none of the params are set.
+            start_date = start_date.replace(day=1)
 
-        return datetime.today().replace(day=1).strftime("%Y-%m-%d")
+        logging.debug(f"Start date set to: {start_date}")
+        return start_date
 
     @classmethod
-    async def get_last_date_from_since_date(
-        cls, since_date: str, year: bool = False
+    async def get_end_date_for_transactions(
+        cls,
+        start_date: datetime,
+        year: SpecificYearOptionsEnum = None,
+        months: PeriodMonthOptionsIntEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
     ) -> datetime:
-        since_date_dt = datetime.strptime(since_date, "%Y-%m-%d")
-        _, last_day = calendar.monthrange(since_date_dt.year, since_date_dt.month)
-        if year:
-            return datetime(
-                year=since_date_dt.year,
-                month=12,
-                day=last_day,
-                hour=23,
-                minute=59,
-                second=59,
-            )
-        return datetime(
-            year=since_date_dt.year,
-            month=since_date_dt.month,
-            day=last_day,
-            hour=23,
-            minute=59,
-            second=59,
+        start_date = start_date.replace(hour=23, minute=59, second=59, microsecond=00)
+
+        if months:
+            end_date = datetime.now()
+        elif year and not specific_month:
+            end_date = start_date - relativedelta(days=1) + relativedelta(years=1)
+        else:
+            # Covers when year and month are set, or just the month.
+            # As well as when none of the options are set.
+            end_date = start_date - relativedelta(days=1) + relativedelta(months=1)
+
+        logging.debug(f"End date set to: {end_date}")
+        return end_date
+
+    @classmethod
+    async def get_dates_for_transaction_queries(
+        cls,
+        year: SpecificYearOptionsEnum = None,
+        months: PeriodMonthOptionsIntEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> Tuple[datetime, datetime]:
+        start_date = await cls.get_start_date_for_transactions(
+            year=year, months=months, specific_month=specific_month
         )
+        end_date = await cls.get_end_date_for_transactions(
+            start_date=start_date,
+            year=year,
+            months=months,
+            specific_month=specific_month,
+        )
+
+        return start_date, end_date
 
     @classmethod
     async def get_days_left_from_current_month(cls) -> datetime:
-        today = datetime.today().replace(hour=0, minute=0, second=0)
-        last_day_of_month = await cls.get_last_date_from_since_date(
-            today.strftime("%Y-%m-%d")
-        )
+        today = datetime.now()
+        start_date, end_date = await cls.get_dates_for_transaction_queries()
 
-        days_left = (last_day_of_month - today).days
+        days_left = (end_date - today).days
 
         return days_left
+
+    @classmethod
+    async def months_between(
+        cls,
+        start_date: datetime,
+        end_date: datetime,
+        months: PeriodMonthOptionsIntEnum = None,
+    ) -> int:
+        if months:
+            # Return the months value if it is set.
+            return months.value
+
+        years_diff = end_date.year - start_date.year
+        months_diff = end_date.month - start_date.month
+        total_months = (years_diff * 12) + months_diff
+
+        # Add an additional month as it does not include the current month.
+        return total_months + 1
 
     @classmethod
     async def get_route(

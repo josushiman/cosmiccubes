@@ -113,15 +113,15 @@ class SubCategorySummary(BaseModel):
 
     @computed_field
     @property
-    def status(self) -> float:
+    def status(self) -> str:
         if self.amount > self.budgeted:
             return "overspent"
         return "on track"
 
 
 class CategorySummary(BaseModel):
-    id: UUID
-    category: str
+    id: Optional[UUID] = None
+    category: Optional[str] = None
     amount: float
     budgeted: float = 0.0
     subcategories: List[SubCategorySummary]
@@ -135,7 +135,7 @@ class CategorySummary(BaseModel):
 
     @computed_field
     @property
-    def status(self) -> float:
+    def status(self) -> str:
         if self.amount > self.budgeted:
             return "overspent"
         return "on track"
