@@ -265,7 +265,9 @@ class YnabHelpers:
         return server_knowledge
 
     @classmethod
-    @alru_cache(maxsize=32)  # Caches requests so we don't overuse them.
+    @alru_cache(
+        maxsize=32, ttl=30
+    )  # Caches requests so we don't overuse them. TTL is in mins.
     async def make_request(
         cls,
         action: str,
