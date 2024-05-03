@@ -34,35 +34,35 @@ scheduler = AsyncIOScheduler()
 
 async def update_account_data():
     try:
-        await update_accounts(settings.ynab_phrase)
+        await update_accounts()
     except Exception as e_exc:
         logging.error(f"issue updating endpoint {update_accounts}", exc_info=e_exc)
 
 
 async def update_category_data():
     try:
-        await update_categories(settings.ynab_phrase)
+        await update_categories()
     except Exception as e_exc:
         logging.error(f"issue updating endpoint {update_accounts}", exc_info=e_exc)
 
 
 async def update_payee_data():
     try:
-        await update_payees(settings.ynab_phrase)
+        await update_payees()
     except Exception as e_exc:
         logging.error(f"issue updating endpoint {update_payees}", exc_info=e_exc)
 
 
 async def update_month_detail_data():
     try:
-        await update_month_details(settings.ynab_phrase)
+        await update_month_details()
     except Exception as e_exc:
         logging.error(f"issue updating endpoint {update_month_details}", exc_info=e_exc)
 
 
 async def update_month_summary_data():
     try:
-        await update_month_summaries(settings.ynab_phrase)
+        await update_month_summaries()
     except Exception as e_exc:
         logging.error(
             f"issue updating endpoint {update_month_summaries}", exc_info=e_exc
@@ -71,7 +71,7 @@ async def update_month_summary_data():
 
 async def update_transaction_data():
     try:
-        await update_transactions(settings.ynab_phrase)
+        await update_transactions()
     except Exception as e_exc:
         logging.error(f"issue updating endpoint {update_transactions}", exc_info=e_exc)
 
@@ -324,39 +324,33 @@ async def upcoming_bills_details():
 
 
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
-@protected_endpoint
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
 
 
 @app.get("/ynab/update-categories", name="Update YNAB Categories")
-@protected_endpoint
 async def update_categories():
     return await ynab_help.pydantic_categories()
 
 
 @app.get("/ynab/update-month-details", name="Update YNAB Month Details")
-@protected_endpoint
 async def update_month_details():
     # Does previous month category summaries. Will only do previous months.
     return await ynab_help.pydantic_month_details()
 
 
 @app.get("/ynab/update-month-summaries", name="Update YNAB Month Summaries")
-@protected_endpoint
 async def update_month_summaries():
     # Does the current year summaries
     return await ynab_help.pydantic_month_summaries()
 
 
 @app.get("/ynab/update-payees", name="Update YNAB Payees")
-@protected_endpoint
 async def update_payees():
     return await ynab_help.pydantic_payees()
 
 
 @app.get("/ynab/update-transactions", name="Update YNAB Transactions")
-@protected_endpoint
 async def update_transactions():
     await ynab_help.pydantic_transactions()
     # Below needs categories to exist.
@@ -364,7 +358,6 @@ async def update_transactions():
 
 
 @app.get("/ynab/update-transaction-rels", name="Update YNAB Transaction Relations")
-@protected_endpoint
 async def update_transaction_rels():
     return await ynab_help.sync_transaction_rels()
 
