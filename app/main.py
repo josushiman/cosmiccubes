@@ -279,9 +279,21 @@ async def categories_summary(commons: dict = Depends(common_cc_parameters)):
 
 
 @app.get("/categories-summary/{category_name}/{subcategory_name}")
-async def category_summary(category_name: str, subcategory_name: str):
+async def category_summary(
+    category_name: str,
+    subcategory_name: str,
+    commons: dict = Depends(common_cc_parameters),
+):
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
+
     return await ynab.category_summary(
-        category_name=category_name, subcategory_name=subcategory_name
+        category_name=category_name,
+        subcategory_name=subcategory_name,
+        year=year,
+        months=months,
+        specific_month=month,
     )
 
 

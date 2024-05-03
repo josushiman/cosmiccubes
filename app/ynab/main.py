@@ -241,36 +241,25 @@ class YNAB:
 
     @classmethod
     async def category_summary(
-        cls, category_name: str, subcategory_name: str
+        cls,
+        category_name: str,
+        subcategory_name: str,
+        months: PeriodMonthOptionsIntEnum = None,
+        year: SpecificYearOptionsEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
     ) -> CategoryTransactions:
-        month_end = (
-            datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=59)
-            - relativedelta(days=1)
-            + relativedelta(months=1)
-        )
-        month_start = month_end.replace(
-            day=1, hour=00, minute=00, second=00, microsecond=00
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
         )
 
         subcategory_name = subcategory_name.replace("-", " ")
-
-        category = (
-            await YnabCategories.filter(
-                category_group_name__iexact=category_name,
-                name__iexact=subcategory_name,
-            )
-            .first()
-            .values("activity")
-        )
-
-        category_spent = category.get("activity")
 
         transactions = (
             await YnabTransactions.filter(
                 category_fk__category_group_name__iexact=category_name,
                 category_name__iexact=subcategory_name,
-                date__gte=month_start,
-                date__lt=month_end,
+                date__gte=start_date,
+                date__lte=end_date,
                 debit=True,
             )
             .order_by("-date")
@@ -286,10 +275,15 @@ class YNAB:
             )
         )
 
-        last_month_start = month_start - relativedelta(months=1)
-        last_3_month_start = month_start - relativedelta(months=3)
-        last_6_month_start = month_start - relativedelta(months=6)
-        last_month_end = month_end - relativedelta(months=1)
+        category_spent = sum(transaction["amount"] for transaction in transactions)
+
+        this_month_start = datetime.now().replace(
+            day=1, hour=00, minute=00, second=00, microsecond=00
+        )
+        last_month_start = this_month_start - relativedelta(months=1)
+        last_3_month_start = this_month_start - relativedelta(months=3)
+        last_6_month_start = this_month_start - relativedelta(months=6)
+        last_month_end = this_month_start - relativedelta(days=1)
 
         transactions_1_m = (
             await YnabTransactions.annotate(spent=Sum("amount"))
@@ -350,6 +344,7 @@ class YNAB:
             logging.debug(f"Average spend for last {totals['period']}: {average_spend}")
 
             try:
+                # TODO trend percentage is not good when searching over multiple months.
                 trend_percentage = round(
                     ((category_spent - average_spend) / average_spend) * 100
                 )
