@@ -200,18 +200,6 @@ class LoanPortfolio(BaseModel):
     accounts: List[dict]
 
 
-class MonthCategory(BaseModel):
-    name: str
-    group: Optional[str] = None
-    spent: float
-    budget: float
-
-    @field_validator("spent")
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
-
 class MonthIncomeExpenses(BaseModel):
     balance_available: float
     balance_spent: float
@@ -238,16 +226,9 @@ class MonthSummary(BaseModel):
         return value / 1000.0
 
 
-class UpcomingRenewalSummary(BaseModel):
-    count: int
-    total: float
-
-
 class Month(BaseModel):
     notif: str | None
     summary: MonthSummary
-    renewals: Optional[UpcomingRenewalSummary] = None
-    categories: List[MonthCategory]
     income_expenses: MonthIncomeExpenses
 
 

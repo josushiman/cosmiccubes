@@ -39,6 +39,8 @@ from app.ynab.schemas import (
 class YNAB:
     CAT_EXPENSE_NAMES = ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]
     EXCLUDE_EXPENSE_NAMES = ["Monthly Bills", "Loans", "Credit Card Payments"]
+    INCLUDE_INCOME = "Internal Master Category"
+    INCLUDE_EXPENSE_NAMES = ["Monthly Bills", "Loans"]
     EXCLUDE_CATS = [
         "Monthly Bills",
         "Loans",
@@ -491,31 +493,69 @@ class YNAB:
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None,
     ) -> Month:
-        if not months and not year and not specific_month:
-            # Filters for income and bills for the entire of last month.
-            last_month_end = datetime.now().replace(
-                day=1, hour=23, minute=59, second=59, microsecond=59
-            ) - relativedelta(days=1)
-            last_month_start = last_month_end.replace(
-                day=1, hour=00, minute=00, second=00, microsecond=00
-            )
-        else:
-            # TODO finish this
-            # if not current month use the previous month summaries to work it out
-            logging.debug("not current month")
-            last_month_end = datetime.now().replace(
-                day=1, hour=23, minute=59, second=59, microsecond=59
-            ) - relativedelta(days=1)
-            last_month_start = last_month_end.replace(
-                day=1, hour=00, minute=00, second=00, microsecond=00
-            )
+        # spent_so_far
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
 
-        bills_query = (
+        spent_so_far = (
+            await YnabTransactions.annotate(total=Sum("amount"))
+            .filter(
+                category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+                date__gte=start_date,
+                date__lte=end_date,
+                debit=True,
+            )
+            .group_by("debit")
+            .first()
+            .values("total")
+        )
+
+        try:
+            balance_spent = spent_so_far.get("total")
+        except AttributeError:
+            balance_spent = 0.0
+
+        budget_summary = await cls.budgets_summary()
+        budget_multiplier = await YnabHelpers.months_between(
+            start_date=start_date, end_date=end_date, months=months
+        )
+
+        balance_budget = budget_summary.total * budget_multiplier
+
+        logging.debug(f"Total spent this month: {balance_spent}")
+        logging.debug(f"Total budgeted: {balance_budget}")
+
+        savings = await Savings.filter(date__gte=start_date, date__lte=end_date).first()
+        savings_milliunit = savings.target * 1000 if savings else 0
+        logging.debug(f"Savings target: {savings_milliunit}")
+
+        upcoming_renewals = (
+            await LoansAndRenewals.annotate(
+                total=Sum("payment_amount"), count=Count("id")
+            )
+            .filter(
+                Q(period__name="yearly"),
+                Q(end_date__isnull=True),
+                Q(
+                    Q(start_date__month=start_date.month)
+                    | Q(start_date__month=start_date.month + 1)
+                ),
+            )
+            .first()
+            .values("total", "count")
+        )
+
+        # update the from date to the beginning of last month for bills and income
+        last_month_start = start_date - relativedelta(months=1)
+        last_month_end = end_date - relativedelta(months=1)
+
+        last_month_bills = (
             await YnabTransactions.annotate(bills=Sum("amount"))
             .filter(
-                Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
+                Q(category_fk__category_group_name__in=cls.INCLUDE_EXPENSE_NAMES),
                 Q(date__gte=last_month_start),
-                Q(date__lt=last_month_end),
+                Q(date__lte=last_month_end),
                 Q(debit=True),
             )
             .group_by("cleared")
@@ -523,13 +563,16 @@ class YNAB:
             .values("bills")
         )
 
-        bills = bills_query.get("bills", 0.0)
+        try:
+            bills = last_month_bills.get("bills")
+        except AttributeError:
+            bills = 0.0
 
-        income_query = (
+        last_month_income = (
             await YnabTransactions.filter(
                 Q(payee_name="BJSS LIMITED"),
                 Q(date__gte=last_month_start),
-                Q(date__lt=last_month_end),
+                Q(date__lte=last_month_end),
                 Q(debit=False),
             )
             .first()
@@ -537,61 +580,11 @@ class YNAB:
         )
 
         try:
-            income = income_query.get("amount")
+            income = last_month_income.get("amount")
         except AttributeError:
             income = 0.0
 
         logging.debug(f"Income: {income}. Bills: {bills}")
-
-        # update the from date to the beginning of the month for everything spent so far.
-        this_month_start = last_month_start + relativedelta(months=1)
-        this_month_end = last_month_end + relativedelta(months=1)
-
-        categories = (
-            await YnabTransactions.annotate(spent=Sum("amount"))
-            .filter(
-                category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
-                date__gte=this_month_start,
-                date__lt=this_month_end,
-                transfer_account_id__isnull=True,
-                debit=True,
-            )
-            .group_by(
-                "category_fk__category_group_name",
-                "category_name",
-                "category_fk__budget__amount",
-            )
-            .all()
-            .values(
-                "spent",
-                name="category_name",
-                group="category_fk__category_group_name",
-                budget="category_fk__budget__amount",
-            )
-        )
-        # ex output:
-        # [{'name': 'Coffee', 'group': 'Frequent', 'spent': -9950.0, 'budget': 50},
-        # {'name': 'Restaurants', 'group': 'Frequent', 'spent': -6000.0, 'budget': 50}]
-
-        categories = sorted(categories, key=lambda x: x["spent"], reverse=True)
-
-        balance_spent = 0
-        balance_budget = 0
-
-        for category in categories:
-            if category["budget"] is None:
-                category["budget"] = 0
-            balance_spent += category.get("spent")
-            balance_budget += category.get("budget")
-
-        logging.debug(f"Total spent this month: {balance_spent}")
-        logging.debug(f"Total budgeted: {balance_budget}")
-
-        savings = await Savings.filter(
-            date__gte=this_month_start, date__lt=this_month_end
-        ).first()
-        savings_milliunit = savings.target * 1000 if savings else 0
-        logging.debug(f"Savings target: {savings_milliunit}")
 
         balance_available = (income - (balance_spent + bills)) - savings_milliunit
         logging.debug(f"Balance available: {balance_available}")
@@ -616,22 +609,6 @@ class YNAB:
             )
         )
 
-        upcoming_renewals = (
-            await LoansAndRenewals.annotate(
-                total=Sum("payment_amount"), count=Count("id")
-            )
-            .filter(
-                Q(period__name="yearly"),
-                Q(end_date__isnull=True),
-                Q(
-                    Q(start_date__month=this_month_start.month)
-                    | Q(start_date__month=this_month_start.month + 1)
-                ),
-            )
-            .first()
-            .values("total", "count")
-        )
-
         return Month(
             notif=notification_text,
             summary={
@@ -641,8 +618,6 @@ class YNAB:
                 "balance_budget": balance_budget,
                 "daily_spend": daily_spend,
             },
-            renewals=upcoming_renewals,
-            categories=categories[0:3],
             income_expenses={
                 "income": income,
                 "bills": bills,
