@@ -325,6 +325,11 @@ async def refunds():
     return await ynab.refunds()
 
 
+@app.get("/savings")
+async def savings():
+    return await ynab.savings(year=SpecificYearOptionsEnum.NOW)
+
+
 @app.get("/transaction-summary")
 async def transaction_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get("year")

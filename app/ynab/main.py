@@ -705,6 +705,10 @@ class YNAB:
         return Refunds(count=refunds_count, transactions=refunds)
 
     @classmethod
+    async def savings(cls, year: SpecificYearOptionsEnum = None) -> list[Savings]:
+        return await Savings.all().filter(date__year=year.value).order_by("date")
+
+    @classmethod
     async def test_endpoint(
         cls,
         year: SpecificYearOptionsEnum = None,
