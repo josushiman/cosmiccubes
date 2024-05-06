@@ -1,4 +1,5 @@
 from enum import Enum, IntEnum
+from datetime import datetime
 
 
 class LoansAndRenewalsEnum(Enum):
@@ -16,6 +17,8 @@ class PeriodMonthOptionsIntEnum(IntEnum):
 
 
 class SpecificMonthOptionsEnum(IntEnum):
+    NOW = datetime.now().month
+    LAST_MONTH = datetime.now().month - 1
     JANUARY = 1
     FEBRUARY = 2
     MARCH = 3
@@ -31,5 +34,6 @@ class SpecificMonthOptionsEnum(IntEnum):
 
 
 class SpecificYearOptionsEnum(IntEnum):
+    NOW = datetime.now().year
     YEAR_24 = 2024
     YEAR_25 = 2025

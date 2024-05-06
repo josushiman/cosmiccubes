@@ -337,3 +337,12 @@ class UpcomingBillsDetails(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
+
+class MonthSavingsCalc(BaseModel):
+    total: float
+
+    @field_validator("total")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0

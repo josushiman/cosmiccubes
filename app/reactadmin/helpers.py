@@ -99,7 +99,7 @@ class ReactAdmin:
             return await cls.get_many(resource, kwargs_raw["id"])
 
         kwargs = await cls.process_raw_kwargs(kwargs_raw)
-        logging.debug(f"Processed kwargs: {kwargs}")
+
         order_by, limit = await cls.get_order_limit_value(commons)
 
         entity_model = await cls.get_entity_model(resource)
@@ -202,6 +202,8 @@ class ReactAdmin:
                 # Otherwise just store the value in the new dict
                 else:
                     kwargs[key] = value
+
+        logging.debug(f"Processed kwargs: {kwargs}")
         return kwargs
 
     @classmethod
@@ -216,10 +218,12 @@ class ReactAdmin:
             logging.info("Limit value cannot be less than 0.")
             raise HTTPException(status_code=400)
 
+        logging.debug(f"Order by: {order_by}, Limit: {limit}")
         return order_by, limit
 
     @classmethod
     async def get_sort_value(cls, order: str, sort: str) -> str:
+        logging.debug(f"Sort by: {order}")
         if order == "ASC":
             return sort
         return "-" + sort
@@ -235,7 +239,7 @@ class ReactAdmin:
         filter: dict = None,
     ) -> list[Model]:
         entity_schema = await cls.get_entity_schema(resource)
-
+        logging.debug(f"Attempting to retrieve list data for {entity_schema}")
         try:
             if order_by is None:
                 if filter:

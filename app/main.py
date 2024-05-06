@@ -1,6 +1,6 @@
 import logging
 import newrelic.agent
-from time import sleep
+from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from tortoise import Tortoise
 from contextlib import asynccontextmanager
@@ -16,7 +16,6 @@ from app.enums import (
 )
 from app.ynab.main import YNAB as ynab
 from app.ynab.helpers import YnabHelpers as ynab_help
-from app.decorators import protected_endpoint
 
 dotenv_token = settings.env_token
 dotenv_hosts = settings.env_hosts
@@ -95,6 +94,7 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(update_month_detail_data, trigger="cron", hour="*", minute=8)
         scheduler.add_job(update_month_summary_data, trigger="cron", hour="*", minute=9)
         scheduler.add_job(update_transaction_data, trigger="cron", hour="*", minute=10)
+        scheduler.add_job(update_savings, trigger="cron", day="*/2", hour=4, minute=30)
     scheduler.start()
     yield
     # Close all connections when shutting down.
@@ -372,6 +372,46 @@ async def update_payees():
     return await ynab_help.pydantic_payees()
 
 
+@app.get("/ynab/update-savings", name="Update Savings Outcomes")
+async def update_savings(commons: dict = Depends(common_cc_parameters)):
+    year = commons.get("year")
+    month = commons.get("month")
+
+    if not year or not month:
+        year = SpecificYearOptionsEnum.NOW
+        month = SpecificMonthOptionsEnum.LAST_MONTH
+    else:
+        year = SpecificYearOptionsEnum(year)
+        month = SpecificMonthOptionsEnum(month)
+
+    entities, count = await ra.get_list(
+        resource="savings",
+        commons={"_end": 1, "_start": 0, "_order": "ASC", "_sort": "date"},
+        kwargs_raw={
+            "date__month": month.value,
+            "date__year": year.value,
+            "name": "Monthly",
+        },
+    )
+
+    if int(count) < 1:
+        return {"message": "No savings target available for update."}
+
+    month_savings = await ynab.month_savings(year=year, specific_month=month)
+
+    savings_entity = entities[0]
+    savings_entity_id = str(savings_entity.id)
+    savings_entity.amount = month_savings.total
+    savings_entity.date = datetime.strftime(savings_entity.date, "%Y-%m-%d")
+    logging.debug(f"Entity updated to update savings target: {savings_entity}")
+
+    update_dict = savings_entity.__dict__
+    update_dict.pop("id")
+    logging.debug(f"Dict created to allow for db save: {update_dict}")
+
+    return await update(resource="savings", _body=update_dict, _id=savings_entity_id)
+
+
 @app.get("/ynab/update-transactions", name="Update YNAB Transactions")
 async def update_transactions():
     await ynab_help.pydantic_transactions()
@@ -393,7 +433,7 @@ async def test_get_endpoint(commons: dict = Depends(common_cc_parameters)):
     start_date, end_date = await ynab_help.get_dates_for_transaction_queries(
         year=year, months=months, specific_month=month
     )
-    return {"start_date": start_date, "end_date": end_date}
+    return await ynab.test_endpoint(specific_month=month, year=year)
 
 
 @app.post("/test/endpoint/{resource}", include_in_schema=False)
