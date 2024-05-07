@@ -34,6 +34,9 @@ from app.ynab.schemas import (
     Insurance,
     Refunds,
     MonthSavingsCalc,
+    DailySpendItem,
+    DailySpendSummary,
+    Transaction,
 )
 
 
@@ -383,7 +386,7 @@ class YNAB:
         )
 
     @classmethod
-    async def daily_spend(cls, num_days: int):
+    async def daily_spend(cls, num_days: int) -> DailySpendSummary:
         start_date = datetime.now().replace(
             hour=0, minute=0, second=0, microsecond=0
         ) - relativedelta(days=num_days)
@@ -399,28 +402,35 @@ class YNAB:
                 transfer_account_id__isnull=True,
             )
             .group_by("date")
-            .all()
+            .values("total", "date")
         )
 
         all_dates = [
-            (end_date - relativedelta(days=i)).strftime("%Y-%m-%d")
+            (start_date + relativedelta(days=i)).strftime("%Y-%m-%d")
             for i in range((end_date - start_date).days + 1)
         ]
         logging.debug(f"Dates generated for the last {num_days} days: {all_dates}")
 
         # Convert fetched transaction data into a dictionary
         transaction_dict = {
-            transaction.date.strftime("%Y-%m-%d"): transaction.total
+            transaction["date"].strftime("%Y-%m-%d"): transaction["total"]
             for transaction in transactions
         }
         logging.debug(f"Transaction dict returned: {transaction_dict}")
 
         # Combine fetched transaction totals with all dates
         transaction_totals = [
-            {"date": date, "total": transaction_dict.get(date, 0)} for date in all_dates
+            DailySpendItem(
+                date=date,
+                total=transaction_dict.get(date, 0),
+                transactions=await cls.transaction_by_date(date=date),
+            )
+            for date in all_dates
         ]
 
-        return transaction_totals
+        total = sum(date.total for date in transaction_totals)
+
+        return DailySpendSummary(total=total, days=transaction_totals)
 
     @classmethod
     async def direct_debits(cls) -> DirectDebitSummary:
@@ -756,6 +766,31 @@ class YNAB:
     ):
 
         return
+
+    @classmethod
+    async def transaction_by_date(cls, date: str) -> list[Transaction]:
+        transactions = (
+            await YnabTransactions.filter(
+                date=date,
+                category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+                debit=True,
+                transfer_account_id__isnull=True,
+            )
+            .order_by("-date")
+            .all()
+            .values(
+                "id",
+                "account_id",
+                "amount",
+                "account_name",
+                "date",
+                category="category_fk__category_group_name",
+                subcategory="category_name",
+                payee="payee_name",
+            )
+        )
+
+        return [Transaction(**transaction) for transaction in transactions]
 
     @classmethod
     async def transaction_summary(

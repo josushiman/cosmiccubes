@@ -346,3 +346,19 @@ class MonthSavingsCalc(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
+
+class DailySpendItem(BaseModel):
+    date: date_field
+    total: Optional[float] = 0.0
+    transactions: Optional[List[Transaction]] = []
+
+    @field_validator("total")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+
+class DailySpendSummary(BaseModel):
+    total: float
+    days: List[DailySpendItem]
