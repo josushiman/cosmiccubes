@@ -392,7 +392,7 @@ async def update_savings(commons: dict = Depends(common_cc_parameters)):
 
     if not year or not month:
         year = SpecificYearOptionsEnum.NOW
-        month = SpecificMonthOptionsEnum.LAST_MONTH
+        month = SpecificMonthOptionsEnum.NOW
     else:
         year = SpecificYearOptionsEnum(year)
         month = SpecificMonthOptionsEnum(month)
