@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
-from tortoise.functions import Sum, Count
+from tortoise.functions import Sum, Count, Coalesce
 from tortoise.expressions import Q
 from app.ynab.helpers import YnabHelpers
 from app.enums import (
@@ -381,6 +381,45 @@ class YNAB:
         return CategoryTransactions(
             total=category_spent, trends=trends, transactions=transactions
         )
+
+    @classmethod
+    async def daily_spend(cls, num_days: int):
+        start_date = datetime.now().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) - relativedelta(days=num_days)
+
+        end_date = datetime.now()
+
+        transactions = (
+            await YnabTransactions.annotate(total=Sum("amount"))
+            .filter(
+                date__gte=start_date,
+                category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+                debit=True,
+            )
+            .group_by("date")
+            .all()
+        )
+
+        all_dates = [
+            (start_date + relativedelta(days=i)).strftime("%Y-%m-%d")
+            for i in range((end_date - start_date).days + 1)
+        ]
+        logging.debug(f"Dates generated for the last {num_days} days: {all_dates}")
+
+        # Convert fetched transaction data into a dictionary
+        transaction_dict = {
+            transaction.date.strftime("%Y-%m-%d"): transaction.total
+            for transaction in transactions
+        }
+        logging.debug(f"Transaction dict returned: {transaction_dict}")
+
+        # Combine fetched transaction totals with all dates
+        transaction_totals = [
+            {"date": date, "total": transaction_dict.get(date, 0)} for date in all_dates
+        ]
+
+        return transaction_totals
 
     @classmethod
     async def direct_debits(cls) -> DirectDebitSummary:

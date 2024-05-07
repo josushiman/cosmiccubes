@@ -297,6 +297,14 @@ async def category_summary(
     )
 
 
+@app.get("/daily-spend")
+async def daily_spend(num_days: int):
+    if num_days > 7:
+        logging.warn("TODO - think about what to do here.")
+        return None
+    return await ynab.daily_spend(num_days=num_days)
+
+
 @app.get("/direct-debits")
 async def direct_debits():
     return await ynab.direct_debits()
