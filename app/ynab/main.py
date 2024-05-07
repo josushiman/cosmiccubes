@@ -396,13 +396,14 @@ class YNAB:
                 date__gte=start_date,
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
                 debit=True,
+                transfer_account_id__isnull=True,
             )
             .group_by("date")
             .all()
         )
 
         all_dates = [
-            (start_date + relativedelta(days=i)).strftime("%Y-%m-%d")
+            (end_date - relativedelta(days=i)).strftime("%Y-%m-%d")
             for i in range((end_date - start_date).days + 1)
         ]
         logging.debug(f"Dates generated for the last {num_days} days: {all_dates}")
