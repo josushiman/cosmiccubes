@@ -926,27 +926,72 @@ class YNAB:
             day=1, hour=00, minute=00, second=00, microsecond=00
         )
 
-        bills = (
-            await YnabTransactions.annotate(total=Sum("amount"))
-            .filter(
-                Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
-                Q(date__gte=last_month_start),
-                Q(date__lt=last_month_end),
-                Q(debit=True),
+        monthly_bills = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name="Monthly Bills",
+                date__gte=last_month_start,
+                date__lt=last_month_end,
+                debit=True,
             )
-            .group_by("category_name", "category_fk__category_group_name")
-            .order_by("-total")
+            .group_by(
+                "amount", "category_name", "category_fk__category_group_name", "date"
+            )
+            .order_by("-amount")
             .all()
             .values(
-                "total",
+                "amount",
+                "date",
                 name="category_name",
                 category="category_fk__category_group_name",
             )
         )
 
-        total_bills = sum(bill["total"] for bill in bills)
+        loans_renewals = (
+            await LoansAndRenewals.filter(type__name__in=["insurance", "loan"])
+            .prefetch_related("type")
+            .all()
+        )
 
-        return UpcomingBills(total=total_bills, subcategories=bills)
+        loans = []
+        renewals = []
+        for loan_renewal in loans_renewals:
+            if (
+                loan_renewal.renewal_this_month()
+                and loan_renewal.type.name == "insurance"
+            ):
+                renewals.append(
+                    {
+                        "amount": loan_renewal.payment_amount,
+                        "date": loan_renewal.start_date,
+                        "name": loan_renewal.name,
+                        "category": "insurance",
+                    }
+                )
+            elif loan_renewal.renewal_this_month() and loan_renewal.type.name == "loan":
+                loans.append(
+                    {
+                        "amount": loan_renewal.payment_amount,
+                        "date": loan_renewal.start_date,
+                        "name": loan_renewal.name,
+                        "category": "loan",
+                    }
+                )
+
+        total_bills = sum(bill["amount"] for bill in monthly_bills) / 1000
+        total_loans = sum(loan["amount"] for loan in loans)
+        total_renewals = sum(renewal["amount"] for renewal in renewals)
+
+        total = total_bills + total_loans + total_renewals
+
+        return UpcomingBills(
+            total=total,
+            total_bills=total_bills,
+            total_loans=total_loans,
+            total_renewals=total_renewals,
+            bills=monthly_bills,
+            loans=loans,
+            renewals=renewals,
+        )
 
     @classmethod
     async def upcoming_bills_details(cls) -> list[UpcomingBillsDetails]:

@@ -284,12 +284,20 @@ class TransactionsByMonthResponse(BaseModel):
 class BillCategory(BaseModel):
     name: str
     category: str
-    total: float
+    amount: float
+    date: date_field
 
-    @field_validator("total")
+    @field_validator("amount")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
+
+class LoanRenewalCategory(BaseModel):
+    name: str
+    category: str
+    amount: float
+    date: date_field
 
 
 class CategoryTrends(BaseModel):
@@ -317,12 +325,12 @@ class CategoryTransactions(BaseModel):
 
 class UpcomingBills(BaseModel):
     total: float
-    subcategories: List[BillCategory]
-
-    @field_validator("total")
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
+    total_bills: float
+    total_loans: Optional[float] = 0.0
+    total_renewals: Optional[float] = 0.0
+    bills: List[BillCategory]
+    loans: Optional[List[LoanRenewalCategory]] = None
+    renewals: Optional[List[LoanRenewalCategory]] = None
 
 
 class UpcomingBillsDetails(BaseModel):

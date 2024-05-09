@@ -194,7 +194,10 @@ class LoansAndRenewals(Model):
     )
 
     def period_name(self) -> str:
-        return self.period.name if self.period else None
+        try:
+            return self.period.name
+        except AttributeError:
+            return None
 
     def remaining_balance(self) -> float:
         if self.starting_balance is None:
@@ -228,14 +231,31 @@ class LoansAndRenewals(Model):
             return None
         return remaining_balance
 
+    def renewal_this_month(self) -> bool:
+        if self.type_name == "loan":
+            print("loan me baby")
+        return True
+
     def status(self) -> str:
         try:
             return "Outstanding" if self.remaining_balance > 0 else "Paid"
         except TypeError:
             return "Ongoing"
 
+    def type_name(self) -> str:
+        try:
+            return self.type.name
+        except AttributeError:
+            return None
+
     class PydanticMeta:
-        computed = ["period_name", "remaining_balance", "status"]
+        computed = [
+            "type_name",
+            "period_name",
+            "remaining_balance",
+            "renewal_this_month",
+            "status",
+        ]
         unique_together = ("end_date", "start_date", "name")
 
 
