@@ -915,8 +915,37 @@ class YNAB:
             )
         )
 
-        # TODO provide breakdown if necessary
-        monthly_bills_summary = []
+        monthly_bills_count = await YnabTransactions.filter(
+            category_fk__category_group_name="Monthly Bills",
+            date__gte=last_month_start,
+            date__lt=last_month_end,
+            debit=True,
+        ).count()
+
+        monthly_bills_summary = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name="Monthly Bills",
+                date__gte=last_month_start,
+                date__lt=last_month_end,
+                debit=True,
+            )
+            .order_by("date")
+            .all()
+            .values(
+                "amount",
+                "date",
+                "memo",
+                payee="payee_name",
+                subcategory="category_name",
+            )
+        )
+
+        for bill in monthly_bills:
+            bill_transactions = []
+            for bill_detail in monthly_bills_summary:
+                if bill["name"] == bill_detail["subcategory"]:
+                    bill_transactions.append(bill_detail)
+            bill["transactions"] = bill_transactions
 
         loans_renewals = (
             await LoansAndRenewals.filter(type__name__in=["insurance", "loan"])
@@ -964,6 +993,7 @@ class YNAB:
         return UpcomingBills(
             total=total,
             total_bills=total_bills,
+            count_bills=monthly_bills_count,
             total_loans=total_loans,
             total_renewals=total_renewals,
             bills=monthly_bills,

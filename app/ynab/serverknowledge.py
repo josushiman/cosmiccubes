@@ -300,6 +300,9 @@ class YnabServerKnowledgeHelper:
             try:
                 created += await cls.create_route_entities(model=model)
             except IntegrityError:
+                if type(model) == YnabPayees:
+                    # Payees do not change once entered. No need to update them.
+                    continue
                 updated += await cls.update_route_entities(
                     model=model, resp_body=entity
                 )

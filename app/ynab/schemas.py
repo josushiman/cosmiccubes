@@ -281,9 +281,25 @@ class TransactionsByMonthResponse(BaseModel):
     data: List[TransactionByMonth]
 
 
+class BillTransaction(BaseModel):
+    memo: Optional[str] = None
+    payee: str = Field(..., description="Name of the merchant.")
+    amount: float = Field(
+        ..., description="Amount that was charged against the transaction."
+    )
+    date: date_field = Field(..., description="Date of the transaction being cleared.")
+    subcategory: str | None = Field(..., description="Subcategory of the transaction.")
+
+    @field_validator("amount")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+
 class BillCategory(BaseModel):
     name: str
     amount: float
+    transactions: List[BillTransaction]
 
     @field_validator("amount")
     def format_milliunits(cls, value):
@@ -323,6 +339,7 @@ class CategoryTransactions(BaseModel):
 class UpcomingBills(BaseModel):
     total: float
     total_bills: float
+    count_bills: int
     total_loans: Optional[float] = 0.0
     total_renewals: Optional[float] = 0.0
     bills: List[BillCategory]
