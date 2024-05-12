@@ -959,7 +959,8 @@ class YNAB:
         for loan_renewal in loans_renewals:
             renewal_this_month = await YnabHelpers.renewal_this_month(
                 renewal_name=loan_renewal.name,
-                renewal_date=loan_renewal.start_date,
+                renewal_start_date=loan_renewal.start_date,
+                renewal_end_date=loan_renewal.end_date,
                 renewal_type=loan_renewal.type.name,
                 renewal_period=loan_renewal.period.name,
             )

@@ -480,9 +480,10 @@ class YnabHelpers:
     async def renewal_this_month(
         cls,
         renewal_name: str,
-        renewal_date: datetime,
+        renewal_start_date: datetime,
         renewal_type: str,
         renewal_period: str,
+        renewal_end_date: datetime = None,
     ) -> bool:
         """
         Applicable to loans and insurance only
@@ -500,20 +501,28 @@ class YnabHelpers:
                     Renewal Name: {renewal_name}
                     Renewal Type: {renewal_type}
                     Renewal Period: {renewal_period}
-                    Renewal Month: {renewal_date.month}
+                    Renewal Month: {renewal_start_date.month}
                     Current Month: {current_date.month}
                 """
             )
 
             match renewal_period:
                 case "monthly":
-                    return True
+                    if renewal_end_date:
+                        if renewal_type == "loan":
+                            return True
+                        if (
+                            renewal_end_date.month == current_date.month
+                            and current_date.year != renewal_end_date.year
+                        ):
+                            return True
+                    pass
                 case "quarterly":
                     return True
                 case "yearly":
                     if (
-                        current_date.month == renewal_date.month
-                        and current_date.year != renewal_date.year
+                        current_date.month == renewal_start_date.month
+                        and current_date.year != renewal_start_date.year
                     ):
                         return True
                     pass
