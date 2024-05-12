@@ -1,6 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 from datetime import datetime, timezone
+from typing import Optional
 import logging
 
 
@@ -231,29 +232,16 @@ class LoansAndRenewals(Model):
             return None
         return remaining_balance
 
-    def renewal_this_month(self) -> bool:
-        if self.type_name == "loan":
-            print("loan me baby")
-        return True
-
     def status(self) -> str:
         try:
             return "Outstanding" if self.remaining_balance > 0 else "Paid"
         except TypeError:
             return "Ongoing"
 
-    def type_name(self) -> str:
-        try:
-            return self.type.name
-        except AttributeError:
-            return None
-
     class PydanticMeta:
         computed = [
-            "type_name",
             "period_name",
             "remaining_balance",
-            "renewal_this_month",
             "status",
         ]
         unique_together = ("end_date", "start_date", "name")

@@ -283,9 +283,7 @@ class TransactionsByMonthResponse(BaseModel):
 
 class BillCategory(BaseModel):
     name: str
-    category: str
     amount: float
-    date: date_field
 
     @field_validator("amount")
     def format_milliunits(cls, value):
@@ -295,9 +293,8 @@ class BillCategory(BaseModel):
 
 class LoanRenewalCategory(BaseModel):
     name: str
-    category: str
-    amount: float
     date: date_field
+    amount: float
 
 
 class CategoryTrends(BaseModel):

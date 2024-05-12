@@ -927,52 +927,56 @@ class YNAB:
         )
 
         monthly_bills = (
-            await YnabTransactions.filter(
+            await YnabTransactions.annotate(amount=Sum("amount"))
+            .filter(
                 category_fk__category_group_name="Monthly Bills",
                 date__gte=last_month_start,
                 date__lt=last_month_end,
                 debit=True,
             )
-            .group_by(
-                "amount", "category_name", "category_fk__category_group_name", "date"
-            )
-            .order_by("-amount")
+            .group_by("category_name")
             .all()
             .values(
                 "amount",
-                "date",
                 name="category_name",
-                category="category_fk__category_group_name",
             )
         )
 
+        monthly_bills_summary = []
+
         loans_renewals = (
             await LoansAndRenewals.filter(type__name__in=["insurance", "loan"])
-            .prefetch_related("type")
+            .prefetch_related("type", "period")
+            .order_by("start_date")
             .all()
         )
 
         loans = []
         renewals = []
         for loan_renewal in loans_renewals:
-            if (
-                loan_renewal.renewal_this_month()
-                and loan_renewal.type.name == "insurance"
-            ):
+            renewal_this_month = await YnabHelpers.renewal_this_month(
+                renewal_name=loan_renewal.name,
+                renewal_date=loan_renewal.start_date,
+                renewal_type=loan_renewal.type.name,
+                renewal_period=loan_renewal.period.name,
+            )
+            if renewal_this_month and loan_renewal.type.name == "insurance":
                 renewals.append(
                     {
                         "amount": loan_renewal.payment_amount,
                         "date": loan_renewal.start_date,
                         "name": loan_renewal.name,
+                        "period": loan_renewal.period.name,
                         "category": "insurance",
                     }
                 )
-            elif loan_renewal.renewal_this_month() and loan_renewal.type.name == "loan":
+            elif renewal_this_month and loan_renewal.type.name == "loan":
                 loans.append(
                     {
                         "amount": loan_renewal.payment_amount,
                         "date": loan_renewal.start_date,
                         "name": loan_renewal.name,
+                        "period": loan_renewal.period.name,
                         "category": "loan",
                     }
                 )

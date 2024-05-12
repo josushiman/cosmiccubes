@@ -477,6 +477,51 @@ class YnabHelpers:
         )
 
     @classmethod
+    async def renewal_this_month(
+        cls,
+        renewal_name: str,
+        renewal_date: datetime,
+        renewal_type: str,
+        renewal_period: str,
+    ) -> bool:
+        """
+        Applicable to loans and insurance only
+        - Take start date
+        - Check the period type ('yearly', 'weekly', 'monthly')
+        - If its weekly, exclude it
+        - If its monthly get the month include it by default
+        - If its yearly, get the month and if it is the current month, include it
+        """
+        if renewal_type == "loan" or renewal_type == "insurance":
+            current_date = datetime.now()
+
+            logging.debug(
+                f"""  
+                    Renewal Name: {renewal_name}
+                    Renewal Type: {renewal_type}
+                    Renewal Period: {renewal_period}
+                    Renewal Month: {renewal_date.month}
+                    Current Month: {current_date.month}
+                """
+            )
+
+            match renewal_period:
+                case "monthly":
+                    return True
+                case "quarterly":
+                    return True
+                case "yearly":
+                    if (
+                        current_date.month == renewal_date.month
+                        and current_date.year != renewal_date.year
+                    ):
+                        return True
+                    pass
+                case _:
+                    return False
+        return False
+
+    @classmethod
     async def return_db_model_entities(
         cls, action: str, since_date: str = None, month: Enum = None, year: Enum = None
     ) -> list[Model]:
