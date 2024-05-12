@@ -631,41 +631,14 @@ class YNAB:
         savings_milliunit = savings.target * 1000 if savings else 0
         logging.debug(f"Savings target: {savings_milliunit}")
 
-        upcoming_renewals = (
-            await LoansAndRenewals.annotate(
-                total=Sum("payment_amount"), count=Count("id")
-            )
-            .filter(
-                Q(period__name="yearly"),
-                Q(end_date__isnull=True),
-                Q(
-                    Q(start_date__month=start_date.month)
-                    | Q(start_date__month=start_date.month + 1)
-                ),
-            )
-            .first()
-            .values("total", "count")
-        )
-
         # update the from date to the beginning of last month for bills and income
         last_month_start = start_date - relativedelta(months=1)
         last_month_end = end_date - relativedelta(months=1)
 
-        last_month_bills = (
-            await YnabTransactions.annotate(bills=Sum("amount"))
-            .filter(
-                Q(category_fk__category_group_name__in=cls.INCLUDE_EXPENSE_NAMES),
-                Q(date__gte=last_month_start),
-                Q(date__lte=last_month_end),
-                Q(debit=True),
-            )
-            .group_by("cleared")
-            .first()
-            .values("bills")
-        )
+        last_month_bills = await cls.upcoming_bills()
 
         try:
-            bills = last_month_bills.get("bills")
+            bills = last_month_bills.total * 1000
         except AttributeError:
             bills = 0.0
 
@@ -942,6 +915,7 @@ class YNAB:
             )
         )
 
+        # TODO provide breakdown if necessary
         monthly_bills_summary = []
 
         loans_renewals = (
