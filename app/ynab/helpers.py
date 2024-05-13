@@ -1,17 +1,17 @@
 import logging
 import httpx
 import json
-import calendar
 from typing import Tuple
 from async_lru import alru_cache
-from enum import Enum, IntEnum
-from datetime import datetime, timedelta
+from enum import Enum
+from datetime import datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 from pydantic import TypeAdapter
 from fastapi import HTTPException
 from tortoise.models import Model
 from app.ynab.serverknowledge import YnabServerKnowledgeHelper
 from app.db.models import (
+    LoansAndRenewals,
     YnabServerKnowledge,
     YnabAccounts,
     YnabCategories,
@@ -477,6 +477,41 @@ class YnabHelpers:
         )
 
     @classmethod
+    async def remaining_balance(cls, entity: LoansAndRenewals) -> float:
+        if entity.starting_balance is None:
+            return None
+
+        # Take todays date as the end date to calculate what the remaining balance will be.
+        end_date = datetime.now(timezone.utc)
+
+        logging.debug(f"Period for entry: {entity.period.name}")
+        # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
+        if entity.period.name == "monthly":
+            occurrences = (end_date.year - entity.start_date.year) * 12 + (
+                end_date.month - entity.start_date.month
+            )
+        else:
+            occurrences = 1
+        logging.debug(f"Number of occurences for {entity.name}: {occurrences}")
+
+        # If the number of occurences is 0, check if todays date is past the payment_date.
+        # If it is, increase the occurences by 1.
+        # This accounts for when you are in the same month as the start_date.
+        if entity.period.name == "monthly" and occurrences == 0:
+            logging.debug(
+                "Occurence is set to 0, checking if todays date has passed the initial payment."
+            )
+            occurrences = 1 if entity.payment_date <= end_date.day else 0
+
+        remaining_balance = entity.starting_balance - (
+            entity.payment_amount * occurrences
+        )
+
+        if remaining_balance <= 0:
+            return None
+        return remaining_balance
+
+    @classmethod
     async def renewal_this_month(
         cls,
         renewal_name: str,
@@ -493,7 +528,7 @@ class YnabHelpers:
         - If its monthly get the month include it by default
         - If its yearly, get the month and if it is the current month, include it
         """
-        if renewal_type == "loan" or renewal_type == "insurance":
+        if renewal_type in ["insurance", "loan", "subscription"]:
             current_date = datetime.now()
 
             logging.debug(

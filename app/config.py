@@ -7,9 +7,9 @@ class Settings(BaseSettings):
     db_url: str
     env_agent: str
     env_docs: str | None = None
-    env_hosts: str = ["*"]
-    env_origins: str = ["*"]
-    env_referer: str = ["*"]
+    env_hosts: str = "*"
+    env_origins: str = "*"
+    env_referer: str = "*"
     env_token: UUID
     ext_ynab_token: str
     ext_ynab_url: str

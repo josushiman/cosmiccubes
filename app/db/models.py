@@ -1,7 +1,6 @@
 from tortoise import fields
 from tortoise.models import Model
 from datetime import datetime, timezone
-from typing import Optional
 import logging
 
 
@@ -200,49 +199,9 @@ class LoansAndRenewals(Model):
         except AttributeError:
             return None
 
-    def remaining_balance(self) -> float:
-        if self.starting_balance is None:
-            return None
-
-        # Take todays date as the end date to calculate what the remaining balance will be.
-        end_date = datetime.now(timezone.utc)
-
-        logging.debug(f"Period for entry: {self.period_name}")
-        # Calculate the number of occurrences // 'yearly', 'weekly', 'monthly'
-        if self.period_name == "monthly":
-            occurrences = (end_date.year - self.start_date.year) * 12 + (
-                end_date.month - self.start_date.month
-            )
-        else:
-            occurrences = 1
-        logging.debug(f"Number of occurences for {self.name}: {occurrences}")
-
-        # If the number of occurences is 0, check if todays date is past the payment_date.
-        # If it is, increase the occurences by 1.
-        # This accounts for when you are in the same month as the start_date.
-        if self.period_name == "monthly" and occurrences == 0:
-            logging.debug(
-                "Occurence is set to 0, checking if todays date has passed the initial payment."
-            )
-            occurrences = 1 if self.payment_date <= end_date.day else 0
-
-        remaining_balance = self.starting_balance - (self.payment_amount * occurrences)
-
-        if remaining_balance <= 0:
-            return None
-        return remaining_balance
-
-    def status(self) -> str:
-        try:
-            return "Outstanding" if self.remaining_balance > 0 else "Paid"
-        except TypeError:
-            return "Ongoing"
-
     class PydanticMeta:
         computed = [
             "period_name",
-            "remaining_balance",
-            "status",
         ]
         unique_together = ("end_date", "start_date", "name")
 

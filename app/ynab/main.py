@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
-from tortoise.functions import Sum, Count, Coalesce
+from tortoise.functions import Sum
 from tortoise.expressions import Q
 from app.ynab.helpers import YnabHelpers
 from app.enums import (
@@ -28,7 +28,6 @@ from app.ynab.schemas import (
     SubCatBudgetSummary,
     UpcomingBills,
     CategoryTransactions,
-    UpcomingBillsDetails,
     LoanPortfolio,
     DirectDebitSummary,
     Insurance,
@@ -499,6 +498,7 @@ class YNAB:
             await LoansAndRenewals.filter(
                 end_date__gt=today, type__name=LoansAndRenewalsEnum.LOAN.value
             )
+            .prefetch_related("period")
             .order_by("-end_date")
             .all()
         )
@@ -506,7 +506,9 @@ class YNAB:
         if loans_count < 1:
             return LoanPortfolio(count=0, total_credit=0, accounts=[])
 
-        total_credit = sum(loan.remaining_balance() for loan in loans)
+        total_credit = 0
+        for loan in loans:
+            total_credit += await YnabHelpers.remaining_balance(loan)
 
         # Get the number of months from the loan which ends last
         # The first loan entity is the one furthest away based on the query to the DB.
@@ -525,7 +527,7 @@ class YNAB:
             }
             for loan in loans:
                 month_multiplier = month + 1
-                calc_remaining_balance = loan.remaining_balance() - (
+                calc_remaining_balance = await YnabHelpers.remaining_balance(loan) - (
                     loan.payment_amount * month_multiplier
                 )
                 data_entry[loan.name] = (
@@ -948,7 +950,9 @@ class YNAB:
             bill["transactions"] = bill_transactions
 
         loans_renewals = (
-            await LoansAndRenewals.filter(type__name__in=["insurance", "loan"])
+            await LoansAndRenewals.filter(
+                type__name__in=["insurance", "loan", "subscription"]
+            )
             .prefetch_related("type", "period")
             .order_by("start_date")
             .all()
@@ -964,7 +968,10 @@ class YNAB:
                 renewal_type=loan_renewal.type.name,
                 renewal_period=loan_renewal.period.name,
             )
-            if renewal_this_month and loan_renewal.type.name == "insurance":
+            if renewal_this_month and loan_renewal.type.name in [
+                "insurance",
+                "subscription",
+            ]:
                 renewals.append(
                     {
                         "amount": loan_renewal.payment_amount,
@@ -1001,33 +1008,3 @@ class YNAB:
             loans=loans,
             renewals=renewals,
         )
-
-    @classmethod
-    async def upcoming_bills_details(cls) -> list[UpcomingBillsDetails]:
-        last_month_end = datetime.now().replace(
-            day=1, hour=23, minute=59, second=59, microsecond=59
-        ) - relativedelta(days=1)
-        last_month_start = last_month_end.replace(
-            day=1, hour=00, minute=00, second=00, microsecond=00
-        )
-
-        bills = (
-            await YnabTransactions.filter(
-                Q(category_fk__category_group_name__in=cls.EXCLUDE_EXPENSE_NAMES),
-                Q(date__gte=last_month_start),
-                Q(date__lt=last_month_end),
-                Q(debit=True),
-            )
-            .order_by("date", "-amount")
-            .all()
-            .values(
-                "amount",
-                "date",
-                "memo",
-                payee="payee_name",
-                name="category_name",
-                category="category_fk__category_group_name",
-            )
-        )
-
-        return [UpcomingBillsDetails(**bill) for bill in bills]

@@ -347,20 +347,6 @@ class UpcomingBills(BaseModel):
     renewals: Optional[List[LoanRenewalCategory]] = None
 
 
-class UpcomingBillsDetails(BaseModel):
-    amount: float
-    date: date_field
-    memo: Optional[str]
-    payee: str
-    name: str
-    category: str
-
-    @field_validator("amount")
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
-
 class MonthSavingsCalc(BaseModel):
     total: float
 

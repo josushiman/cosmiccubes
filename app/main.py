@@ -353,11 +353,6 @@ async def upcoming_bills():
     return await ynab.upcoming_bills()
 
 
-@app.get("/upcoming-bills/details")
-async def upcoming_bills_details():
-    return await ynab.upcoming_bills_details()
-
-
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
