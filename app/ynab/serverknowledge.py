@@ -289,7 +289,7 @@ class YnabServerKnowledgeHelper:
         created = 0
         skipped = 0
         updated = 0
-        logging.info(f"Processing {len(entity_list)} entities.")
+        logging.debug(f"Processing {len(entity_list)} entities.")
         for entity in entity_list:
             if entity["deleted"] == True:
                 skipped += 1
@@ -310,7 +310,7 @@ class YnabServerKnowledgeHelper:
                     model=model, resp_body=entity
                 )
 
-        logging.debug(
+        logging.info(
             f"""
             Created: {created}
             Updated: {updated}
