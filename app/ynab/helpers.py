@@ -309,12 +309,16 @@ class YnabHelpers:
         year: Enum = None,
     ) -> dict | HTTPException:
         """
-        Check if the route exists in server knowledge
-            If it does, check the entities are up to date
-                If they are return the DB entities
-            If they're not, make the api call
-        Once the API call is made, save them to the DB
-            Then return the DB entities
+        This will always call the YNAB endpoint, but if it has a serverknowledge value
+        It'll append it to the URL before calling YNAB.
+
+        It'll then process the request if the serverknowledge value has changed
+        since it was last called otherwise it'll do nothing.
+
+        If the route is not serverknowledge eligible, it'll just return the pydantic models.
+
+        @param bypass: bool is available to always process the requests regardless of
+        the serverknowledge value.
         """
         ynab_route = await cls.get_route(action, param_1, param_2, since_date, month)
         ynab_url = settings.ext_ynab_url + ynab_route
@@ -396,8 +400,18 @@ class YnabHelpers:
         month: str = None,
         year: Enum = None,
     ) -> list[Model]:
-        logging.debug("Updating/creating new entities")
+        """
+        Gets the entity list from the JSON response and processes it.
+
+        It'll then update the serverknowledge with the new value on the DB.
+
+        Finally it'll return the entities as pydantic models.
+        # TODO maybe look at removing the fact it returns them as models a
+        # TODO they are likely not used anywhere.
+        """
         action_data_name = await YnabServerKnowledgeHelper.get_route_data_name(action)
+        test_response = response.json()
+        logging.debug(test_response)
         resp_entity_list = response.json()["data"][action_data_name]
         await YnabServerKnowledgeHelper.process_entities(
             action=action, entities=resp_entity_list

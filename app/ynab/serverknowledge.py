@@ -3,7 +3,11 @@ import re
 from datetime import datetime, UTC
 from fastapi import HTTPException
 from tortoise.models import Model
-from tortoise.exceptions import IncompleteInstanceError, IntegrityError, FieldError
+from tortoise.exceptions import (
+    IncompleteInstanceError,
+    IntegrityError,
+    FieldError,
+)
 from deepdiff import DeepDiff
 from app.db.models import (
     YnabServerKnowledge,
@@ -80,10 +84,10 @@ class YnabServerKnowledgeHelper:
     ) -> bool:
         # If a ? exists in the URL then append the additional param.
         if "?" in ynab_url:
-            return f"{ynab_url}&server_knowledge={server_knowledge}"
+            return f"{ynab_url}&last_knowledge_of_server={server_knowledge}"
 
         # Otherwise add a ? and include the sk param.
-        return f"{ynab_url}?server_knowledge={server_knowledge}"
+        return f"{ynab_url}?last_knowledge_of_server={server_knowledge}"
 
     @classmethod
     async def check_if_exists(cls, route_url: str) -> YnabServerKnowledge | None:
@@ -110,7 +114,6 @@ class YnabServerKnowledgeHelper:
 
         try:
             await model.save()
-            logging.debug("New entity created")
             return 1
         except IncompleteInstanceError as e_incomplete:
             logging.exception(
@@ -158,7 +161,6 @@ class YnabServerKnowledgeHelper:
         }
 
         try:
-            logging.debug(f"Attempting to get a data name for {action}")
             return data_name_list[action]
         except KeyError:
             logging.warning(f"Data name for {action} doesn't exist.")
@@ -176,7 +178,6 @@ class YnabServerKnowledgeHelper:
         }
 
         try:
-            logging.debug(f"Attempting to get a model for {action}")
             return model_list[action]
         except KeyError:
             logging.warning(f"Model for {action} doesn't exist.")
@@ -193,7 +194,6 @@ class YnabServerKnowledgeHelper:
         pattern = r"root\['([^']+)'\]"
 
         for new_field in new_items_added:
-            logging.debug(f"{new_field} needs to be removed.")
             match = re.search(pattern, new_field)
             try:
                 key_to_pop = match.group(1)
@@ -216,7 +216,6 @@ class YnabServerKnowledgeHelper:
         try:
             new_items_added = diff["set_item_added"]
         except KeyError:
-            logging.debug("No new fields added.")
             return resp_body
 
         if new_items_added:
@@ -228,7 +227,6 @@ class YnabServerKnowledgeHelper:
 
     @classmethod
     async def update_route_entities(cls, model: Model, resp_body: dict) -> int:
-        logging.debug(f"Entity already exists, updating it")
         try:
             entity_id = resp_body["id"]
             resp_body.pop("id")
@@ -237,7 +235,7 @@ class YnabServerKnowledgeHelper:
             resp_month_dt = resp_month_dt.replace(
                 tzinfo=UTC
             )  # This can fail if there are timezone issues. So ensure the TZ is set.
-            logging.debug(f"datetime has been set to: {resp_month_dt}")
+            # logging.debug(f"datetime has been set to: {resp_month_dt}")
             db_entity = await model.filter(month=resp_month_dt).get()
             entity_id = db_entity.id
             resp_body.pop(
@@ -259,19 +257,19 @@ class YnabServerKnowledgeHelper:
 
             try:
                 raw_date = resp_body.get("date")
-                logging.debug(f"String datetime: {raw_date}")
                 resp_date_dt = datetime.strptime(raw_date, "%Y-%m-%d")
                 resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
                 resp_body["date"] = resp_date_dt
-                logging.debug(f"Converted datetime: {resp_date_dt}")
+                # logging.debug(f"Converted datetime: {resp_date_dt}")
             except KeyError:
-                logging.debug("No date in response body.")
+                logging.warning("No date in response body.")
 
         if type(model) in cls.negative_amounts:
             resp_body = await cls.update_switch_negative_values(model, resp_body)
 
         try:
             await model.filter(id=entity_id).update(**resp_body)
+            logging.debug("Entity updated.")
             return 1
         except FieldError as e_field:
             logging.warning("Additional field identified in model", exc_info=e_field)
@@ -285,30 +283,40 @@ class YnabServerKnowledgeHelper:
             for group in entities:
                 for category in group["categories"]:
                     entity_list.append(category)
-            logging.debug(f"List of categories {entity_list}.")
         else:
             entity_list = entities
 
         created = 0
+        skipped = 0
         updated = 0
+        logging.info(f"Processing {len(entity_list)} entities.")
         for entity in entity_list:
-            logging.debug(f"Base entity body: {entity}")
+            if entity["deleted"] == True:
+                skipped += 1
+                continue
+
             model = await YnabModelResponses.return_sk_model(
                 action=action, kwargs=entity
             )
-            logging.debug(f"Model body: {entity}")
+            # logging.debug(f"Model body: {entity}")
             try:
                 created += await cls.create_route_entities(model=model)
             except IntegrityError:
                 if type(model) == YnabPayees:
                     # Payees do not change once entered. No need to update them.
+                    skipped += 1
                     continue
                 updated += await cls.update_route_entities(
                     model=model, resp_body=entity
                 )
 
         logging.debug(
-            f"Created {created} entities. Updated {updated} entities. Issues with {len(entities) - (created + updated)} entities."
+            f"""
+            Created: {created}
+            Updated: {updated}
+            Skipped: {skipped}
+            Issues: {len(entities) - (created + updated + skipped)}
+            """
         )
         return {"message": "Complete"}
 
@@ -316,7 +324,6 @@ class YnabServerKnowledgeHelper:
 class YnabModelResponses:
     @classmethod
     async def return_sk_model(cls, action: str, kwargs: dict) -> Model | HTTPException:
-        logging.debug(f"Attempting to get a model for {action}")
         match action:
             case "accounts-list":
                 return await cls.create_account(kwargs=kwargs)
