@@ -744,9 +744,13 @@ class YNAB:
 
     @classmethod
     async def transaction_by_date(cls, date: str) -> list[Transaction]:
+        date_datetime = datetime.strptime(date, "%Y-%m-%d")
+        the_day_after = (date_datetime + relativedelta(days=1)).strftime("%Y-%m-%d")
+
         transactions = (
             await YnabTransactions.filter(
-                date=date,
+                date__gte=date,
+                date__lte=the_day_after,
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
                 debit=True,
                 transfer_account_id__isnull=True,
@@ -764,6 +768,8 @@ class YNAB:
                 payee="payee_name",
             )
         )
+
+        logging.debug(f"Found {len(transactions)} transactions for {date}")
 
         return [Transaction(**transaction) for transaction in transactions]
 

@@ -27,7 +27,7 @@ class SubCatBudgetSummary(BaseModel):
 
     @computed_field
     @property
-    def status(self) -> float:
+    def status(self) -> str:
         if self.spent > self.budgeted:
             return "overspent"
         return "on track"
@@ -43,7 +43,7 @@ class CatBudgetSummary(BaseModel):
 
     @computed_field
     @property
-    def status(self) -> float:
+    def status(self) -> str:
         if self.spent > self.budgeted:
             return "overspent"
         return "on track"
