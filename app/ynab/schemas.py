@@ -4,6 +4,23 @@ from pydantic import BaseModel, Field, field_validator, computed_field
 from datetime import date as date_field
 
 
+class Transaction(BaseModel):
+    id: UUID
+    account_id: UUID
+    payee: str = Field(..., description="Name of the merchant.")
+    amount: float = Field(
+        ..., description="Amount that was charged against the transaction."
+    )
+    date: date_field = Field(..., description="Date of the transaction being cleared.")
+    category: str | None = Field(..., description="Category of the transaction.")
+    subcategory: str | None = Field(..., description="Subcategory of the transaction.")
+
+    @field_validator("amount")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+
 class CatBudgetReq(BaseModel):
     name: str
     count: int
@@ -158,6 +175,7 @@ class CreditAccount(BaseModel):
 class CreditSummary(BaseModel):
     total: float
     accounts: List[CardBalance]
+    transactions: List[Transaction]
 
     @field_validator("total")
     def format_milliunits(cls, value):
@@ -235,28 +253,6 @@ class Month(BaseModel):
 class SubCategorySpentResponse(BaseModel):
     since_date: date_field
     data: List[CategorySpent]
-
-
-class Transaction(BaseModel):
-    id: UUID
-    account_id: UUID
-    payee: str = Field(..., description="Name of the merchant.")
-    amount: float = Field(
-        ..., description="Amount that was charged against the transaction."
-    )
-    date: date_field = Field(..., description="Date of the transaction being cleared.")
-    category: str | None = Field(..., description="Category of the transaction.")
-    subcategory: str | None = Field(..., description="Subcategory of the transaction.")
-
-    @field_validator("amount")
-    def format_milliunits(cls, value):
-        # Convert the integer value to milliunits (assuming it's in microunits)
-        return value / 1000.0
-
-
-class TransactionSummary(BaseModel):
-    summary: CreditSummary
-    transactions: List[Transaction]
 
 
 class Refunds(BaseModel):

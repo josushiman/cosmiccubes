@@ -20,7 +20,7 @@ from app.db.models import (
 )
 from app.ynab.schemas import (
     Month,
-    TransactionSummary,
+    CreditSummary,
     CategorySummary,
     SubCategorySummary,
     BudgetsNeeded,
@@ -779,7 +779,7 @@ class YNAB:
         months: PeriodMonthOptionsIntEnum = None,
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None,
-    ) -> TransactionSummary:
+    ) -> CreditSummary:
         if not months and not year and not specific_month:
             # Filters for transactions for the entire of last month.
             month_end = (
@@ -892,9 +892,8 @@ class YNAB:
             },
         ]
 
-        return TransactionSummary(
-            summary={"total": total_balance, "accounts": accounts},
-            transactions=transactions,
+        return CreditSummary(
+            total=total_balance, accounts=accounts, transactions=transactions
         )
 
     @classmethod
