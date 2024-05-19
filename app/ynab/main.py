@@ -37,6 +37,7 @@ from app.ynab.schemas import (
     DailySpendItem,
     DailySpendSummary,
     Transaction,
+    CardBill,
 )
 
 
@@ -63,11 +64,14 @@ class YNAB:
     ]
 
     @classmethod
-    async def average_card_bill(cls, months: PeriodMonthOptionsIntEnum = None):
-        months = 6 if not months else months.value
-        start_date = datetime.now().replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        ) - relativedelta(months=months)
+    async def average_card_bill(
+        cls, months: PeriodMonthOptionsIntEnum = None
+    ) -> list[CardBill]:
+        months = 3 if not months else months.value
+        today = datetime.now().replace(
+            day=1, hour=00, minute=00, second=00, microsecond=00
+        )
+        start_date = today - relativedelta(months=months)
 
         card_payments = (
             await CardPayments.filter(transaction__date__gte=start_date)
@@ -76,17 +80,27 @@ class YNAB:
             .order_by("transaction__date")
         )
 
-        for payment in card_payments:
-            # TODO see if i need to do anything with the below
-            string_date = payment.transaction.date.strftime("%Y-%m-01")
-            card_payment = {
-                "name": payment.account.name,
-                "date": payment.transaction.date,
-                "amount": payment.transaction.amount,
-            }
-            logging.debug(card_payment)
+        # Get the number of months from the first bill to today
+        date_delta = relativedelta(today, start_date)
+        months_to_start_date = date_delta.years * 12 + date_delta.months
 
-        return {"message": "done"}
+        # Go through the range from the months to start date
+        # Generate an entity for each bill and the amount of the bill.
+        data = []
+        for month in range(months_to_start_date):
+            data_entry = {
+                "date": today if month == 0 else today - relativedelta(months=month)
+            }
+            for payment in card_payments:
+                if (
+                    payment.transaction.date.month == data_entry["date"].month
+                    and payment.transaction.date.year == data_entry["date"].year
+                ):
+                    data_entry[payment.account.name] = payment.transaction.amount
+            data.append(CardBill(**data_entry))
+
+        reverse_data = sorted(data, key=lambda item: item.date, reverse=False)
+        return reverse_data
 
     @classmethod
     async def budgets_summary(cls) -> BudgetsSummary:

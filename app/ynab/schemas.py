@@ -21,6 +21,18 @@ class Transaction(BaseModel):
         return value / 1000.0
 
 
+class CardBill(BaseModel):
+    date: date_field
+    ba_amex: Optional[float] = Field(default=0.0, alias="BA AMEX")
+    hsbc_cc: Optional[float] = Field(default=0.0, alias="HSBC CC")
+    barclays_cc: Optional[float] = Field(default=0.0, alias="Barclays CC")
+
+    @field_validator("ba_amex", "hsbc_cc", "barclays_cc")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+
 class CatBudgetReq(BaseModel):
     name: str
     count: int
