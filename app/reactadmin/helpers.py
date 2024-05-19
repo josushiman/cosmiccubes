@@ -18,6 +18,7 @@ from app.db.models import (
     YnabServerKnowledge,
     YnabTransactions,
     Budgets,
+    CardPayments,
     Savings,
     LoansAndRenewals,
     LoansAndRenewalsTypes,
@@ -31,6 +32,7 @@ from app.db.schemas import (
     YnabServerKnowledge_Pydantic,
     YnabTransactions_Pydantic,
     Budgets_Pydantic,
+    CardPayments_Pydantic,
     Savings_Pydantic,
     LoansAndRenewals_Pydantic,
     LoansAndRenewalsPeriods_Pydantic,
@@ -43,6 +45,7 @@ class ReactAdmin:
     async def get_entity_model(cls, resource: str) -> Model:
         model_list = {
             "budgets": Budgets,
+            "card-payments": CardPayments,
             "loans-and-renewals": LoansAndRenewals,
             "loans-and-renewals-periods": LoansAndRenewalsPeriods,
             "loans-and-renewals-types": LoansAndRenewalsTypes,
@@ -65,6 +68,7 @@ class ReactAdmin:
     async def get_entity_schema(cls, resource: str):
         schema_list = {
             "budgets": Budgets_Pydantic,
+            "card-payments": CardPayments_Pydantic,
             "loans-and-renewals": LoansAndRenewals_Pydantic,
             "loans-and-renewals-periods": LoansAndRenewalsPeriods_Pydantic,
             "loans-and-renewals-types": LoansAndRenewalsTypes_Pydantic,

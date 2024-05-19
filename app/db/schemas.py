@@ -20,6 +20,7 @@ from .models import (
     YnabServerKnowledge,
     YnabTransactions,
     Budgets,
+    CardPayments,
     Savings,
     LoansAndRenewals,
     LoansAndRenewalsPeriods,
@@ -27,6 +28,7 @@ from .models import (
 )
 
 Budgets_Pydantic = pydantic_model_creator(Budgets, name="Budgets")
+CardPayments_Pydantic = pydantic_model_creator(CardPayments, name="Card Payments")
 LoansAndRenewals_Pydantic = pydantic_model_creator(
     LoansAndRenewals, name="LoansAndRenewals"
 )

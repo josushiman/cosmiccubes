@@ -249,15 +249,15 @@ async def delete_many(
     return {"message": f"Deleted {rows_deleted} rows."}
 
 
-# How much should i spend today?
-#   Get budget remaining for the month, divide by number of days remaining.
-#   Might need to calculate average cost of nights out/takeaways etc if thinking of buying one
-
-# On track
-#   Something to give a good indication of whether i'm on track or not.
-
 # TODO Look at bulk creating and updating to save DB calls.
 # https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
+
+
+@app.get("/average-card-bill")
+async def average_card_bill(commons: dict = Depends(common_cc_parameters)):
+    months = commons.get("months")
+
+    return await ynab.average_card_bill(months=months)
 
 
 @app.get("/budgets-needed")

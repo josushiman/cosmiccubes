@@ -15,6 +15,7 @@ from app.db.models import (
     YnabCategories,
     YnabTransactions,
     Budgets,
+    CardPayments,
     Savings,
     LoansAndRenewals,
 )
@@ -60,6 +61,32 @@ class YNAB:
         "Saving Goals",
         "Holidays",
     ]
+
+    @classmethod
+    async def average_card_bill(cls, months: PeriodMonthOptionsIntEnum = None):
+        months = 6 if not months else months.value
+        start_date = datetime.now().replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        ) - relativedelta(months=months)
+
+        card_payments = (
+            await CardPayments.filter(transaction__date__gte=start_date)
+            .all()
+            .prefetch_related("account", "transaction")
+            .order_by("transaction__date")
+        )
+
+        for payment in card_payments:
+            # TODO see if i need to do anything with the below
+            string_date = payment.transaction.date.strftime("%Y-%m-01")
+            card_payment = {
+                "name": payment.account.name,
+                "date": payment.transaction.date,
+                "amount": payment.transaction.amount,
+            }
+            logging.debug(card_payment)
+
+        return {"message": "done"}
 
     @classmethod
     async def budgets_summary(cls) -> BudgetsSummary:

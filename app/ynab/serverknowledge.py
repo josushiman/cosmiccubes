@@ -9,6 +9,7 @@ from tortoise.exceptions import (
     FieldError,
 )
 from deepdiff import DeepDiff
+from app.config import settings
 from app.db.models import (
     YnabServerKnowledge,
     YnabAccounts,
@@ -18,7 +19,7 @@ from app.db.models import (
     YnabPayees,
     YnabTransactions,
 )
-from app.config import settings
+from app.reactadmin.helpers import ReactAdmin as ra
 
 
 class YnabServerKnowledgeHelper:
@@ -29,6 +30,33 @@ class YnabServerKnowledgeHelper:
         YnabCategories,
         YnabAccounts,
     ]
+
+    @classmethod
+    async def add_card_payments(cls, model: Model = None):
+        transactions = []
+        if not model:
+            start_date = datetime.now().replace(
+                day=1, month=1, hour=0, minute=0, second=0, microsecond=0
+            )
+            end_date = datetime.now()
+
+            transactions = await YnabTransactions.filter(
+                transfer_account_id__isnull=False,
+                account_name__not="HSBC ADVANCE",
+                date__gte=start_date,
+                date__lte=end_date,
+            )
+        else:
+            transactions.append(model)
+
+        for transaction in transactions:
+            entity = {
+                "account_id": transaction.account_id,
+                "transaction_id": transaction.id,
+            }
+            await ra.create(resource="card-payments", resp_body=entity)
+
+        return {"message": "done"}
 
     @classmethod
     async def create_switch_negative_values(cls, model: Model) -> Model:
@@ -108,6 +136,11 @@ class YnabServerKnowledgeHelper:
     async def create_route_entities(cls, model: Model) -> int | IntegrityError:
         if type(model) == YnabTransactions:
             model.debit = False if model.amount > 0 else True
+            if (
+                model.transfer_account_id != None
+                and model.account_name == "HSBC ADVANCE"
+            ):
+                await cls.add_card_payments(model=model)
 
         if type(model) in cls.negative_amounts:
             model = await cls.create_switch_negative_values(model)
