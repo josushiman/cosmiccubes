@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 from tortoise.functions import Sum
 from tortoise.expressions import Q
 from app.ynab.helpers import YnabHelpers
+from app.ynab.serverknowledge import YnabServerKnowledgeHelper
 from app.enums import (
     LoansAndRenewalsEnum,
     PeriodMonthOptionsIntEnum,
@@ -781,7 +782,7 @@ class YNAB:
         specific_month: SpecificMonthOptionsEnum = None,
     ):
 
-        return
+        return await YnabServerKnowledgeHelper.add_card_payments()
 
     @classmethod
     async def transaction_by_date(cls, date: str) -> list[Transaction]:
