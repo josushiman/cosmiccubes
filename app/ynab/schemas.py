@@ -78,8 +78,10 @@ class CatBudgetSummary(BaseModel):
         return "on track"
 
 
-class BudgetsSummary(BaseModel):
+class BudgetsDashboard(BaseModel):
     total: Optional[float] = 0.0
+    on_track: Optional[int] = 0
+    overspent: Optional[int] = 0
     categories: Optional[List[CatBudgetSummary]] = []
 
 

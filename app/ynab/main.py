@@ -26,7 +26,7 @@ from app.ynab.schemas import (
     CategorySummary,
     SubCategorySummary,
     BudgetsNeeded,
-    BudgetsSummary,
+    BudgetsDashboard,
     SubCatBudgetSummary,
     UpcomingBills,
     CategoryTransactions,
@@ -104,7 +104,7 @@ class YNAB:
         return reverse_data
 
     @classmethod
-    async def budgets_summary(cls) -> BudgetsSummary:
+    async def budgets_dashboard(cls) -> BudgetsDashboard:
         budgets = await Budgets.all().prefetch_related("category")
 
         grouped_categories = {}
@@ -117,7 +117,7 @@ class YNAB:
                 {"name": name, "budgeted": budgeted, "spent": spent}
             )
 
-        results = []
+        raw_results = []
         for category, subcats in grouped_categories.items():
             total_budgeted = 0
             total_spent = 0
@@ -134,7 +134,7 @@ class YNAB:
                     1 if pydantic_subcat.status != "on track" else 0
                 )
 
-            results.append(
+            raw_results.append(
                 {
                     "name": category,
                     "budgeted": total_budgeted,
@@ -145,12 +145,16 @@ class YNAB:
                 }
             )
 
-        total_budgeted = sum(cat["budgeted"] for cat in results)
+        total_budgeted = sum(cat["budgeted"] for cat in raw_results)
+        total_on_track = sum(cat["on_track"] for cat in raw_results)
+        total_overspent = sum(cat["overspent"] for cat in raw_results)
 
-        results = sorted(results, key=lambda x: x["budgeted"], reverse=True)
+        results = sorted(raw_results, key=lambda x: x["spent"], reverse=True)
 
-        return BudgetsSummary(
+        return BudgetsDashboard(
             total=total_budgeted,
+            on_track=total_on_track,
+            overspent=total_overspent,
             categories=results,
         )
 
@@ -661,7 +665,7 @@ class YNAB:
         except AttributeError:
             balance_spent = 0.0
 
-        budget_summary = await cls.budgets_summary()
+        budget_summary = await cls.budgets_dashboard()
         budget_multiplier = await YnabHelpers.months_between(
             start_date=start_date, end_date=end_date, months=months
         )

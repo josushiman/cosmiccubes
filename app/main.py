@@ -265,9 +265,9 @@ async def budgets_needed():
     return await ynab.budgets_needed()
 
 
-@app.get("/budgets-summary")
-async def budgets_summary():
-    return await ynab.budgets_summary()
+@app.get("/budgets-dashboard")
+async def budgets_dashboard():
+    return await ynab.budgets_dashboard()
 
 
 @app.get("/categories-summary")
