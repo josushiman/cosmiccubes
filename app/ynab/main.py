@@ -22,7 +22,7 @@ from app.db.models import (
 )
 from app.ynab.schemas import (
     Month,
-    CreditSummary,
+    TransactionSummary,
     CategorySummary,
     SubCategorySummary,
     BudgetsNeeded,
@@ -750,14 +750,20 @@ class YNAB:
         )
 
     @classmethod
-    async def refunds(cls) -> Refunds:
+    async def refunds(cls, start_date: datetime, end_date: datetime) -> Refunds:
         refunds_count = await YnabTransactions.filter(
-            debit=False, category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES
+            debit=False,
+            category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
+            date__gte=start_date,
+            date__lt=end_date,
         ).count()
 
         refunds = (
             await YnabTransactions.filter(
-                debit=False, category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES
+                debit=False,
+                category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
+                date__gte=start_date,
+                date__lt=end_date,
             )
             .order_by("date", "-amount")
             .all()
@@ -773,7 +779,9 @@ class YNAB:
             )
         )
 
-        return Refunds(count=refunds_count, transactions=refunds)
+        refund_total = sum(transaction["amount"] for transaction in refunds)
+
+        return Refunds(count=refunds_count, transactions=refunds, total=refund_total)
 
     @classmethod
     async def savings(cls, year: SpecificYearOptionsEnum = None) -> list[Savings]:
@@ -825,7 +833,7 @@ class YNAB:
         months: PeriodMonthOptionsIntEnum = None,
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None,
-    ) -> CreditSummary:
+    ) -> TransactionSummary:
         if not months and not year and not specific_month:
             # Filters for transactions for the entire of last month.
             month_end = (
@@ -911,9 +919,11 @@ class YNAB:
         if misc_balance > 0:
             logging.warning("Transactions not in account list.")
 
+        refunds = await cls.refunds(start_date=month_start, end_date=month_end)
+
         total_balance = (
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
-        )
+        ) - refunds.total
 
         accounts = [
             {
@@ -938,8 +948,11 @@ class YNAB:
             },
         ]
 
-        return CreditSummary(
-            total=total_balance, accounts=accounts, transactions=transactions
+        return TransactionSummary(
+            total=total_balance,
+            accounts=accounts,
+            transactions=transactions,
+            refunds=refunds,
         )
 
     @classmethod

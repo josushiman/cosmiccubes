@@ -186,10 +186,22 @@ class CreditAccount(BaseModel):
         return value / 1000.0
 
 
-class CreditSummary(BaseModel):
+class Refunds(BaseModel):
+    count: int = 0
+    total: float = 0.0
+    transactions: Optional[List[Transaction]] = []
+
+    @field_validator("total")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+
+class TransactionSummary(BaseModel):
     total: float
     accounts: List[CardBalance]
     transactions: List[Transaction]
+    refunds: Refunds
 
     @field_validator("total")
     def format_milliunits(cls, value):
@@ -267,11 +279,6 @@ class Month(BaseModel):
 class SubCategorySpentResponse(BaseModel):
     since_date: date_field
     data: List[CategorySpent]
-
-
-class Refunds(BaseModel):
-    count: int
-    transactions: List[Transaction]
 
 
 class TransactionByMonth(BaseModel):
