@@ -201,6 +201,7 @@ class TransactionSummary(BaseModel):
     total: float
     accounts: List[CardBalance]
     transactions: List[Transaction]
+    biggest_purchase: Optional[Transaction] = None
     refunds: Refunds
 
     @field_validator("total")

@@ -886,6 +886,29 @@ class YNAB:
             )
         )
 
+        biggest_purchase = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+                date__gte=month_start,
+                date__lt=month_end,
+                transfer_account_id__isnull=True,
+                debit=True,
+            )
+            .order_by("-amount")
+            .limit(1)
+            .first()
+            .values(
+                "id",
+                "account_id",
+                "amount",
+                "account_name",
+                "date",
+                category="category_fk__category_group_name",
+                subcategory="category_name",
+                payee="payee_name",
+            )
+        )
+
         card_types = ["BA AMEX", "Barclays CC", "HSBC CC", "HSBC ADVANCE"]
         amex_balance = sum(
             transaction["amount"] if transaction["account_name"] == "BA AMEX" else 0
@@ -951,6 +974,7 @@ class YNAB:
         return TransactionSummary(
             total=total_balance,
             accounts=accounts,
+            biggest_purchase=biggest_purchase,
             transactions=transactions,
             refunds=refunds,
         )
