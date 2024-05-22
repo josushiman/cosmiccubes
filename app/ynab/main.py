@@ -89,6 +89,10 @@ class YNAB:
         # Generate an entity for each bill and the amount of the bill.
         data = []
         for month in range(months_to_start_date):
+            # Skip the current month as there won't be a bill yet.
+            if month == 0:
+                continue
+
             data_entry = {
                 "date": today if month == 0 else today - relativedelta(months=month)
             }
