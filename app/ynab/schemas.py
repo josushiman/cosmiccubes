@@ -197,14 +197,17 @@ class Refunds(BaseModel):
         return value / 1000.0
 
 
+# TODO clean up the transaction details to be a separate class
 class TransactionSummary(BaseModel):
     total: float
     accounts: List[CardBalance]
     transactions: List[Transaction]
+    average_purchase: float
+    transaction_count: int
     biggest_purchase: Optional[Transaction] = None
     refunds: Refunds
 
-    @field_validator("total")
+    @field_validator("total", "average_purchase")
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0

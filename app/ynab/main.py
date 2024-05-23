@@ -952,6 +952,16 @@ class YNAB:
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
         ) - refunds.total
 
+        transaction_count = await YnabTransactions.filter(
+            category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+            date__gte=month_start,
+            date__lt=month_end,
+            transfer_account_id__isnull=True,
+            debit=True,
+        ).count()
+
+        average_purchase = total_balance / transaction_count
+
         accounts = [
             {
                 "id": accounts_match["BA AMEX"],
@@ -978,6 +988,8 @@ class YNAB:
         return TransactionSummary(
             total=total_balance,
             accounts=accounts,
+            average_purchase=average_purchase,
+            transaction_count=transaction_count,
             biggest_purchase=biggest_purchase,
             transactions=transactions,
             refunds=refunds,
