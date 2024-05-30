@@ -54,7 +54,11 @@ class YnabServerKnowledgeHelper:
                 "account_id": transaction.account_id,
                 "transaction_id": transaction.id,
             }
-            await ra.create(resource="card-payments", resp_body=entity)
+            try:
+                logging.debug("Attempting to create card payment entity.")
+                await ra.create(resource="card-payments", resp_body=entity)
+            except IntegrityError:
+                logging.info("figure this out")
 
         return {"message": "done"}
 
@@ -136,17 +140,18 @@ class YnabServerKnowledgeHelper:
     async def create_route_entities(cls, model: Model) -> int | IntegrityError:
         if type(model) == YnabTransactions:
             model.debit = False if model.amount > 0 else True
-            if (
-                model.transfer_account_id != None
-                and model.account_name == "HSBC ADVANCE"
-            ):
-                await cls.add_card_payments(model=model)
 
         if type(model) in cls.negative_amounts:
             model = await cls.create_switch_negative_values(model)
 
         try:
             await model.save()
+            # Need to save the card payment after the transaction has been saved
+            if (
+                model.transfer_account_id != None
+                and model.account_name == "HSBC ADVANCE"
+            ):
+                await cls.add_card_payments(model=model)
             return 1
         except IncompleteInstanceError as e_incomplete:
             logging.exception(
