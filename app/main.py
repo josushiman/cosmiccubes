@@ -405,11 +405,14 @@ async def update_savings(commons: dict = Depends(common_cc_parameters)):
     if int(count) < 1:
         return {"message": "No savings target available for update."}
 
-    month_savings = await ynab.month_savings(year=year, specific_month=month)
+    month_savings = await ynab.month_summary(year=year, specific_month=month)
 
     savings_entity = entities[0]
     savings_entity_id = str(savings_entity.id)
-    savings_entity.amount = month_savings.total
+    savings_entity.amount = (
+        month_savings.income_expenses.balance_available
+        + month_savings.income_expenses.savings
+    )
     savings_entity.date = datetime.strftime(savings_entity.date, "%Y-%m-%d")
     logging.debug(f"Entity updated to update savings target: {savings_entity}")
 

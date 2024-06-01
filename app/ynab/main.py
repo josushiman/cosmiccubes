@@ -625,72 +625,6 @@ class YNAB:
         )
 
     @classmethod
-    async def month_savings(
-        cls,
-        year: SpecificYearOptionsEnum = None,
-        specific_month: SpecificMonthOptionsEnum = None,
-    ) -> MonthSavingsCalc:
-        # Get last months expenditure
-        # Get the last_month + 1 income
-        # What's left?
-        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
-            year=year,
-            specific_month=specific_month,
-        )
-
-        last_month_expenses = (
-            await YnabTransactions.annotate(total=Sum("amount"))
-            .filter(
-                date__gte=start_date,
-                date__lte=end_date,
-                debit=True,
-                transfer_account_id__isnull=True,
-            )
-            .group_by("debit")
-            .first()
-            .values("total")
-        )
-
-        db_query = (
-            YnabTransactions.annotate(total=Sum("amount"))
-            .filter(
-                date__gte=start_date,
-                date__lte=end_date,
-                debit=True,
-                transfer_account_id__isnull=True,
-            )
-            .group_by("debit")
-            .first()
-            .values("total")
-            .sql()
-        )
-
-        logging.error(db_query)
-
-        last_month_total = last_month_expenses.get("total", 0.0)
-
-        month_before_last_start = start_date - relativedelta(months=1)
-        month_before_last_end = end_date - relativedelta(months=1)
-
-        last_month_incomes = (
-            await YnabTransactions.annotate(total=Sum("amount"))
-            .filter(
-                date__gte=month_before_last_start,
-                date__lte=month_before_last_end,
-                debit=False,
-                category_fk__category_group_name__not_in=cls.CAT_EXPENSE_NAMES,
-                transfer_account_id__isnull=True,
-            )
-            .group_by("debit")
-            .first()
-            .values("total")
-        )
-
-        last_month_income = last_month_incomes.get("total", 0.0)
-
-        return MonthSavingsCalc(total=(last_month_income - last_month_total))
-
-    @classmethod
     async def month_summary(
         cls,
         months: PeriodMonthOptionsIntEnum = None,
@@ -1024,7 +958,12 @@ class YNAB:
         )
 
     @classmethod
-    async def upcoming_bills(cls) -> UpcomingBills:
+    async def upcoming_bills(
+        cls,
+        months: PeriodMonthOptionsIntEnum = None,
+        year: SpecificYearOptionsEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> UpcomingBills:
         # Bills should not change on a regular basis, so just look at all the bills from the last month.
         last_month_end = datetime.now().replace(
             day=1, hour=23, minute=59, second=59, microsecond=59
