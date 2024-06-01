@@ -125,7 +125,8 @@ class YnabHelpers:
         today = datetime.now()
         start_date, end_date = await cls.get_dates_for_transaction_queries()
 
-        days_left = (end_date - today).days
+        # + 1 day to include the current day
+        days_left = (end_date - today).days + 1
 
         return days_left
 

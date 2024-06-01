@@ -536,6 +536,40 @@ class YNAB:
         ]
 
     @classmethod
+    async def last_period_salary(
+        cls, start_date: datetime, end_date: datetime
+    ) -> float:
+        db_query = (
+            YnabTransactions.filter(
+                Q(payee_name="BJSS LIMITED"),
+                Q(date__gte=start_date),
+                Q(date__lte=end_date),
+                Q(debit=False),
+            )
+            .first()
+            .values("amount")
+            .sql()
+        )
+
+        last_month_income = (
+            await YnabTransactions.filter(
+                Q(payee_name="BJSS LIMITED"),
+                Q(date__gte=start_date),
+                Q(date__lte=end_date),
+                Q(debit=False),
+            )
+            .first()
+            .values("amount")
+        )
+
+        logging.debug(db_query)
+
+        try:
+            return last_month_income.get("amount")
+        except AttributeError:
+            return 0.0
+
+    @classmethod
     async def loan_portfolio(cls) -> LoanPortfolio:
         today = datetime.now(timezone.utc).replace(
             day=1, hour=00, minute=00, second=00, microsecond=00
@@ -656,7 +690,7 @@ class YNAB:
             .filter(
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
                 date__gte=start_date,
-                date__lte=end_date,
+                date__lt=end_date,
                 debit=True,
             )
             .group_by("debit")
@@ -685,7 +719,7 @@ class YNAB:
 
         # update the from date to the beginning of last month for bills and income
         last_month_start = start_date - relativedelta(months=1)
-        last_month_end = end_date - relativedelta(months=1)
+        last_month_end = start_date
 
         last_month_bills = await cls.upcoming_bills()
 
@@ -694,21 +728,9 @@ class YNAB:
         except AttributeError:
             bills = 0.0
 
-        last_month_income = (
-            await YnabTransactions.filter(
-                Q(payee_name="BJSS LIMITED"),
-                Q(date__gte=last_month_start),
-                Q(date__lte=last_month_end),
-                Q(debit=False),
-            )
-            .first()
-            .values("amount")
+        income = await cls.last_period_salary(
+            start_date=last_month_start, end_date=last_month_end
         )
-
-        try:
-            income = last_month_income.get("amount")
-        except AttributeError:
-            income = 0.0
 
         logging.debug(f"Income: {income}. Bills: {bills}")
 
