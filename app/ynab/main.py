@@ -1,4 +1,5 @@
 import logging
+from calendar import monthrange
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from tortoise.functions import Sum
@@ -650,6 +651,22 @@ class YNAB:
             .values("total")
         )
 
+        db_query = (
+            YnabTransactions.annotate(total=Sum("amount"))
+            .filter(
+                date__gte=start_date,
+                date__lte=end_date,
+                debit=True,
+                transfer_account_id__isnull=True,
+            )
+            .group_by("debit")
+            .first()
+            .values("total")
+            .sql()
+        )
+
+        logging.error(db_query)
+
         last_month_total = last_month_expenses.get("total", 0.0)
 
         month_before_last_start = start_date - relativedelta(months=1)
@@ -680,7 +697,6 @@ class YNAB:
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None,
     ) -> Month:
-        # spent_so_far
         start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
             year=year, months=months, specific_month=specific_month
         )
@@ -690,7 +706,8 @@ class YNAB:
             .filter(
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
                 date__gte=start_date,
-                date__lt=end_date,
+                date__lte=end_date,
+                transfer_account_id__isnull=True,
                 debit=True,
             )
             .group_by("debit")
@@ -737,11 +754,21 @@ class YNAB:
         balance_available = (income - (balance_spent + bills)) - savings_milliunit
         logging.debug(f"Balance available: {balance_available}")
 
-        days_left = await YnabHelpers.get_days_left_from_current_month()
-        if days_left != 0:
-            daily_spend = balance_available / days_left
+        if (
+            start_date.month == datetime.now().month
+            and start_date.year == datetime.now().year
+        ):
+            days_left = await YnabHelpers.get_days_left_from_current_month()
+            if days_left != 0:
+                daily_spend = balance_available / days_left
+            else:
+                daily_spend = balance_available
         else:
-            daily_spend = balance_available
+            days_left = 0
+            daily_spend = (
+                balance_spent
+                / monthrange(year=start_date.year, month=start_date.month)[1]
+            )
 
         uncategorised_transactions = await YnabTransactions.filter(
             category_fk_id=None, transfer_account_id=None
@@ -860,30 +887,9 @@ class YNAB:
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None,
     ) -> TransactionSummary:
-        if not months and not year and not specific_month:
-            # Filters for transactions for the entire of last month.
-            month_end = (
-                datetime.now().replace(
-                    day=1, hour=23, minute=59, second=59, microsecond=59
-                )
-                - relativedelta(days=1)
-                + relativedelta(months=1)
-            )
-            month_start = month_end.replace(
-                day=1, hour=00, minute=00, second=00, microsecond=00
-            )
-        else:
-            # TODO finish this
-            month_end = (
-                datetime.now().replace(
-                    day=1, hour=23, minute=59, second=59, microsecond=59
-                )
-                - relativedelta(days=1)
-                + relativedelta(months=1)
-            )
-            month_start = month_end.replace(
-                day=1, hour=00, minute=00, second=00, microsecond=00
-            )
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
 
         db_accounts = await YnabAccounts.all().values("id", "name")
         accounts_match = {
@@ -893,8 +899,8 @@ class YNAB:
         transactions = (
             await YnabTransactions.filter(
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
-                date__gte=month_start,
-                date__lt=month_end,
+                date__gte=start_date,
+                date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
             )
@@ -915,8 +921,8 @@ class YNAB:
         biggest_purchase = (
             await YnabTransactions.filter(
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
-                date__gte=month_start,
-                date__lt=month_end,
+                date__gte=start_date,
+                date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
             )
@@ -968,7 +974,7 @@ class YNAB:
         if misc_balance > 0:
             logging.warning("Transactions not in account list.")
 
-        refunds = await cls.refunds(start_date=month_start, end_date=month_end)
+        refunds = await cls.refunds(start_date=start_date, end_date=end_date)
 
         total_balance = (
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
@@ -976,8 +982,8 @@ class YNAB:
 
         transaction_count = await YnabTransactions.filter(
             category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
-            date__gte=month_start,
-            date__lt=month_end,
+            date__gte=start_date,
+            date__lte=end_date,
             transfer_account_id__isnull=True,
             debit=True,
         ).count()
