@@ -288,6 +288,9 @@ async def category_summary(
     months = commons.get("months")
     month = commons.get("month")
 
+    if category_name == "non-monthly-expenses":
+        category_name = "non-monthly expenses"
+
     return await ynab.category_summary(
         category_name=category_name,
         subcategory_name=subcategory_name,

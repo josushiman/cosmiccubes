@@ -737,9 +737,12 @@ class YNAB:
         )
 
     @classmethod
-    async def refunds(cls, months: PeriodMonthOptionsIntEnum = None,
+    async def refunds(cls, 
+        months: PeriodMonthOptionsIntEnum = None,
         year: SpecificYearOptionsEnum = None,
-        specific_month: SpecificMonthOptionsEnum = None) -> Refunds:
+        specific_month: SpecificMonthOptionsEnum = None
+        ) -> Refunds:
+        
         start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
             year=year, months=months, specific_month=specific_month
         )
