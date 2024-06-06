@@ -737,7 +737,13 @@ class YNAB:
         )
 
     @classmethod
-    async def refunds(cls, start_date: datetime, end_date: datetime) -> Refunds:
+    async def refunds(cls, months: PeriodMonthOptionsIntEnum = None,
+        year: SpecificYearOptionsEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None) -> Refunds:
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
+
         refunds_count = await YnabTransactions.filter(
             debit=False,
             category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
@@ -908,7 +914,7 @@ class YNAB:
         if misc_balance > 0:
             logging.warning("Transactions not in account list.")
 
-        refunds = await cls.refunds(start_date=start_date, end_date=end_date)
+        refunds = await cls.refunds(year=year, months=months, specific_month=specific_month)
 
         total_balance = (
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance

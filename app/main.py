@@ -329,8 +329,13 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
 
 
 @app.get("/refunds")
-async def refunds():
-    return await ynab.refunds()
+async def refunds(commons: dict = Depends(common_cc_parameters)):
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
+    return await ynab.refunds(
+        year=year, months=months, specific_month=month
+    )
 
 
 @app.get("/savings")
