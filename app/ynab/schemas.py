@@ -333,7 +333,6 @@ class LoanRenewalCategory(BaseModel):
     date: date_field
     amount: float
 
-
 class CategoryTrends(BaseModel):
     period: str
     trend: str
@@ -345,11 +344,24 @@ class CategoryTrends(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+class CategoryTrendItem(BaseModel):
+    date: str
+    total: float
+
+    @field_validator("total")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+    
+class CategoryTrendSummary(BaseModel):
+    data: Optional[List[CategoryTrendItem]] = []
+    summary: List[CategoryTrends]
 
 class CategoryTransactions(BaseModel):
     total: float
-    trends: List[CategoryTrends]
-    transactions: List[Transaction]
+    on_track: Optional[bool] = None
+    budget: float
+    trends: CategoryTrendSummary
 
     @field_validator("total")
     def format_milliunits(cls, value):

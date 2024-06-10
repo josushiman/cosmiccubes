@@ -2,8 +2,10 @@ import logging
 from calendar import monthrange
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
-from tortoise.functions import Sum
-from tortoise.expressions import Q
+from itertools import islice
+from pypika import CustomFunction
+from tortoise.functions import Sum, Coalesce
+from tortoise.expressions import Q, F
 from app.ynab.helpers import YnabHelpers
 from app.ynab.serverknowledge import YnabServerKnowledgeHelper
 from app.enums import (
@@ -35,13 +37,15 @@ from app.ynab.schemas import (
     DirectDebitSummary,
     Insurance,
     Refunds,
-    MonthSavingsCalc,
+    CategoryTrendSummary,
     DailySpendItem,
     DailySpendSummary,
     Transaction,
     CardBill,
 )
 
+TruncMonth = CustomFunction("DATE_TRUNC", ["interval", "field"])
+ToChar = CustomFunction("TO_CHAR", ["field", "format"])
 
 class YNAB:
     CAT_EXPENSE_NAMES = ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]
@@ -308,91 +312,67 @@ class YNAB:
             year=year, months=months, specific_month=specific_month
         )
 
+        # Categories are passed with '-'s' replace them to be able to search on them.
         subcategory_name = subcategory_name.replace("-", " ")
 
-        transactions = (
-            await YnabTransactions.filter(
+        # Generate the last 6 months as datetime objects
+        def generate_last_six_months():
+            return [start_date - relativedelta(months=i) for i in range(6)]
+        
+        # Create a default dictionary with the months included over the last 6 months, with each total_spent being zeroed
+        grouped_data = {month_date.strftime("%Y-%m"): 0 for month_date in generate_last_six_months()}
+
+        # Use the custom function to group transactions by month.
+        # Setting the format avoids issues with the timestamp being set to BST.
+        month_annotation = TruncMonth('month', F("date"))
+        formatted_month = ToChar(month_annotation, "YYYY-MM")
+
+        # Get all the transactions for a category over the last 6 months.
+        l6m_start_date = start_date - relativedelta(months=5)
+        grouped_transactions = (
+            await YnabTransactions.annotate(
+                month_date=formatted_month
+            ).filter(
                 category_fk__category_group_name__iexact=category_name,
                 category_name__iexact=subcategory_name,
-                date__gte=start_date,
+                date__gte=l6m_start_date,
                 date__lte=end_date,
                 debit=True,
-            )
-            .order_by("-date")
-            .all()
-            .values(
-                "id",
-                "account_id",
-                "amount",
-                "date",
-                category="category_fk__category_group_name",
-                subcategory="category_name",
-                payee="payee_name",
+            ).group_by(
+                'month_date'
+            ).annotate(
+                total_spent=Coalesce(Sum('amount'), 0)
+            ).order_by(
+                '-month_date'
+            ).values(
+                'month_date', 'total_spent'
             )
         )
 
-        category_spent = sum(transaction["amount"] for transaction in transactions)
+        # Match the DB data to the grouped dict.
+        for output in grouped_transactions:
+            grouped_data[output["month_date"]] = output["total_spent"]
 
-        this_month_start = datetime.now().replace(
-            day=1, hour=00, minute=00, second=00, microsecond=00
-        )
-        last_month_start = this_month_start - relativedelta(months=1)
-        last_3_month_start = this_month_start - relativedelta(months=3)
-        last_6_month_start = this_month_start - relativedelta(months=6)
-        last_month_end = this_month_start - relativedelta(days=1)
+        # The value of the first item of the dict is the month selected.
+        selected_month_spent = next(iter(grouped_data.values()))
 
-        transactions_1_m = (
-            await YnabTransactions.annotate(spent=Sum("amount"))
-            .filter(
-                category_fk__category_group_name__iexact=category_name,
-                category_name__iexact=subcategory_name,
-                date__gte=last_month_start,
-                date__lt=last_month_end,
-                debit=True,
-            )
-            .group_by("deleted")
-            .get_or_none()
-            .values("spent")
-        )
-        if not transactions_1_m:
-            transactions_1_m = {"spent": 0}
+        category_budget = await Budgets.filter(
+            category__category_group_name__iexact=category_name,
+            category__name__iexact=subcategory_name
+        ).prefetch_related('category').get_or_none()
 
-        transactions_3_m = (
-            await YnabTransactions.annotate(spent=Sum("amount"))
-            .filter(
-                category_fk__category_group_name__iexact=category_name,
-                category_name__iexact=subcategory_name,
-                date__gte=last_3_month_start,
-                date__lt=last_month_end,
-                debit=True,
-            )
-            .group_by("deleted")
-            .get_or_none()
-            .values("spent")
-        )
-        if not transactions_3_m:
-            transactions_3_m = {"spent": 0}
+        if not category_budget: 
+            on_track = None
+            budgeted = 0
+        else:
+            budgeted = category_budget.amount
+            on_track = True if (budgeted * 1000) >= selected_month_spent else False
 
-        transactions_6_m = (
-            await YnabTransactions.annotate(spent=Sum("amount"))
-            .filter(
-                category_fk__category_group_name__iexact=category_name,
-                category_name__iexact=subcategory_name,
-                date__gte=last_6_month_start,
-                date__lt=last_month_end,
-                debit=True,
-            )
-            .group_by("deleted")
-            .get_or_none()
-            .values("spent")
-        )
-        if not transactions_6_m:
-            transactions_6_m = {"spent": 0}
+        transactions_1_m = {"period": 1, "spent": next(islice(grouped_data.values(), 1, 2))}
+        transactions_3_m = {"period": 3, "spent": next(islice(grouped_data.values(), 1, 4))}
+        transactions_6_m = {"period": 6, "spent": sum(islice(grouped_data.values(), 1, None))}
 
-        transactions_1_m["period"] = 1
-        transactions_3_m["period"] = 3
-        transactions_6_m["period"] = 6
-        logging.debug(f"Current monthly spend for category: {category_spent}")
+        logging.debug(f"Current monthly spend for category: {selected_month_spent}")
         transaction_totals = [transactions_1_m, transactions_3_m, transactions_6_m]
         trends = []
         for totals in transaction_totals:
@@ -402,7 +382,7 @@ class YNAB:
             try:
                 # TODO trend percentage is not good when searching over multiple months.
                 trend_percentage = round(
-                    ((category_spent - average_spend) / average_spend) * 100
+                    ((selected_month_spent - average_spend) / average_spend) * 100
                 )
                 logging.debug(f"Test trend percentage: {trend_percentage}")
             except ZeroDivisionError:
@@ -431,8 +411,13 @@ class YNAB:
                 }
             )
 
+        cat_trend_data = [{"date": month_date, "total": total_spent} for month_date, total_spent in grouped_data.items()]
+
         return CategoryTransactions(
-            total=category_spent, trends=trends, transactions=transactions
+            total=selected_month_spent,
+            on_track=on_track,
+            trends=CategoryTrendSummary(summary=trends, data=cat_trend_data),
+            budget=budgeted
         )
 
     @classmethod
@@ -791,6 +776,31 @@ class YNAB:
     ):
 
         return await YnabServerKnowledgeHelper.add_card_payments()
+
+    @classmethod
+    async def transactions_by_period(cls, start_date: datetime, end_date: datetime, _filter: dict) -> list[Transaction]:
+        _filter['date__gte'] = start_date
+        _filter['date__lte'] = end_date
+
+        transactions = (
+            await YnabTransactions.filter(**_filter)
+            .order_by("-date")
+            .all()
+            .values(
+                "id",
+                "account_id",
+                "amount",
+                "account_name",
+                "date",
+                category="category_fk__category_group_name",
+                subcategory="category_name",
+                payee="payee_name",
+            )
+        )
+
+        logging.debug(f"Found {len(transactions)} transactions for {_filter}")
+
+        return [Transaction(**transaction) for transaction in transactions]
 
     @classmethod
     async def transaction_by_date(cls, date: str) -> list[Transaction]:
