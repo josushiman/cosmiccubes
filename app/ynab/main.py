@@ -411,12 +411,13 @@ class YNAB:
                 }
             )
 
-        cat_trend_data = [{"date": month_date, "total": total_spent} for month_date, total_spent in grouped_data.items()]
+        cat_trend_data = [{"month": month_date, "total": total_spent} for month_date, total_spent in grouped_data.items()]
+        reversed_cat_trend_data = cat_trend_data[::-1]
 
         return CategoryTransactions(
             total=selected_month_spent,
             on_track=on_track,
-            trends=CategoryTrendSummary(summary=trends, data=cat_trend_data),
+            trends=CategoryTrendSummary(summary=trends, data=reversed_cat_trend_data),
             budget=budgeted
         )
 

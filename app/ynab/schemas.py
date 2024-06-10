@@ -345,7 +345,7 @@ class CategoryTrends(BaseModel):
         return value / 1000.0
 
 class CategoryTrendItem(BaseModel):
-    date: str
+    month: str
     total: float
 
     @field_validator("total")
