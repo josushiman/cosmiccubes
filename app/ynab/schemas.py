@@ -403,3 +403,18 @@ class DailySpendItem(BaseModel):
 class DailySpendSummary(BaseModel):
     total: float
     days: List[DailySpendItem]
+
+class Payee(BaseModel):
+    payee_name: str 
+    count: int
+    total: float
+
+    @field_validator("total")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
+
+class PayeeSummary(BaseModel):
+    count: int = 0
+    topspender: Optional[Payee] = None
+    data: List[Payee] = []

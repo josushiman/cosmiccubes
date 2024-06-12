@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from itertools import islice
 from pypika import CustomFunction
-from tortoise.functions import Sum, Coalesce
+from tortoise.functions import Sum, Coalesce, Count
 from tortoise.expressions import Q, F
 from app.ynab.helpers import YnabHelpers
 from app.ynab.serverknowledge import YnabServerKnowledgeHelper
@@ -42,6 +42,7 @@ from app.ynab.schemas import (
     DailySpendSummary,
     Transaction,
     CardBill,
+    PayeeSummary
 )
 
 TruncMonth = CustomFunction("DATE_TRUNC", ["interval", "field"])
@@ -722,6 +723,41 @@ class YNAB:
                 "balance_available": balance_available,
                 "savings": savings_milliunit,
             },
+        )
+
+    @classmethod
+    async def payee_summary(
+        cls,
+        months: PeriodMonthOptionsIntEnum = None,
+        year: SpecificYearOptionsEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> PayeeSummary:
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
+
+        grouped_payees = await YnabTransactions.filter(
+            category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+            date__gte=start_date,
+            date__lte=end_date,
+            transfer_account_id__isnull=True,
+            debit=True,
+        ).annotate(
+            count=Count('payee_name'),total=Sum('amount')
+        ).group_by(
+            "payee_name"
+        ).order_by(
+            "-total"
+        ).values(
+            "payee_name",
+            "count",
+            "total"
+        )
+
+        return PayeeSummary(
+            count=len(grouped_payees),
+            topspender=grouped_payees[0],
+            data=grouped_payees
         )
 
     @classmethod
