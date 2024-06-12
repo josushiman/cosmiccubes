@@ -149,7 +149,8 @@ class YnabServerKnowledgeHelper:
             # Need to save the card payment after the transaction has been saved
             if (
                 model.transfer_account_id != None
-                and model.account_name == "HSBC ADVANCE"
+                and model.account_name != "HSBC ADVANCE"
+                and model.payee_name == 'Transfer : HSBC ADVANCE'
             ):
                 await cls.add_card_payments(model=model)
             return 1

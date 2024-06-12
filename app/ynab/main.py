@@ -106,6 +106,8 @@ class YNAB:
                     payment.transaction.date.month == data_entry["date"].month
                     and payment.transaction.date.year == data_entry["date"].year
                 ):
+                    logging.debug(f"Match found for account: {payment.account.name} and {payment.transaction.id}")
+                    # TODO Allow for multiple CC payments in the same month.
                     data_entry[payment.account.name] = payment.transaction.amount
             data.append(CardBill(**data_entry))
 
