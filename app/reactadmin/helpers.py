@@ -41,6 +41,17 @@ from app.db.schemas import (
 
 
 class ReactAdmin:
+    EXCLUDE_BUDGETS = [
+        "Monthly Bills",
+        "Yearly Bills",
+        "Loans",
+        "Credit Card Payments",
+        "Internal Master Category",
+        "Non-Monthly Expenses",
+        "Saving Goals",
+        "Holidays",
+    ]
+
     @classmethod
     async def get_entity_model(cls, resource: str) -> Model:
         model_list = {
@@ -203,6 +214,10 @@ class ReactAdmin:
                 if key == "payee_name":
                     kwargs["payee_name__icontains"] = value
                     continue
+                if key == "filter_expense_cats":
+                    kwargs["category_group_name__not_in"] = cls.EXCLUDE_BUDGETS
+                    kwargs["budget__isnull"] = True
+                    continue
                 # Otherwise just store the value in the new dict
                 else:
                     kwargs[key] = value
@@ -254,6 +269,7 @@ class ReactAdmin:
                     entity_model.all().limit(limit).offset(offset)
                 )
             elif filter is not None:
+                logging.info(filter)
                 return await entity_schema.from_queryset(
                     entity_model.filter(**filter)
                     .limit(limit)

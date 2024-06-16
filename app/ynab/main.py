@@ -162,11 +162,13 @@ class YNAB:
         total_overspent = sum(cat["overspent"] for cat in raw_results)
 
         results = sorted(raw_results, key=lambda x: x["spent"], reverse=True)
+        budgets_needed = await cls.budgets_needed()
 
         return BudgetsDashboard(
             total=total_budgeted,
             on_track=total_on_track,
             overspent=total_overspent,
+            needed=budgets_needed.count,
             categories=results,
         )
 

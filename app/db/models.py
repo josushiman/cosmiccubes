@@ -1,6 +1,5 @@
 from tortoise import fields
 from tortoise.models import Model
-from datetime import datetime, timezone
 import logging
 
 
@@ -190,13 +189,13 @@ class LoansAndRenewals(Model):
         "models.LoansAndRenewalsPeriods", related_name=False, null=True
     )
     type = fields.ForeignKeyField(
-        "models.LoansAndRenewalsTypes", related_name="type", null=True
+        "models.LoansAndRenewalsTypes", related_name="loans_renewals", null=True
     )
     account = fields.ForeignKeyField(
-        "models.YnabAccounts", related_name="account", null=True
+        "models.YnabAccounts", related_name="loans_renewals", null=True
     )
     category = fields.ForeignKeyField(
-        "models.YnabCategories", related_name="category", null=True
+        "models.YnabCategories", related_name="loans_renewals", null=True
     )
 
     def period_name(self) -> str:
