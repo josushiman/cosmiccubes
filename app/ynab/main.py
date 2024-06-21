@@ -446,6 +446,8 @@ class YNAB:
             .values("total", "date")
         )
 
+        # TODO include refunds for this calculation as well.
+
         all_dates = [
             (start_date + relativedelta(days=i)).strftime("%Y-%m-%d")
             for i in range((end_date - start_date).days + 1)

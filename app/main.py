@@ -1,5 +1,6 @@
 import logging
 import newrelic.agent
+from time import sleep
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from tortoise import Tortoise
@@ -367,6 +368,19 @@ async def upcoming_bills():
     return await ynab.upcoming_bills()
 
 
+@app.get("/ynab/update-all-endpoints", name="Update YNAB Accounts")
+async def update_accounts():
+    await update_accounts()
+    sleep(2)
+    await update_categories()
+    sleep(2)
+    await update_payees()
+    sleep(2)
+    await update_transactions()
+    sleep(2)
+    await update_savings()
+    return {"message": "done"}
+
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
@@ -396,15 +410,12 @@ async def update_payees():
 
 @app.get("/ynab/update-savings", name="Update Savings Outcomes")
 async def update_savings(commons: dict = Depends(common_cc_parameters)):
-    year = commons.get("year")
-    month = commons.get("month")
-
-    if not year or not month:
+    try: 
+        year = SpecificYearOptionsEnum(commons.get("year"))
+        month = SpecificMonthOptionsEnum(commons.get("month"))
+    except AttributeError:
         year = SpecificYearOptionsEnum.NOW
         month = SpecificMonthOptionsEnum.NOW
-    else:
-        year = SpecificYearOptionsEnum(year)
-        month = SpecificMonthOptionsEnum(month)
 
     entities, count = await ra.get_list(
         resource="savings",
