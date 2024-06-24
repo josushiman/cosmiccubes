@@ -385,6 +385,62 @@ class YNAB:
         )
 
     @classmethod
+    async def category_summary_payees(
+        cls,
+        category_name: str,
+        subcategory_name: str,
+        months: PeriodMonthOptionsIntEnum = None,
+        year: SpecificYearOptionsEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> PayeeSummary:
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
+
+        subcategory_name = subcategory_name.replace("-", " ")
+
+        grouped_payees = await YnabTransactions.filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_fk__name__iexact=subcategory_name,
+            date__gte=start_date,
+            date__lte=end_date,
+            transfer_account_id__isnull=True,
+            debit=True,
+        ).annotate(
+            count=Count('payee_name'),total=Sum('amount')
+        ).group_by(
+            "payee_name"
+        ).order_by(
+            "-total"
+        ).values(
+            "payee_name",
+            "count",
+            "total"
+        )
+
+        grouped_payees_count = await YnabTransactions.filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_fk__name__iexact=subcategory_name,
+            date__gte=start_date,
+            date__lte=end_date,
+            transfer_account_id__isnull=True,
+            debit=True,
+        ).annotate(
+            count=Count('payee_name'),total=Sum('amount')
+        ).group_by(
+            "payee_name"
+        ).count()
+
+        if grouped_payees_count < 1:
+            return PayeeSummary()
+
+        return PayeeSummary(
+            count=len(grouped_payees),
+            topspender=grouped_payees[0],
+            data=grouped_payees
+        )
+
+    @classmethod
     async def daily_spend(cls, num_days: int) -> DailySpendSummary:
         start_date = datetime.now().replace(
             hour=0, minute=0, second=0, microsecond=0
