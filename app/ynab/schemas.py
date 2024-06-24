@@ -32,6 +32,10 @@ class CardBill(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+    @computed_field
+    @property
+    def total(self) -> float:
+        return self.ba_amex + self.hsbc_cc + self.barclays_cc
 
 class CatBudgetReq(BaseModel):
     name: str
@@ -379,6 +383,17 @@ class UpcomingBills(BaseModel):
     bills: List[BillCategory]
     loans: Optional[List[LoanRenewalCategory]] = None
     renewals: Optional[List[LoanRenewalCategory]] = None
+
+
+class PastBillsSummary(BaseModel):
+    last_month_diff: float
+    last_month_trend: float
+    avg_trend: float
+
+
+class PastBills(BaseModel):
+    summary: PastBillsSummary
+    data: List[CardBill]
 
 
 class MonthSavingsCalc(BaseModel):

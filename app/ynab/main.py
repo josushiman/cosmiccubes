@@ -6,6 +6,7 @@ from itertools import islice
 from pypika import CustomFunction
 from tortoise.functions import Sum, Coalesce, Count
 from tortoise.expressions import Q, F
+from numpy import mean
 from app.ynab.helpers import YnabHelpers
 from app.ynab.serverknowledge import YnabServerKnowledgeHelper
 from app.enums import (
@@ -42,7 +43,9 @@ from app.ynab.schemas import (
     DailySpendSummary,
     Transaction,
     CardBill,
-    PayeeSummary
+    PayeeSummary,
+    PastBills,
+    PastBillsSummary
 )
 
 TruncMonth = CustomFunction("DATE_TRUNC", ["interval", "field"])
@@ -69,51 +72,6 @@ class YNAB:
         "Saving Goals",
         "Holidays",
     ]
-
-    @classmethod
-    async def average_card_bill(
-        cls, months: PeriodMonthOptionsIntEnum = None
-    ) -> list[CardBill]:
-        months = 3 if not months else months.value
-        today = datetime.now().replace(
-            day=1, hour=00, minute=00, second=00, microsecond=00
-        )
-        start_date = today - relativedelta(months=months)
-
-        card_payments = (
-            await CardPayments.filter(transaction__date__gte=start_date)
-            .all()
-            .prefetch_related("account", "transaction")
-            .order_by("transaction__date")
-        )
-
-        # Get the number of months from the first bill to today
-        date_delta = relativedelta(today, start_date)
-        months_to_start_date = date_delta.years * 12 + date_delta.months
-
-        # Go through the range from the months to start date
-        # Generate an entity for each bill and the amount of the bill.
-        data = []
-        for month in range(months_to_start_date):
-            # Skip the current month as there won't be a bill yet.
-            if month == 0:
-                continue
-
-            data_entry = {
-                "date": today if month == 0 else today - relativedelta(months=month)
-            }
-            for payment in card_payments:
-                if (
-                    payment.transaction.date.month == data_entry["date"].month
-                    and payment.transaction.date.year == data_entry["date"].year
-                ):
-                    logging.debug(f"Match found for account: {payment.account.name} and {payment.transaction.id}")
-                    # TODO Allow for multiple CC payments in the same month.
-                    data_entry[payment.account.name] = payment.transaction.amount
-            data.append(CardBill(**data_entry))
-
-        reverse_data = sorted(data, key=lambda item: item.date, reverse=False)
-        return reverse_data
 
     @classmethod
     async def budgets_dashboard(cls) -> BudgetsDashboard:
@@ -727,6 +685,71 @@ class YNAB:
                 "balance_available": balance_available,
                 "savings": savings_milliunit,
             },
+        )
+
+    @classmethod
+    async def past_bills(
+        cls, months: PeriodMonthOptionsIntEnum = None
+    ) -> PastBills:
+        months = 3 if not months else months.value
+        today = datetime.now().replace(
+            day=1, hour=00, minute=00, second=00, microsecond=00
+        )
+        start_date = today - relativedelta(months=months)
+
+        card_payments = (
+            await CardPayments.filter(transaction__date__gte=start_date)
+            .all()
+            .prefetch_related("account", "transaction")
+            .order_by("transaction__date")
+        )
+
+        # Get the number of months from the first bill to today
+        date_delta = relativedelta(today, start_date)
+        months_to_start_date = date_delta.years * 12 + date_delta.months
+
+        # Go through the range from the months to start date
+        # Generate an entity for each bill and the amount of the bill.
+        data = []
+        for month in range(months_to_start_date):
+            # Skip the current month as there won't be a bill yet.
+            if month == 0:
+                continue
+
+            data_entry = {
+                "date": today if month == 0 else today - relativedelta(months=month)
+            }
+            for payment in card_payments:
+                if (
+                    payment.transaction.date.month == data_entry["date"].month
+                    and payment.transaction.date.year == data_entry["date"].year
+                ):
+                    logging.debug(f"Match found for account: {payment.account.name} and {payment.transaction.id}")
+                    # TODO Allow for multiple CC payments in the same month.
+                    data_entry[payment.account.name] = payment.transaction.amount
+
+            data.append(CardBill(**data_entry))
+        
+        reverse_data = sorted(data, key=lambda item: item.date, reverse=False)
+
+        # 6 month trend
+        # For the last 6 month (exc. current month), take the first 4 months average 
+        # calc the difference month on month to the 5th month, take the average
+        monthly_changes = [((reverse_data[i].total - reverse_data[i - 1].total) / reverse_data[i - 1].total) * 100 for i in range(1, len(reverse_data) - 1)]
+        avg_trend = round(mean(monthly_changes), 0)
+        last_month_trend = round(monthly_changes[-1], 0)
+
+        # Last month diff is for the diff between the 5th month and the 4th month in terms of
+        # the total of all bills
+        last_month_difference = reverse_data[3].total - reverse_data[4].total
+
+        return PastBills(
+                summary=PastBillsSummary(
+                    last_month_diff=-last_month_difference,
+                    avg_trend=avg_trend,
+                    last_month_trend=last_month_trend
+                ),
+            data=reverse_data
         )
 
     @classmethod

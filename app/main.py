@@ -254,13 +254,6 @@ async def delete_many(
 # https://tortoise.github.io/setup.html?h=bulk#tortoise.Model.bulk_update.fields
 
 
-@app.get("/average-card-bill")
-async def average_card_bill(commons: dict = Depends(common_cc_parameters)):
-    months = commons.get("months")
-
-    return await ynab.average_card_bill(months=months)
-
-
 @app.get("/budgets-needed")
 async def budgets_needed():
     return await ynab.budgets_needed()
@@ -330,6 +323,12 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     months = commons.get("months")
     month = commons.get("month")
     return await ynab.month_summary(year=year, months=months, specific_month=month)
+
+@app.get("/past-bills")
+async def past_bills(commons: dict = Depends(common_cc_parameters)):
+    months = commons.get("months")
+
+    return await ynab.past_bills(months=months)
 
 @app.get("/payee-summary")
 async def payee_summary(commons: dict = Depends(common_cc_parameters)):
