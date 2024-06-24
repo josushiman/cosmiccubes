@@ -293,6 +293,7 @@ async def category_summary(
         specific_month=month,
     )
 
+
 @app.get("/categories-summary/{category_name}/{subcategory_name}/payees")
 async def category_summary_payees(
     category_name: str,
@@ -313,6 +314,29 @@ async def category_summary_payees(
         months=months,
         specific_month=month,
     )
+
+
+@app.get("/categories-summary/{category_name}/{subcategory_name}/transactions")
+async def category_summary_transactions(
+    category_name: str,
+    subcategory_name: str,
+    commons: dict = Depends(common_cc_parameters),
+):
+    year = commons.get("year")
+    months = commons.get("months")
+    month = commons.get("month")
+
+    if category_name == "non-monthly-expenses":
+        category_name = "non-monthly expenses"
+
+    return await ynab.category_summary_transactions(
+        category_name=category_name,
+        subcategory_name=subcategory_name,
+        year=year,
+        months=months,
+        specific_month=month,
+    )
+
 
 @app.get("/daily-spend")
 async def daily_spend(num_days: int):

@@ -440,6 +440,158 @@ class YNAB:
             data=grouped_payees
         )
 
+    # TODO get this and the above function refactored to be used in a couple of places.
+    @classmethod
+    async def category_summary_transactions(
+        cls,
+        category_name: str,
+        subcategory_name: str,
+        months: PeriodMonthOptionsIntEnum = None,
+        year: SpecificYearOptionsEnum = None,
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> TransactionSummary:
+        start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
+            year=year, months=months, specific_month=specific_month
+        )
+
+        subcategory_name = subcategory_name.replace("-", " ")
+
+        db_accounts = await YnabAccounts.all().values("id", "name")
+        accounts_match = {
+            db_account["name"]: db_account["id"] for db_account in db_accounts
+        }
+
+        transactions = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name__iexact=category_name,
+                category_fk__name__iexact=subcategory_name,
+                date__gte=start_date,
+                date__lte=end_date,
+                transfer_account_id__isnull=True,
+                debit=True,
+            )
+            .order_by("-date")
+            .all()
+            .values(
+                "id",
+                "account_id",
+                "amount",
+                "account_name",
+                "date",
+                category="category_fk__category_group_name",
+                subcategory="category_name",
+                payee="payee_name",
+            )
+        )
+
+        biggest_purchase = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name__iexact=category_name,
+                category_fk__name__iexact=subcategory_name,
+                date__gte=start_date,
+                date__lte=end_date,
+                transfer_account_id__isnull=True,
+                debit=True,
+            )
+            .order_by("-amount")
+            .limit(1)
+            .first()
+            .values(
+                "id",
+                "account_id",
+                "amount",
+                "account_name",
+                "date",
+                category="category_fk__category_group_name",
+                subcategory="category_name",
+                payee="payee_name",
+            )
+        )
+
+        card_types = ["BA AMEX", "Barclays CC", "HSBC CC", "HSBC ADVANCE"]
+        amex_balance = sum(
+            transaction["amount"] if transaction["account_name"] == "BA AMEX" else 0
+            for transaction in transactions
+        )
+        barclays_balance = sum(
+            transaction["amount"] if transaction["account_name"] == "Barclays CC" else 0
+            for transaction in transactions
+        )
+        hsbc_cc_balance = sum(
+            transaction["amount"] if transaction["account_name"] == "HSBC CC" else 0
+            for transaction in transactions
+        )
+        hsbc_adv_balance = sum(
+            (
+                transaction["amount"]
+                if transaction["account_name"] == "HSBC ADVANCE"
+                else 0
+            )
+            for transaction in transactions
+        )
+        misc_balance = sum(
+            (
+                transaction["amount"]
+                if transaction["account_name"] not in card_types
+                else 0
+            )
+            for transaction in transactions
+        )
+
+        if misc_balance > 0:
+            logging.warning("Transactions not in account list.")
+
+        # TODO refund needs category filter
+        refunds = await cls.refunds(year=year, months=months, specific_month=specific_month)
+
+        total_balance = (
+            amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
+        ) - refunds.total
+
+        transaction_count = await YnabTransactions.filter(
+            category_fk__category_group_name__iexact=category_name,
+            category_fk__name__iexact=subcategory_name,
+            date__gte=start_date,
+            date__lte=end_date,
+            transfer_account_id__isnull=True,
+            debit=True,
+        ).count()
+
+        average_purchase = total_balance / transaction_count
+
+        accounts = [
+            {
+                "id": accounts_match["BA AMEX"],
+                "name": "BA AMEX",
+                "balance": amex_balance,
+            },
+            {
+                "id": accounts_match["HSBC CC"],
+                "name": "HSBC CC",
+                "balance": hsbc_cc_balance,
+            },
+            {
+                "id": accounts_match["HSBC ADVANCE"],
+                "name": "HSBC ADVANCE",
+                "balance": hsbc_adv_balance,
+            },
+            {
+                "id": accounts_match["Barclays CC"],
+                "name": "Barclays CC",
+                "balance": barclays_balance,
+            },
+        ]
+
+        return TransactionSummary(
+            total=total_balance,
+            accounts=accounts,
+            average_purchase=average_purchase,
+            transaction_count=transaction_count,
+            biggest_purchase=biggest_purchase,
+            transactions=transactions,
+            refunds=refunds,
+        )
+
     @classmethod
     async def daily_spend(cls, num_days: int) -> DailySpendSummary:
         start_date = datetime.now().replace(
