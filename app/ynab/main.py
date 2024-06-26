@@ -399,6 +399,9 @@ class YNAB:
 
         subcategory_name = subcategory_name.replace("-", " ")
 
+        logging.info(category_name)
+        logging.info(subcategory_name)
+
         grouped_payees = await YnabTransactions.filter(
             category_fk__category_group_name__iexact=category_name,
             category_fk__name__iexact=subcategory_name,

@@ -282,7 +282,7 @@ async def category_summary(
     months = commons.get("months")
     month = commons.get("month")
 
-    if category_name == "non-monthly-expenses":
+    if category_name == "non-monthly-expenses" or category_name == "non monthly-expenses":
         category_name = "non-monthly expenses"
 
     return await ynab.category_summary(
@@ -304,7 +304,7 @@ async def category_summary_payees(
     months = commons.get("months")
     month = commons.get("month")
 
-    if category_name == "non-monthly-expenses":
+    if category_name == "non-monthly-expenses" or category_name == "non monthly-expenses":
         category_name = "non-monthly expenses"
 
     return await ynab.category_summary_payees(
@@ -326,7 +326,7 @@ async def category_summary_transactions(
     months = commons.get("months")
     month = commons.get("month")
 
-    if category_name == "non-monthly-expenses":
+    if category_name == "non-monthly-expenses" or category_name == "non monthly-expenses":
         category_name = "non-monthly expenses"
 
     return await ynab.category_summary_transactions(
