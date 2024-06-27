@@ -165,6 +165,7 @@ class YNAB:
 
         return BudgetsNeeded(count=categories_count, categories=results)
 
+    # TODO include refunds in total calculations
     @classmethod
     async def categories_summary(
         cls,
@@ -399,9 +400,6 @@ class YNAB:
 
         subcategory_name = subcategory_name.replace("-", " ")
 
-        logging.info(category_name)
-        logging.info(subcategory_name)
-
         grouped_payees = await YnabTransactions.filter(
             category_fk__category_group_name__iexact=category_name,
             category_fk__name__iexact=subcategory_name,
@@ -544,12 +542,17 @@ class YNAB:
         if misc_balance > 0:
             logging.warning("Transactions not in account list.")
 
-        # TODO refund needs category filter
-        refunds = await cls.refunds(year=year, months=months, specific_month=specific_month)
+        refunds = await cls.refunds(
+            year=year,
+            months=months,
+            specific_month=specific_month,
+            category_name=category_name,
+            subcategory_name=subcategory_name
+        )
 
         total_balance = (
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
-        ) - refunds.total
+        )
 
         transaction_count = await YnabTransactions.filter(
             category_fk__category_group_name__iexact=category_name,
@@ -561,6 +564,8 @@ class YNAB:
         ).count()
 
         average_purchase = total_balance / transaction_count
+
+        total_balance = total_balance - (refunds.total * 1000)
 
         accounts = [
             {
@@ -811,10 +816,12 @@ class YNAB:
             .values("total")
         )
 
+        refunds = await cls.refunds(year=year, months=months, specific_month=specific_month)
+
         try:
-            balance_spent = spent_so_far.get("total")
+            balance_spent = (spent_so_far.get("total")) - (refunds.total  * 1000)
         except AttributeError:
-            balance_spent = 0.0
+            balance_spent = 0.0 - (refunds.total  * 1000)
 
         budget_summary = await cls.budgets_dashboard()
         budget_multiplier = await YnabHelpers.months_between(
@@ -1000,6 +1007,8 @@ class YNAB:
 
     @classmethod
     async def refunds(cls, 
+        category_name: str = None,
+        subcategory_name: str = None,
         months: PeriodMonthOptionsIntEnum = None,
         year: SpecificYearOptionsEnum = None,
         specific_month: SpecificMonthOptionsEnum = None
@@ -1009,33 +1018,65 @@ class YNAB:
             year=year, months=months, specific_month=specific_month
         )
 
-        refunds_count = await YnabTransactions.filter(
-            debit=False,
-            category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
-            date__gte=start_date,
-            date__lt=end_date,
-        ).count()
-
-        refunds = (
-            await YnabTransactions.filter(
+        # TODO refactor this
+        if not category_name:
+            refunds_count = await YnabTransactions.filter(
                 debit=False,
                 category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
                 date__gte=start_date,
                 date__lt=end_date,
+            ).count()
+
+            refunds = (
+                await YnabTransactions.filter(
+                    debit=False,
+                    category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
+                    date__gte=start_date,
+                    date__lt=end_date,
+                )
+                .order_by("date", "-amount")
+                .all()
+                .values(
+                    "id",
+                    "account_id",
+                    "amount",
+                    "account_name",
+                    "date",
+                    category="category_fk__category_group_name",
+                    subcategory="category_name",
+                    payee="payee_name",
+                )
             )
-            .order_by("date", "-amount")
-            .all()
-            .values(
-                "id",
-                "account_id",
-                "amount",
-                "account_name",
-                "date",
-                category="category_fk__category_group_name",
-                subcategory="category_name",
-                payee="payee_name",
+        else:
+            refunds_count = await YnabTransactions.filter(
+                debit=False,
+                category_fk__category_group_name__iexact=category_name,
+                category_fk__name__iexact=subcategory_name,
+                date__gte=start_date,
+                date__lt=end_date,
+            ).count()
+
+            refunds = (
+                await YnabTransactions.filter(
+                    debit=False,
+                    category_fk__category_group_name__iexact=category_name,
+                    category_fk__name__iexact=subcategory_name,
+                    date__gte=start_date,
+                    date__lt=end_date,
+                )
+                .order_by("date", "-amount")
+                .all()
+                .values(
+                    "id",
+                    "account_id",
+                    "amount",
+                    "account_name",
+                    "date",
+                    category="category_fk__category_group_name",
+                    subcategory="category_name",
+                    payee="payee_name",
+                )
             )
-        )
 
         refund_total = sum(transaction["amount"] for transaction in refunds)
 
@@ -1208,7 +1249,7 @@ class YNAB:
 
         total_balance = (
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance
-        ) - refunds.total
+        )
 
         transaction_count = await YnabTransactions.filter(
             category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
@@ -1219,6 +1260,8 @@ class YNAB:
         ).count()
 
         average_purchase = total_balance / transaction_count
+
+        total_balance = total_balance - (refunds.total * 1000)
 
         accounts = [
             {
