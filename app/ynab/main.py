@@ -792,6 +792,19 @@ class YNAB:
         )
 
     @classmethod
+    async def loans_renewals_overview(cls):
+        # Count of: Direct debits, Loans, Subscriptions
+        await LoansAndRenewals.filter(
+                type__name=LoansAndRenewalsEnum.INSRUANCE.value
+            )
+
+        # Total Credit amount being used
+        # Total yearly sum of: Direct Debits, Loans, Renewals, Subscriptions
+
+
+        return
+
+    @classmethod
     async def month_summary(
         cls,
         months: PeriodMonthOptionsIntEnum = None,
