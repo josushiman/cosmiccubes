@@ -178,6 +178,7 @@ class LoansAndRenewalsTypes(Model):
 class LoansAndRenewals(Model):
     id = fields.UUIDField(pk=True)
     name = fields.CharField(max_length=150)
+    closed = fields.BooleanField(default=False, null=True)
     start_date = fields.DatetimeField()
     end_date = fields.DatetimeField(null=True)
     payment_date = fields.IntField(null=True)
@@ -204,10 +205,17 @@ class LoansAndRenewals(Model):
         except AttributeError:
             return None
 
+    def remaining_balance(self) -> float:
+        try:
+            if self.type.name != "loan":
+                return 0.0
+            # TODO
+            return 1
+        except AttributeError:
+            return None
+
     class PydanticMeta:
-        computed = [
-            "period_name",
-        ]
+        computed = ["period_name", "remaining_balance"]
         unique_together = ("end_date", "start_date", "name")
 
 

@@ -45,11 +45,15 @@ from app.ynab.schemas import (
     CardBill,
     PayeeSummary,
     PastBills,
-    PastBillsSummary
+    PastBillsSummary,
+    LoanRenewalOverview,
+    LoanRenewalCounts,
+    LoanRenewalTotals,
 )
 
 TruncMonth = CustomFunction("DATE_TRUNC", ["interval", "field"])
 ToChar = CustomFunction("TO_CHAR", ["field", "format"])
+
 
 class YNAB:
     CAT_EXPENSE_NAMES = ["Frequent", "Giving", "Non-Monthly Expenses", "Work"]
@@ -282,35 +286,32 @@ class YNAB:
         # Generate the last 6 months as datetime objects
         def generate_last_six_months():
             return [start_date - relativedelta(months=i) for i in range(6)]
-        
+
         # Create a default dictionary with the months included over the last 6 months, with each total_spent being zeroed
-        grouped_data = {month_date.strftime("%Y-%m"): 0 for month_date in generate_last_six_months()}
+        grouped_data = {
+            month_date.strftime("%Y-%m"): 0 for month_date in generate_last_six_months()
+        }
 
         # Use the custom function to group transactions by month.
         # Setting the format avoids issues with the timestamp being set to BST.
-        month_annotation = TruncMonth('month', F("date"))
+        month_annotation = TruncMonth("month", F("date"))
         formatted_month = ToChar(month_annotation, "YYYY-MM")
 
         # Get all the transactions for a category over the last 6 months.
         l6m_start_date = start_date - relativedelta(months=5)
         grouped_transactions = (
-            await YnabTransactions.annotate(
-                month_date=formatted_month
-            ).filter(
+            await YnabTransactions.annotate(month_date=formatted_month)
+            .filter(
                 category_fk__category_group_name__iexact=category_name,
                 category_name__iexact=subcategory_name,
                 date__gte=l6m_start_date,
                 date__lte=end_date,
                 debit=True,
-            ).group_by(
-                'month_date'
-            ).annotate(
-                total_spent=Coalesce(Sum('amount'), 0)
-            ).order_by(
-                '-month_date'
-            ).values(
-                'month_date', 'total_spent'
             )
+            .group_by("month_date")
+            .annotate(total_spent=Coalesce(Sum("amount"), 0))
+            .order_by("-month_date")
+            .values("month_date", "total_spent")
         )
 
         # Match the DB data to the grouped dict.
@@ -320,21 +321,34 @@ class YNAB:
         # The value of the first item of the dict is the month selected.
         selected_month_spent = next(iter(grouped_data.values()))
 
-        category_budget = await Budgets.filter(
-            category__category_group_name__iexact=category_name,
-            category__name__iexact=subcategory_name
-        ).prefetch_related('category').get_or_none()
+        category_budget = (
+            await Budgets.filter(
+                category__category_group_name__iexact=category_name,
+                category__name__iexact=subcategory_name,
+            )
+            .prefetch_related("category")
+            .get_or_none()
+        )
 
-        if not category_budget: 
+        if not category_budget:
             on_track = None
             budgeted = 0
         else:
             budgeted = category_budget.amount
             on_track = True if (budgeted * 1000) >= selected_month_spent else False
 
-        transactions_1_m = {"period": 1, "spent": next(islice(grouped_data.values(), 1, 2))}
-        transactions_3_m = {"period": 3, "spent": next(islice(grouped_data.values(), 1, 4))}
-        transactions_6_m = {"period": 6, "spent": sum(islice(grouped_data.values(), 1, None))}
+        transactions_1_m = {
+            "period": 1,
+            "spent": next(islice(grouped_data.values(), 1, 2)),
+        }
+        transactions_3_m = {
+            "period": 3,
+            "spent": next(islice(grouped_data.values(), 1, 4)),
+        }
+        transactions_6_m = {
+            "period": 6,
+            "spent": sum(islice(grouped_data.values(), 1, None)),
+        }
 
         logging.debug(f"Current monthly spend for category: {selected_month_spent}")
         transaction_totals = [transactions_1_m, transactions_3_m, transactions_6_m]
@@ -375,14 +389,17 @@ class YNAB:
                 }
             )
 
-        cat_trend_data = [{"month": month_date, "total": total_spent} for month_date, total_spent in grouped_data.items()]
+        cat_trend_data = [
+            {"month": month_date, "total": total_spent}
+            for month_date, total_spent in grouped_data.items()
+        ]
         reversed_cat_trend_data = cat_trend_data[::-1]
 
         return CategoryTransactions(
             total=selected_month_spent,
             on_track=on_track,
             trends=CategoryTrendSummary(summary=trends, data=reversed_cat_trend_data),
-            budget=budgeted
+            budget=budgeted,
         )
 
     @classmethod
@@ -400,45 +417,40 @@ class YNAB:
 
         subcategory_name = subcategory_name.replace("-", " ")
 
-        grouped_payees = await YnabTransactions.filter(
-            category_fk__category_group_name__iexact=category_name,
-            category_fk__name__iexact=subcategory_name,
-            date__gte=start_date,
-            date__lte=end_date,
-            transfer_account_id__isnull=True,
-            debit=True,
-        ).annotate(
-            count=Count('payee_name'),total=Sum('amount')
-        ).group_by(
-            "payee_name"
-        ).order_by(
-            "-total"
-        ).values(
-            "payee_name",
-            "count",
-            "total"
+        grouped_payees = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name__iexact=category_name,
+                category_fk__name__iexact=subcategory_name,
+                date__gte=start_date,
+                date__lte=end_date,
+                transfer_account_id__isnull=True,
+                debit=True,
+            )
+            .annotate(count=Count("payee_name"), total=Sum("amount"))
+            .group_by("payee_name")
+            .order_by("-total")
+            .values("payee_name", "count", "total")
         )
 
-        grouped_payees_count = await YnabTransactions.filter(
-            category_fk__category_group_name__iexact=category_name,
-            category_fk__name__iexact=subcategory_name,
-            date__gte=start_date,
-            date__lte=end_date,
-            transfer_account_id__isnull=True,
-            debit=True,
-        ).annotate(
-            count=Count('payee_name'),total=Sum('amount')
-        ).group_by(
-            "payee_name"
-        ).count()
+        grouped_payees_count = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name__iexact=category_name,
+                category_fk__name__iexact=subcategory_name,
+                date__gte=start_date,
+                date__lte=end_date,
+                transfer_account_id__isnull=True,
+                debit=True,
+            )
+            .annotate(count=Count("payee_name"), total=Sum("amount"))
+            .group_by("payee_name")
+            .count()
+        )
 
         if grouped_payees_count < 1:
             return PayeeSummary()
 
         return PayeeSummary(
-            count=len(grouped_payees),
-            topspender=grouped_payees[0],
-            data=grouped_payees
+            count=len(grouped_payees), topspender=grouped_payees[0], data=grouped_payees
         )
 
     # TODO get this and the above function refactored to be used in a couple of places.
@@ -547,7 +559,7 @@ class YNAB:
             months=months,
             specific_month=specific_month,
             category_name=category_name,
-            subcategory_name=subcategory_name
+            subcategory_name=subcategory_name,
         )
 
         total_balance = (
@@ -792,17 +804,55 @@ class YNAB:
         )
 
     @classmethod
-    async def loans_renewals_overview(cls):
+    async def loans_renewals_overview(cls) -> LoanRenewalOverview:
         # Count of: Direct debits, Loans, Subscriptions
-        await LoansAndRenewals.filter(
-                type__name=LoansAndRenewalsEnum.INSRUANCE.value
-            )
-
         # Total Credit amount being used
         # Total yearly sum of: Direct Debits, Loans, Renewals, Subscriptions
+        loansandrenewals = (
+            await LoansAndRenewals.annotate(
+                count=Count("id"), total=Sum("payment_amount")
+            )
+            .filter(closed=False)
+            .prefetch_related("type", "period")
+            .group_by("type__name", "period__name")
+            .values("count", "total", type="type__name", period="period__name")
+        )
 
+        logging.debug(loansandrenewals)
 
-        return
+        response_counts = LoanRenewalCounts()
+        response_totals = LoanRenewalTotals()
+
+        async def convert_to_per_year(amount: float):
+            return amount * 12
+
+        for entity in loansandrenewals:
+            match entity["type"]:
+                case "insurance":
+
+                    return 0
+                case "subscription":
+                    return 0
+                case _:
+                    # This defaults to loans
+                    response_counts.loans += entity["count"]
+                    response_totals.loans += entity["total"]
+
+        # Example output:
+        # [
+        #     {"type": "insurance", "period": "yearly", "count": 1, "total": 1579.15},
+        #     {"type": "loan", "period": "monthly", "count": 4, "total": 827.2900000000001},
+        #     {"type": "subscription", "period": "yearly", "count": 3, "total": 261.99},
+        #     {
+        #         "type": "subscription",
+        #         "period": "monthly",
+        #         "count": 4,
+        #         "total": 68.53999999999999,
+        #     },
+        #     {"type": "insurance", "period": "monthly", "count": 1, "total": 40.79},
+        # ]
+
+        return LoanRenewalOverview(counts=response_counts, totals=response_totals)
 
     @classmethod
     async def month_summary(
@@ -829,12 +879,14 @@ class YNAB:
             .values("total")
         )
 
-        refunds = await cls.refunds(year=year, months=months, specific_month=specific_month)
+        refunds = await cls.refunds(
+            year=year, months=months, specific_month=specific_month
+        )
 
         try:
-            balance_spent = (spent_so_far.get("total")) - (refunds.total  * 1000)
+            balance_spent = (spent_so_far.get("total")) - (refunds.total * 1000)
         except AttributeError:
-            balance_spent = 0.0 - (refunds.total  * 1000)
+            balance_spent = 0.0 - (refunds.total * 1000)
 
         budget_summary = await cls.budgets_dashboard()
         budget_multiplier = await YnabHelpers.months_between(
@@ -919,9 +971,7 @@ class YNAB:
         )
 
     @classmethod
-    async def past_bills(
-        cls, months: PeriodMonthOptionsIntEnum = None
-    ) -> PastBills:
+    async def past_bills(cls, months: PeriodMonthOptionsIntEnum = None) -> PastBills:
         months = 3 if not months else months.value
         today = datetime.now().replace(
             day=1, hour=00, minute=00, second=00, microsecond=00
@@ -955,18 +1005,27 @@ class YNAB:
                     payment.transaction.date.month == data_entry["date"].month
                     and payment.transaction.date.year == data_entry["date"].year
                 ):
-                    logging.debug(f"Match found for account: {payment.account.name} and {payment.transaction.id}")
+                    logging.debug(
+                        f"Match found for account: {payment.account.name} and {payment.transaction.id}"
+                    )
                     # TODO Allow for multiple CC payments in the same month.
                     data_entry[payment.account.name] = payment.transaction.amount
 
             data.append(CardBill(**data_entry))
-        
+
         reverse_data = sorted(data, key=lambda item: item.date, reverse=False)
 
         # 6 month trend
-        # For the last 6 month (exc. current month), take the first 4 months average 
+        # For the last 6 month (exc. current month), take the first 4 months average
         # calc the difference month on month to the 5th month, take the average
-        monthly_changes = [((reverse_data[i].total - reverse_data[i - 1].total) / reverse_data[i - 1].total) * 100 for i in range(1, len(reverse_data) - 1)]
+        monthly_changes = [
+            (
+                (reverse_data[i].total - reverse_data[i - 1].total)
+                / reverse_data[i - 1].total
+            )
+            * 100
+            for i in range(1, len(reverse_data) - 1)
+        ]
         avg_trend = round(mean(monthly_changes), 0)
         last_month_trend = round(monthly_changes[-1], 0)
 
@@ -975,12 +1034,12 @@ class YNAB:
         last_month_difference = reverse_data[3].total - reverse_data[4].total
 
         return PastBills(
-                summary=PastBillsSummary(
-                    last_month_diff=-last_month_difference,
-                    avg_trend=avg_trend,
-                    last_month_trend=last_month_trend
-                ),
-            data=reverse_data
+            summary=PastBillsSummary(
+                last_month_diff=-last_month_difference,
+                avg_trend=avg_trend,
+                last_month_trend=last_month_trend,
+            ),
+            data=reverse_data,
         )
 
     @classmethod
@@ -994,39 +1053,34 @@ class YNAB:
             year=year, months=months, specific_month=specific_month
         )
 
-        grouped_payees = await YnabTransactions.filter(
-            category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
-            date__gte=start_date,
-            date__lte=end_date,
-            transfer_account_id__isnull=True,
-            debit=True,
-        ).annotate(
-            count=Count('payee_name'),total=Sum('amount')
-        ).group_by(
-            "payee_name"
-        ).order_by(
-            "-total"
-        ).values(
-            "payee_name",
-            "count",
-            "total"
+        grouped_payees = (
+            await YnabTransactions.filter(
+                category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
+                date__gte=start_date,
+                date__lte=end_date,
+                transfer_account_id__isnull=True,
+                debit=True,
+            )
+            .annotate(count=Count("payee_name"), total=Sum("amount"))
+            .group_by("payee_name")
+            .order_by("-total")
+            .values("payee_name", "count", "total")
         )
 
         return PayeeSummary(
-            count=len(grouped_payees),
-            topspender=grouped_payees[0],
-            data=grouped_payees
+            count=len(grouped_payees), topspender=grouped_payees[0], data=grouped_payees
         )
 
     @classmethod
-    async def refunds(cls, 
+    async def refunds(
+        cls,
         category_name: str = None,
         subcategory_name: str = None,
         months: PeriodMonthOptionsIntEnum = None,
         year: SpecificYearOptionsEnum = None,
-        specific_month: SpecificMonthOptionsEnum = None
-        ) -> Refunds:
-        
+        specific_month: SpecificMonthOptionsEnum = None,
+    ) -> Refunds:
+
         start_date, end_date = await YnabHelpers.get_dates_for_transaction_queries(
             year=year, months=months, specific_month=specific_month
         )
@@ -1109,9 +1163,11 @@ class YNAB:
         return await YnabServerKnowledgeHelper.add_card_payments()
 
     @classmethod
-    async def transactions_by_period(cls, start_date: datetime, end_date: datetime, _filter: dict) -> list[Transaction]:
-        _filter['date__gte'] = start_date
-        _filter['date__lte'] = end_date
+    async def transactions_by_period(
+        cls, start_date: datetime, end_date: datetime, _filter: dict
+    ) -> list[Transaction]:
+        _filter["date__gte"] = start_date
+        _filter["date__lte"] = end_date
 
         transactions = (
             await YnabTransactions.filter(**_filter)
@@ -1258,7 +1314,9 @@ class YNAB:
         if misc_balance > 0:
             logging.warning("Transactions not in account list.")
 
-        refunds = await cls.refunds(year=year, months=months, specific_month=specific_month)
+        refunds = await cls.refunds(
+            year=year, months=months, specific_month=specific_month
+        )
 
         total_balance = (
             amex_balance + barclays_balance + hsbc_cc_balance + hsbc_adv_balance

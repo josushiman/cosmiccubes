@@ -37,6 +37,7 @@ class CardBill(BaseModel):
     def total(self) -> float:
         return self.ba_amex + self.hsbc_cc + self.barclays_cc
 
+
 class CatBudgetReq(BaseModel):
     name: str
     count: int
@@ -338,6 +339,26 @@ class LoanRenewalCategory(BaseModel):
     date: date_field
     amount: float
 
+
+class LoanRenewalCounts(BaseModel):
+    insurance: int = 0
+    loans: int = 0
+    subscriptions: int = 0
+
+
+class LoanRenewalTotals(BaseModel):
+    credit: float = 0.0
+    insurance: float = 0.0
+    loans: float = 0.0
+    renewals: float = 0.0
+    subscriptions: float = 0.0
+
+
+class LoanRenewalOverview(BaseModel):
+    counts: LoanRenewalCounts
+    totals: LoanRenewalTotals
+
+
 class CategoryTrends(BaseModel):
     period: str
     trend: str
@@ -349,6 +370,7 @@ class CategoryTrends(BaseModel):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
 
+
 class CategoryTrendItem(BaseModel):
     month: str
     total: float
@@ -357,10 +379,12 @@ class CategoryTrendItem(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
-    
+
+
 class CategoryTrendSummary(BaseModel):
     data: Optional[List[CategoryTrendItem]] = []
     summary: List[CategoryTrends]
+
 
 class CategoryTransactions(BaseModel):
     total: float
@@ -420,8 +444,9 @@ class DailySpendSummary(BaseModel):
     total: float
     days: List[DailySpendItem]
 
+
 class Payee(BaseModel):
-    payee_name: str 
+    payee_name: str
     count: int
     total: float
 
@@ -429,6 +454,7 @@ class Payee(BaseModel):
     def format_milliunits(cls, value):
         # Convert the integer value to milliunits (assuming it's in microunits)
         return value / 1000.0
+
 
 class PayeeSummary(BaseModel):
     count: int = 0

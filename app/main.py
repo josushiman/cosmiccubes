@@ -282,7 +282,10 @@ async def category_summary(
     months = commons.get("months")
     month = commons.get("month")
 
-    if category_name == "non-monthly-expenses" or category_name == "non monthly-expenses":
+    if (
+        category_name == "non-monthly-expenses"
+        or category_name == "non monthly-expenses"
+    ):
         category_name = "non-monthly expenses"
 
     return await ynab.category_summary(
@@ -304,7 +307,10 @@ async def category_summary_payees(
     months = commons.get("months")
     month = commons.get("month")
 
-    if category_name == "non-monthly-expenses" or category_name == "non monthly-expenses":
+    if (
+        category_name == "non-monthly-expenses"
+        or category_name == "non monthly-expenses"
+    ):
         category_name = "non-monthly expenses"
 
     return await ynab.category_summary_payees(
@@ -326,7 +332,10 @@ async def category_summary_transactions(
     months = commons.get("months")
     month = commons.get("month")
 
-    if category_name == "non-monthly-expenses" or category_name == "non monthly-expenses":
+    if (
+        category_name == "non-monthly-expenses"
+        or category_name == "non monthly-expenses"
+    ):
         category_name = "non-monthly expenses"
 
     return await ynab.category_summary_transactions(
@@ -361,6 +370,11 @@ async def loan_portfolio():
     return await ynab.loan_portfolio()
 
 
+@app.get("/loans-renewals-overview")
+async def loans_renewals_overview():
+    return await ynab.loans_renewals_overview()
+
+
 @app.get("/monthly-summary")
 async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     year = commons.get("year")
@@ -368,11 +382,13 @@ async def monthly_summary(commons: dict = Depends(common_cc_parameters)):
     month = commons.get("month")
     return await ynab.month_summary(year=year, months=months, specific_month=month)
 
+
 @app.get("/past-bills")
 async def past_bills(commons: dict = Depends(common_cc_parameters)):
     months = commons.get("months")
 
     return await ynab.past_bills(months=months)
+
 
 @app.get("/payee-summary")
 async def payee_summary(commons: dict = Depends(common_cc_parameters)):
@@ -381,14 +397,13 @@ async def payee_summary(commons: dict = Depends(common_cc_parameters)):
     month = commons.get("month")
     return await ynab.payee_summary(year=year, months=months, specific_month=month)
 
+
 @app.get("/refunds")
 async def refunds(commons: dict = Depends(common_cc_parameters)):
     year = commons.get("year")
     months = commons.get("months")
     month = commons.get("month")
-    return await ynab.refunds(
-        year=year, months=months, specific_month=month
-    )
+    return await ynab.refunds(year=year, months=months, specific_month=month)
 
 
 @app.get("/savings")
@@ -424,6 +439,7 @@ async def update_accounts():
     await update_savings()
     return {"message": "done"}
 
+
 @app.get("/ynab/update-accounts", name="Update YNAB Accounts")
 async def update_accounts():
     return await ynab_help.pydantic_accounts()
@@ -453,7 +469,7 @@ async def update_payees():
 
 @app.get("/ynab/update-savings", name="Update Savings Outcomes")
 async def update_savings(commons: dict = Depends(common_cc_parameters)):
-    try: 
+    try:
         year = SpecificYearOptionsEnum(commons.get("year"))
         month = SpecificMonthOptionsEnum(commons.get("month"))
     except AttributeError:
