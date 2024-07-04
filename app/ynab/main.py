@@ -35,7 +35,6 @@ from app.ynab.schemas import (
     UpcomingBills,
     CategoryTransactions,
     LoanPortfolio,
-    DirectDebitSummary,
     Insurance,
     Refunds,
     CategoryTrendSummary,
@@ -48,7 +47,9 @@ from app.ynab.schemas import (
     PastBillsSummary,
     LoanRenewalOverview,
     LoanRenewalCounts,
-    LoanRenewalTotals,
+    LoanRenewalMonthTotals,
+    LoanRenewalYearTotals,
+    LoanRenewalCreditSummary,
 )
 
 TruncMonth = CustomFunction("DATE_TRUNC", ["interval", "field"])
@@ -662,35 +663,6 @@ class YNAB:
         return DailySpendSummary(total=total, days=transaction_totals)
 
     @classmethod
-    async def direct_debits(cls) -> DirectDebitSummary:
-        direct_debits_count = await LoansAndRenewals.filter(
-            type__name=LoansAndRenewalsEnum.SUBSCRIPTION.value
-        ).count()
-
-        direct_debits = (
-            await LoansAndRenewals.annotate(total=Sum("payment_amount"))
-            .filter(type__name=LoansAndRenewalsEnum.SUBSCRIPTION.value)
-            .group_by("period__name")
-            .all()
-            .values("total", period="period__name")
-        )
-
-        monthly_cost = 0
-        yearly_cost = 0
-
-        for debit in direct_debits:
-            if debit["period"] == "monthly":
-                monthly_cost = debit["total"]
-            if debit["period"] == "yearly":
-                yearly_cost = debit["total"]
-
-        return DirectDebitSummary(
-            count=direct_debits_count,
-            monthly_cost=monthly_cost,
-            yearly_cost=yearly_cost,
-        )
-
-    @classmethod
     async def insurance(cls) -> list[Insurance]:
         insurance_renewals = (
             await LoansAndRenewals.filter(
@@ -805,7 +777,7 @@ class YNAB:
 
     @classmethod
     async def loans_renewals_overview(cls) -> LoanRenewalOverview:
-        # Count of: Direct debits, Loans, Subscriptions
+        # TODO Credit utilisation
         # Total Credit amount being used
         # Total yearly sum of: Direct Debits, Loans, Renewals, Subscriptions
         loansandrenewals = (
@@ -818,25 +790,41 @@ class YNAB:
             .values("count", "total", type="type__name", period="period__name")
         )
 
-        logging.debug(loansandrenewals)
-
         response_counts = LoanRenewalCounts()
-        response_totals = LoanRenewalTotals()
-
-        async def convert_to_per_year(amount: float):
-            return amount * 12
+        response_month_totals = {
+            "insurance": 0,
+            "subscriptions": 0,
+            "loans": 0,
+        }
+        response_year_totals = {
+            "insurance": 0,
+            "subscriptions": 0,
+            "loans": 0,
+        }
 
         for entity in loansandrenewals:
+            # TODO if monthly X 12 for yearly total
+            # OR show them separately
             match entity["type"]:
                 case "insurance":
-
-                    return 0
+                    response_counts.insurance += entity["count"]
+                    if entity["period"] == "monthly":
+                        response_month_totals["insurance"] += entity["total"]
+                    else:
+                        response_year_totals["insurance"] += entity["total"]
                 case "subscription":
-                    return 0
+                    response_counts.subscriptions += entity["count"]
+                    if entity["period"] == "monthly":
+                        response_month_totals["subscriptions"] += entity["total"]
+                    else:
+                        response_year_totals["subscriptions"] += entity["total"]
                 case _:
                     # This defaults to loans
                     response_counts.loans += entity["count"]
-                    response_totals.loans += entity["total"]
+                    if entity["period"] == "monthly":
+                        response_month_totals["loans"] += entity["total"]
+                    else:
+                        response_year_totals["loans"] += entity["total"]
 
         # Example output:
         # [
@@ -852,7 +840,20 @@ class YNAB:
         #     {"type": "insurance", "period": "monthly", "count": 1, "total": 40.79},
         # ]
 
-        return LoanRenewalOverview(counts=response_counts, totals=response_totals)
+        loan_portfolio = await cls.loan_portfolio()
+        # TODO redo Credit.
+        # Separate by Credit Cards & Loads
+        # Credit Utlisation is on CC's
+        response_credit = LoanRenewalCreditSummary(
+            total=loan_portfolio.total_credit, limit=41500
+        )
+
+        return LoanRenewalOverview(
+            counts=response_counts,
+            credit=response_credit,
+            month_totals=LoanRenewalMonthTotals(**response_month_totals),
+            year_totals=LoanRenewalYearTotals(**response_year_totals),
+        )
 
     @classmethod
     async def month_summary(

@@ -355,11 +355,6 @@ async def daily_spend(num_days: int):
     return await ynab.daily_spend(num_days=num_days)
 
 
-@app.get("/direct-debits")
-async def direct_debits():
-    return await ynab.direct_debits()
-
-
 @app.get("/insurance")
 async def insurance():
     return await ynab.insurance()

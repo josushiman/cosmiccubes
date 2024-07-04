@@ -346,17 +346,44 @@ class LoanRenewalCounts(BaseModel):
     subscriptions: int = 0
 
 
-class LoanRenewalTotals(BaseModel):
-    credit: float = 0.0
+class LoanRenewalMonthTotals(BaseModel):
     insurance: float = 0.0
     loans: float = 0.0
-    renewals: float = 0.0
     subscriptions: float = 0.0
+
+    @field_validator("insurance", "loans", "subscriptions")
+    def round_values(cls, value):
+        return round(value, 2)
+
+
+class LoanRenewalYearTotals(BaseModel):
+    insurance: float = 0.0
+    loans: float = 0.0
+    subscriptions: float = 0.0
+
+    @field_validator("insurance", "loans", "subscriptions")
+    def round_values(cls, value):
+        return round(value, 2)
+
+
+class LoanRenewalCreditSummary(BaseModel):
+    total: float = 0.0
+    limit: float = 0.0
+
+    @computed_field
+    @property
+    def utilisation(self) -> float:
+        try:
+            return round((self.total / self.limit) * 100)
+        except ZeroDivisionError:
+            return 0
 
 
 class LoanRenewalOverview(BaseModel):
     counts: LoanRenewalCounts
-    totals: LoanRenewalTotals
+    credit: LoanRenewalCreditSummary
+    month_totals: LoanRenewalMonthTotals
+    year_totals: LoanRenewalYearTotals
 
 
 class CategoryTrends(BaseModel):
