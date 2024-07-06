@@ -666,7 +666,7 @@ class YNAB:
     async def insurance(cls) -> list[Insurance]:
         insurance_renewals = (
             await LoansAndRenewals.filter(
-                type__name=LoansAndRenewalsEnum.INSRUANCE.value
+                type__name=LoansAndRenewalsEnum.INSRUANCE.value, closed=False
             )
             .prefetch_related("period")
             .order_by("end_date")
