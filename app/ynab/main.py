@@ -47,8 +47,8 @@ from app.ynab.schemas import (
     PastBillsSummary,
     LoanRenewalOverview,
     LoanRenewalCounts,
-    LoanRenewalMonthTotals,
-    LoanRenewalYearTotals,
+    LoanRenewalLoanSummary,
+    LoanRenewalTotals,
     LoanRenewalCreditSummary,
 )
 
@@ -777,10 +777,8 @@ class YNAB:
 
     @classmethod
     async def loans_renewals_overview(cls) -> LoanRenewalOverview:
-        # TODO Credit utilisation
-        # Total Credit amount being used
-        # Total yearly sum of: Direct Debits, Loans, Renewals, Subscriptions
-        loansandrenewals = (
+        # Get all subscriptions and insurance entities
+        loanrenewalentities = (
             await LoansAndRenewals.annotate(
                 count=Count("id"), total=Sum("payment_amount")
             )
@@ -791,68 +789,49 @@ class YNAB:
         )
 
         response_counts = LoanRenewalCounts()
-        response_month_totals = {
-            "insurance": 0,
-            "subscriptions": 0,
-            "loans": 0,
-        }
-        response_year_totals = {
-            "insurance": 0,
-            "subscriptions": 0,
-            "loans": 0,
-        }
 
-        for entity in loansandrenewals:
+        # Go through them to get the total count and cost, broken down by period
+        for entity in loanrenewalentities:
             # TODO if monthly X 12 for yearly total
             # OR show them separately
-            match entity["type"]:
-                case "insurance":
-                    response_counts.insurance += entity["count"]
-                    if entity["period"] == "monthly":
-                        response_month_totals["insurance"] += entity["total"]
-                    else:
-                        response_year_totals["insurance"] += entity["total"]
-                case "subscription":
-                    response_counts.subscriptions += entity["count"]
-                    if entity["period"] == "monthly":
-                        response_month_totals["subscriptions"] += entity["total"]
-                    else:
-                        response_year_totals["subscriptions"] += entity["total"]
-                case _:
-                    # This defaults to loans
-                    response_counts.loans += entity["count"]
-                    if entity["period"] == "monthly":
-                        response_month_totals["loans"] += entity["total"]
-                    else:
-                        response_year_totals["loans"] += entity["total"]
+            if entity["type"] == "loan":
+                response_counts.loans += entity["count"]
+            elif entity["type"] == "subscription":
+                response_counts.subscriptions += entity["count"]
+            elif entity["type"] == "insurance":
+                response_counts.insurance += entity["count"]
 
-        # Example output:
-        # [
-        #     {"type": "insurance", "period": "yearly", "count": 1, "total": 1579.15},
-        #     {"type": "loan", "period": "monthly", "count": 4, "total": 827.2900000000001},
-        #     {"type": "subscription", "period": "yearly", "count": 3, "total": 261.99},
-        #     {
-        #         "type": "subscription",
-        #         "period": "monthly",
-        #         "count": 4,
-        #         "total": 68.53999999999999,
-        #     },
-        #     {"type": "insurance", "period": "monthly", "count": 1, "total": 40.79},
-        # ]
+        # Example output: {"type": "insurance", "period": "yearly", "count": 1, "total": 1579.15}
 
-        loan_portfolio = await cls.loan_portfolio()
-        # TODO redo Credit.
-        # Separate by Credit Cards & Loads
-        # Credit Utlisation is on CC's
-        response_credit = LoanRenewalCreditSummary(
-            total=loan_portfolio.total_credit, limit=41500
+        # Get all the loans
+        loans = (
+            await LoansAndRenewals.filter(closed=False, type__name="loan")
+            .prefetch_related("type", "period")
+            .all()
         )
+
+        response_loans = LoanRenewalLoanSummary()
+        for loan in loans:
+            response_loans.loaned += loan.starting_balance
+            response_loans.remaining_balance += await YnabHelpers.remaining_balance(
+                loan
+            )
+
+        # For credit utilisation get the current balance of all credit card accounts
+        accounts = (
+            await YnabAccounts.filter(type="creditCard")
+            .annotate(total=Sum("balance"))
+            .first()
+            .values("total")
+        )
+
+        response_credit = LoanRenewalCreditSummary(total=accounts["total"])
 
         return LoanRenewalOverview(
             counts=response_counts,
             credit=response_credit,
-            month_totals=LoanRenewalMonthTotals(**response_month_totals),
-            year_totals=LoanRenewalYearTotals(**response_year_totals),
+            loans=response_loans,
+            totals=LoanRenewalTotals(data=loanrenewalentities),
         )
 
     @classmethod

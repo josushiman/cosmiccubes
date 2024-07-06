@@ -346,44 +346,95 @@ class LoanRenewalCounts(BaseModel):
     subscriptions: int = 0
 
 
-class LoanRenewalMonthTotals(BaseModel):
-    insurance: float = 0.0
-    loans: float = 0.0
-    subscriptions: float = 0.0
-
-    @field_validator("insurance", "loans", "subscriptions")
-    def round_values(cls, value):
-        return round(value, 2)
+class LoanRenewalEntity(BaseModel):
+    count: int
+    total: float
+    type: str
+    period: str
 
 
-class LoanRenewalYearTotals(BaseModel):
-    insurance: float = 0.0
-    loans: float = 0.0
-    subscriptions: float = 0.0
+class LoanRenewalTotals(BaseModel):
+    data: List[LoanRenewalEntity] = []
 
-    @field_validator("insurance", "loans", "subscriptions")
-    def round_values(cls, value):
-        return round(value, 2)
+    @computed_field
+    @property
+    def insurance(self) -> float:
+        total = 0
+        for entity in self.data:
+            if entity.type != "insurance":
+                continue
+
+            if entity.period == "yearly":
+                total += entity.total
+            else:
+                total += entity.total * 12
+
+        return round(total)
+
+    @computed_field
+    @property
+    def loans(self) -> float:
+        total = 0
+        for entity in self.data:
+            if entity.type != "loan":
+                continue
+
+            if entity.period == "yearly":
+                total += entity.total
+            else:
+                total += entity.total * 12
+
+        return round(total)
+
+    @computed_field
+    @property
+    def subscriptions(self) -> float:
+        total = 0
+        for entity in self.data:
+            if entity.type != "subscription":
+                continue
+
+            if entity.period == "yearly":
+                total += entity.total
+            else:
+                total += entity.total * 12
+
+        return round(total)
 
 
 class LoanRenewalCreditSummary(BaseModel):
     total: float = 0.0
-    limit: float = 0.0
+    limit: float = 41500  # Default based on July 2024 credit values
+
+    @field_validator("total")
+    def format_milliunits(cls, value):
+        # Convert the integer value to milliunits (assuming it's in microunits)
+        return value / 1000.0
 
     @computed_field
     @property
     def utilisation(self) -> float:
         try:
-            return round((self.total / self.limit) * 100)
+            return round(((self.total / self.limit) * 100))
         except ZeroDivisionError:
             return 0
+
+
+class LoanRenewalLoanSummary(BaseModel):
+    remaining_balance: float = 0.0
+    loaned: float = 0.0
+
+    @computed_field
+    @property
+    def paid(self) -> float:
+        return self.loaned - self.remaining_balance
 
 
 class LoanRenewalOverview(BaseModel):
     counts: LoanRenewalCounts
     credit: LoanRenewalCreditSummary
-    month_totals: LoanRenewalMonthTotals
-    year_totals: LoanRenewalYearTotals
+    loans: LoanRenewalLoanSummary
+    totals: LoanRenewalTotals
 
 
 class CategoryTrends(BaseModel):

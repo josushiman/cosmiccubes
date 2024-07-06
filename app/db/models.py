@@ -205,17 +205,8 @@ class LoansAndRenewals(Model):
         except AttributeError:
             return None
 
-    def remaining_balance(self) -> float:
-        try:
-            if self.type.name != "loan":
-                return 0.0
-            # TODO
-            return 1
-        except AttributeError:
-            return None
-
     class PydanticMeta:
-        computed = ["period_name", "remaining_balance"]
+        computed = ["period_name"]
         unique_together = ("end_date", "start_date", "name")
 
 
