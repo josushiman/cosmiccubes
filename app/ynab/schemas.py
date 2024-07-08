@@ -419,15 +419,33 @@ class LoanRenewalCreditSummary(BaseModel):
         except ZeroDivisionError:
             return 0
 
+class LoanEntitySummary(BaseModel):
+    name: str
+    provider: Optional[str]
+    end_date: date_field
+    starting_balance: float = 0.0
+    remaining_balance: float = 0.0
+
+    @computed_field
+    @property
+    def paid_balance(self) -> float:
+        return self.starting_balance - self.remaining_balance
+    
+    @computed_field
+    @property
+    def progress(self) -> float:
+        return (self.paid_balance / self.starting_balance) * 100
+    
 
 class LoanRenewalLoanSummary(BaseModel):
     remaining_balance: float = 0.0
-    loaned: float = 0.0
+    debt: float = 0.0
+    data: List[LoanEntitySummary] = []
 
     @computed_field
     @property
     def paid(self) -> float:
-        return self.loaned - self.remaining_balance
+        return self.debt - self.remaining_balance
 
 
 class LoanRenewalOverview(BaseModel):

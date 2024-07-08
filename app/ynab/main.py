@@ -48,6 +48,7 @@ from app.ynab.schemas import (
     LoanRenewalOverview,
     LoanRenewalCounts,
     LoanRenewalLoanSummary,
+    LoanEntitySummary,
     LoanRenewalTotals,
     LoanRenewalCreditSummary,
 )
@@ -811,11 +812,24 @@ class YNAB:
         )
 
         response_loans = LoanRenewalLoanSummary()
+        loan_entities = []
         for loan in loans:
-            response_loans.loaned += loan.starting_balance
-            response_loans.remaining_balance += await YnabHelpers.remaining_balance(
+            response_loans.debt += loan.starting_balance
+            remaining_balance = await YnabHelpers.remaining_balance(
                 loan
             )
+            response_loans.remaining_balance += remaining_balance
+            loan_entities.append(
+                LoanEntitySummary(
+                    name=loan.name,
+                    provider=loan.provider,
+                    end_date=loan.end_date,
+                    starting_balance=loan.starting_balance,
+                    remaining_balance=remaining_balance
+                    )
+                )
+        
+        response_loans.data = loan_entities
 
         # For credit utilisation get the current balance of all credit card accounts
         accounts = (
