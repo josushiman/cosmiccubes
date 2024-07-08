@@ -48,6 +48,7 @@ from app.ynab.schemas import (
     LoanRenewalOverview,
     LoanRenewalCounts,
     LoanRenewalLoanSummary,
+    LoanRenewalSubscriptionSummary,
     LoanEntitySummary,
     LoanRenewalTotals,
     LoanRenewalCreditSummary,
@@ -828,8 +829,23 @@ class YNAB:
                     remaining_balance=remaining_balance
                     )
                 )
-        
         response_loans.data = loan_entities
+
+        response_subscriptions = LoanRenewalSubscriptionSummary()
+        # Subscriptions data
+        subscriptions = (
+            await LoansAndRenewals.filter(closed=False, type__name="subscription")
+            .prefetch_related("type", "period")
+            .all()
+            .values("name", "provider", "payment_amount", "start_date", period="period__name")
+        )
+        response_subscriptions.data = subscriptions
+        response_subscriptions.totals_monthly = sum(
+            subscription["payment_amount"] for subscription in subscriptions if subscription["period"] == "monthly"
+        )
+        response_subscriptions.totals_yearly = sum(
+            subscription["payment_amount"] for subscription in subscriptions if subscription["period"] == "yearly"
+        )
 
         # For credit utilisation get the current balance of all credit card accounts
         accounts = (
@@ -845,6 +861,7 @@ class YNAB:
             counts=response_counts,
             credit=response_credit,
             loans=response_loans,
+            subscriptions=response_subscriptions,
             totals=LoanRenewalTotals(data=loanrenewalentities),
         )
 

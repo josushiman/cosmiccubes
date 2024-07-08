@@ -437,6 +437,13 @@ class LoanEntitySummary(BaseModel):
         return (self.paid_balance / self.starting_balance) * 100
     
 
+class SubscriptionEntitySummary(BaseModel):
+    name: str
+    provider: Optional[str]
+    payment_amount: float = 0.0
+    start_date: date_field
+    period: str
+
 class LoanRenewalLoanSummary(BaseModel):
     remaining_balance: float = 0.0
     debt: float = 0.0
@@ -447,11 +454,16 @@ class LoanRenewalLoanSummary(BaseModel):
     def paid(self) -> float:
         return self.debt - self.remaining_balance
 
+class LoanRenewalSubscriptionSummary(BaseModel):
+    totals_monthly: float = 0.0
+    totals_yearly: float = 0.0
+    data: List[LoanEntitySummary] = []
 
 class LoanRenewalOverview(BaseModel):
     counts: LoanRenewalCounts
     credit: LoanRenewalCreditSummary
     loans: LoanRenewalLoanSummary
+    subscriptions: LoanRenewalSubscriptionSummary
     totals: LoanRenewalTotals
 
 
