@@ -192,6 +192,7 @@ class YNAB:
                 date__gte=start_date,
                 date__lte=end_date,
                 debit=True,
+                deleted=False,
             )
             .prefetch_related("category_fk")
             .group_by(
@@ -310,6 +311,7 @@ class YNAB:
                 date__gte=l6m_start_date,
                 date__lte=end_date,
                 debit=True,
+                deleted=False,
             )
             .group_by("month_date")
             .annotate(total_spent=Coalesce(Sum("amount"), 0))
@@ -428,6 +430,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .annotate(count=Count("payee_name"), total=Sum("amount"))
             .group_by("payee_name")
@@ -443,6 +446,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .annotate(count=Count("payee_name"), total=Sum("amount"))
             .group_by("payee_name")
@@ -485,6 +489,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .order_by("-date")
             .all()
@@ -508,6 +513,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .order_by("-amount")
             .limit(1)
@@ -576,6 +582,7 @@ class YNAB:
             date__lte=end_date,
             transfer_account_id__isnull=True,
             debit=True,
+            deleted=False,
         ).count()
 
         average_purchase = total_balance / transaction_count
@@ -630,6 +637,7 @@ class YNAB:
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
                 debit=True,
                 transfer_account_id__isnull=True,
+                deleted=False,
             )
             .group_by("date")
             .values("total", "date")
@@ -699,6 +707,7 @@ class YNAB:
                 Q(date__gte=start_date),
                 Q(date__lte=end_date),
                 Q(debit=False),
+                Q(deleted=False),
             )
             .first()
             .values("amount")
@@ -711,6 +720,7 @@ class YNAB:
                 Q(date__gte=start_date),
                 Q(date__lte=end_date),
                 Q(debit=False),
+                Q(deleted=False),
             )
             .first()
             .values("amount")
@@ -884,6 +894,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .group_by("debit")
             .first()
@@ -950,7 +961,7 @@ class YNAB:
             )
 
         uncategorised_transactions = await YnabTransactions.filter(
-            category_fk_id=None, transfer_account_id=None
+            category_fk_id=None, transfer_account_id=None, deleted=False,
         ).count()
 
         notification_text = (
@@ -1071,6 +1082,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .annotate(count=Count("payee_name"), total=Sum("amount"))
             .group_by("payee_name")
@@ -1103,6 +1115,7 @@ class YNAB:
                 category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
                 date__gte=start_date,
                 date__lt=end_date,
+                deleted=False,
             ).count()
 
             refunds = (
@@ -1111,6 +1124,7 @@ class YNAB:
                     category_fk__category_group_name__in=cls.CAT_EXPENSE_NAMES,
                     date__gte=start_date,
                     date__lt=end_date,
+                    deleted=False,
                 )
                 .order_by("date", "-amount")
                 .all()
@@ -1132,6 +1146,7 @@ class YNAB:
                 category_fk__name__iexact=subcategory_name,
                 date__gte=start_date,
                 date__lt=end_date,
+                deleted=False,
             ).count()
 
             refunds = (
@@ -1141,6 +1156,7 @@ class YNAB:
                     category_fk__name__iexact=subcategory_name,
                     date__gte=start_date,
                     date__lt=end_date,
+                    deleted=False,
                 )
                 .order_by("date", "-amount")
                 .all()
@@ -1179,6 +1195,7 @@ class YNAB:
     ) -> list[Transaction]:
         _filter["date__gte"] = start_date
         _filter["date__lte"] = end_date
+        _filter["deleted"] = False
 
         transactions = (
             await YnabTransactions.filter(**_filter)
@@ -1212,6 +1229,7 @@ class YNAB:
                 category_fk__category_group_name__not_in=cls.EXCLUDE_EXPENSE_NAMES,
                 debit=True,
                 transfer_account_id__isnull=True,
+                deleted=False,
             )
             .order_by("-date")
             .all()
@@ -1254,6 +1272,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .order_by("-date")
             .all()
@@ -1276,6 +1295,7 @@ class YNAB:
                 date__lte=end_date,
                 transfer_account_id__isnull=True,
                 debit=True,
+                deleted=False,
             )
             .order_by("-amount")
             .limit(1)
@@ -1339,6 +1359,7 @@ class YNAB:
             date__lte=end_date,
             transfer_account_id__isnull=True,
             debit=True,
+            deleted=False,
         ).count()
 
         average_purchase = total_balance / transaction_count
@@ -1400,6 +1421,7 @@ class YNAB:
                 date__gte=last_month_start,
                 date__lt=last_month_end,
                 debit=True,
+                deleted=False,
             )
             .group_by("category_name")
             .all()
@@ -1414,6 +1436,7 @@ class YNAB:
             date__gte=last_month_start,
             date__lt=last_month_end,
             debit=True,
+            deleted=False,
         ).count()
 
         monthly_bills_summary = (
@@ -1422,6 +1445,7 @@ class YNAB:
                 date__gte=last_month_start,
                 date__lt=last_month_end,
                 debit=True,
+                deleted=False,
             )
             .order_by("date")
             .all()
