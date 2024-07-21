@@ -16,14 +16,3 @@ def protected_endpoint(func):
         return await func()
 
     return check_ynab_phrase
-
-
-# TODO is this even possible?
-def unpack_cc_commons(func):
-    async def process_varaibles(commons_dict):
-        year = commons_dict.get("year")
-        months = commons_dict.get("months")
-        month = commons_dict.get("month")
-        return await func()
-
-    return process_varaibles
