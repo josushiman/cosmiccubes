@@ -826,9 +826,7 @@ class YNAB:
         loan_entities = []
         for loan in loans:
             response_loans.debt += loan.starting_balance
-            remaining_balance = await YnabHelpers.remaining_balance(
-                loan
-            )
+            remaining_balance = await YnabHelpers.remaining_balance(loan)
             response_loans.remaining_balance += remaining_balance
             loan_entities.append(
                 LoanEntitySummary(
@@ -836,9 +834,9 @@ class YNAB:
                     provider=loan.provider,
                     end_date=loan.end_date,
                     starting_balance=loan.starting_balance,
-                    remaining_balance=remaining_balance
-                    )
+                    remaining_balance=remaining_balance,
                 )
+            )
         response_loans.data = loan_entities
 
         response_subscriptions = LoanRenewalSubscriptionSummary()
@@ -847,14 +845,24 @@ class YNAB:
             await LoansAndRenewals.filter(closed=False, type__name="subscription")
             .prefetch_related("type", "period")
             .all()
-            .values("name", "provider", "payment_amount", "start_date", period="period__name")
+            .values(
+                "name",
+                "provider",
+                "payment_amount",
+                "start_date",
+                period="period__name",
+            )
         )
         response_subscriptions.data = subscriptions
         response_subscriptions.totals_monthly = sum(
-            subscription["payment_amount"] for subscription in subscriptions if subscription["period"] == "monthly"
+            subscription["payment_amount"]
+            for subscription in subscriptions
+            if subscription["period"] == "monthly"
         )
         response_subscriptions.totals_yearly = sum(
-            subscription["payment_amount"] for subscription in subscriptions if subscription["period"] == "yearly"
+            subscription["payment_amount"]
+            for subscription in subscriptions
+            if subscription["period"] == "yearly"
         )
 
         # For credit utilisation get the current balance of all credit card accounts
@@ -961,7 +969,9 @@ class YNAB:
             )
 
         uncategorised_transactions = await YnabTransactions.filter(
-            category_fk_id=None, transfer_account_id=None, deleted=False,
+            category_fk_id=None,
+            transfer_account_id=None,
+            deleted=False,
         ).count()
 
         notification_text = (
@@ -1007,6 +1017,19 @@ class YNAB:
             .order_by("transaction__date")
         )
 
+        # db_query = (
+        #     CardPayments.filter(transaction__date__gte=start_date)
+        #     .prefetch_related("account", "transaction")
+        #     .annotate(
+        #         year=F("transaction__date__year"),
+        #         month=F("transaction__date__month"),
+        #         total_amount=Sum("transaction__amount"),
+        #     )
+        #     .group_by("year", "month", "account__name")
+        #     .values("year", "month", "account__name", "total_amount")
+        #     .sql()
+        # )
+        # logging.error(db_query)
         # Get the number of months from the first bill to today
         date_delta = relativedelta(today, start_date)
         months_to_start_date = date_delta.years * 12 + date_delta.months
@@ -1020,18 +1043,24 @@ class YNAB:
                 continue
 
             data_entry = {
-                "date": today if month == 0 else today - relativedelta(months=month)
+                "date": today if month == 0 else today - relativedelta(months=month),
+                "BA AMEX": 0.0,
+                "HSBC CC": 0.0,
+                "Barclays CC": 0.0,
             }
             for payment in card_payments:
                 if (
                     payment.transaction.date.month == data_entry["date"].month
                     and payment.transaction.date.year == data_entry["date"].year
                 ):
-                    logging.debug(
-                        f"Match found for account: {payment.account.name} and {payment.transaction.id}"
-                    )
+                    # logging.debug(
+                    #     f"Match found for account: {payment.account.name} and {payment.transaction.id}"
+                    # )
                     # TODO Allow for multiple CC payments in the same month.
                     data_entry[payment.account.name] = payment.transaction.amount
+                    # data_entry[payment.account.name] += payment.transaction.amount
+
+            # logging.error(data_entry)
 
             data.append(CardBill(**data_entry))
 
@@ -1046,8 +1075,9 @@ class YNAB:
                 / reverse_data[i - 1].total
             )
             * 100
-            for i in range(1, len(reverse_data) - 1)
+            for i in range(1, len(reverse_data))
         ]
+
         avg_trend = round(mean(monthly_changes), 0)
         last_month_trend = round(monthly_changes[-1], 0)
 
