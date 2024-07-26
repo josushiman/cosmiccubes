@@ -19,6 +19,7 @@ from app.db.models import (
     YnabTransactions,
     Budgets,
     CardPayments,
+    HeartRates,
     Savings,
     LoansAndRenewals,
     LoansAndRenewalsTypes,
@@ -35,6 +36,7 @@ from app.db.schemas import (
     YnabTransactions_Pydantic,
     Budgets_Pydantic,
     CardPayments_Pydantic,
+    HeartRates_Pydantic,
     Savings_Pydantic,
     LoansAndRenewals_Pydantic,
     LoansAndRenewalsPeriods_Pydantic,
@@ -65,6 +67,7 @@ class ReactAdmin:
             "loans-and-renewals-periods": LoansAndRenewalsPeriods,
             "loans-and-renewals-types": LoansAndRenewalsTypes,
             "savings": Savings,
+            "heart-rates": HeartRates,
             "workouts": Workouts,
             "workout-types": WorkoutTypes,
             "ynab-accounts": YnabAccounts,
@@ -90,6 +93,7 @@ class ReactAdmin:
             "loans-and-renewals-periods": LoansAndRenewalsPeriods_Pydantic,
             "loans-and-renewals-types": LoansAndRenewalsTypes_Pydantic,
             "savings": Savings_Pydantic,
+            "heart-rates": HeartRates_Pydantic,
             "workouts": Workouts_Pydantic,
             "workout-types": WorkoutTypes_Pydantic,
             "ynab-accounts": YnabAccounts_Pydantic,
@@ -163,15 +167,27 @@ class ReactAdmin:
 
         raw_start_date = resp_body.get("start_date")
         if raw_start_date:
+            # TODO handle datetimestamps for heart rates and workouts
             logging.debug(f"String datetime: {raw_start_date}")
-            resp_date_dt = datetime.strptime(raw_start_date, "%Y-%m-%d")
+            try:
+                resp_date_dt = datetime.strptime(raw_start_date, "%Y-%m-%d")
+            except ValueError:
+                logging.debug("Date has time include, ensure to preserve that.")
+                resp_date_dt = datetime.strptime(
+                    raw_start_date, "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
             resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
             resp_body["start_date"] = resp_date_dt
 
         raw_end_date = resp_body.get("end_date")
         if raw_end_date:
+            # TODO handle datetimestamps for heart rates and workouts
             logging.debug(f"String datetime: {raw_end_date}")
-            resp_date_dt = datetime.strptime(raw_end_date, "%Y-%m-%d")
+            try:
+                resp_date_dt = datetime.strptime(raw_end_date, "%Y-%m-%d")
+            except ValueError:
+                logging.debug("Date has time include, ensure to preserve that.")
+                resp_date_dt = datetime.strptime(raw_end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
             resp_date_dt = resp_date_dt.replace(tzinfo=UTC)
             resp_body["end_date"] = resp_date_dt
 

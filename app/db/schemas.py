@@ -21,6 +21,7 @@ from .models import (
     YnabTransactions,
     Budgets,
     CardPayments,
+    HeartRates,
     Savings,
     LoansAndRenewals,
     LoansAndRenewalsPeriods,
@@ -40,6 +41,7 @@ LoansAndRenewalsPeriods_Pydantic = pydantic_model_creator(
 LoansAndRenewalsTypes_Pydantic = pydantic_model_creator(
     LoansAndRenewalsTypes, name="LoansAndRenewalsTypes"
 )
+HeartRates_Pydantic = pydantic_model_creator(HeartRates, name="HeartRates")
 Savings_Pydantic = pydantic_model_creator(Savings, name="Savings")
 Workouts_Pydantic = pydantic_model_creator(Workouts, name="Workouts")
 WorkoutTypes_Pydantic = pydantic_model_creator(WorkoutTypes, name="WorkoutTypes")
