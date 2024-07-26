@@ -218,3 +218,25 @@ class Savings(Model):
 
     class PydanticMeta:
         unique_together = ("date", "name")
+
+
+class HeartRates(Model):
+    id = fields.UUIDField(pk=True)
+    value = fields.IntField()
+    start_date = fields.DatetimeField()
+    end_date = fields.DatetimeField()
+
+
+class WorkoutTypes(Model):
+    id = fields.UUIDField(pk=True)
+    name = fields.CharField(max_length=150)
+
+
+class Workouts(Model):
+    id = fields.UUIDField(pk=True)
+    cals_burned = fields.IntField()
+    start_time = fields.DatetimeField()
+    end_time = fields.DatetimeField()
+    type = fields.ForeignKeyField(
+        "models.WorkoutTypes", related_name="workouts", null=True
+    )

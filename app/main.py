@@ -526,10 +526,18 @@ async def test_get_endpoint(commons: dict = Depends(common_cc_parameters)):
     return await ynab.test_endpoint(specific_month=month, year=year)
 
 
-@app.post("/test/endpoint/{resource}", include_in_schema=False)
+@app.post("/test/endpoint/{resource}")
 async def test_post_endpoint(resource: str, _body: dict):
     logging.info(resource)
     logging.error(_body)
+    test_entry = {
+        "cals_burned": 192,
+        "start_time": "2024-07-21T15:51:36+01:00",
+        "workout_id": "21E1C111-D61F-4FB6-A873-30E586B25EC9",
+        "end_time": "2024-07-21T16:22:53+01:00",
+        "type": "Other",
+        "duration": 31.3,
+    }
     return {"message": "done"}
 
 

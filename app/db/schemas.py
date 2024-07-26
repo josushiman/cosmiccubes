@@ -25,6 +25,8 @@ from .models import (
     LoansAndRenewals,
     LoansAndRenewalsPeriods,
     LoansAndRenewalsTypes,
+    Workouts,
+    WorkoutTypes,
 )
 
 Budgets_Pydantic = pydantic_model_creator(Budgets, name="Budgets")
@@ -39,6 +41,8 @@ LoansAndRenewalsTypes_Pydantic = pydantic_model_creator(
     LoansAndRenewalsTypes, name="LoansAndRenewalsTypes"
 )
 Savings_Pydantic = pydantic_model_creator(Savings, name="Savings")
+Workouts_Pydantic = pydantic_model_creator(Workouts, name="Workouts")
+WorkoutTypes_Pydantic = pydantic_model_creator(WorkoutTypes, name="WorkoutTypes")
 YnabAccounts_Pydantic = pydantic_model_creator(YnabAccounts, name="YnabAccounts")
 YnabCategories_Pydantic = pydantic_model_creator(YnabCategories, name="YnabCategories")
 YnabMonthSummaries_Pydantic = pydantic_model_creator(

@@ -23,6 +23,8 @@ from app.db.models import (
     LoansAndRenewals,
     LoansAndRenewalsTypes,
     LoansAndRenewalsPeriods,
+    WorkoutTypes,
+    Workouts,
 )
 from app.db.schemas import (
     YnabAccounts_Pydantic,
@@ -37,6 +39,8 @@ from app.db.schemas import (
     LoansAndRenewals_Pydantic,
     LoansAndRenewalsPeriods_Pydantic,
     LoansAndRenewalsTypes_Pydantic,
+    Workouts_Pydantic,
+    WorkoutTypes_Pydantic,
 )
 
 
@@ -61,6 +65,8 @@ class ReactAdmin:
             "loans-and-renewals-periods": LoansAndRenewalsPeriods,
             "loans-and-renewals-types": LoansAndRenewalsTypes,
             "savings": Savings,
+            "workouts": Workouts,
+            "workout-types": WorkoutTypes,
             "ynab-accounts": YnabAccounts,
             "ynab-categories": YnabCategories,
             "ynab-month-summaries": YnabMonthSummaries,
@@ -84,6 +90,8 @@ class ReactAdmin:
             "loans-and-renewals-periods": LoansAndRenewalsPeriods_Pydantic,
             "loans-and-renewals-types": LoansAndRenewalsTypes_Pydantic,
             "savings": Savings_Pydantic,
+            "workouts": Workouts_Pydantic,
+            "workout-types": WorkoutTypes_Pydantic,
             "ynab-accounts": YnabAccounts_Pydantic,
             "ynab-categories": YnabCategories_Pydantic,
             "ynab-month-summaries": YnabMonthSummaries_Pydantic,
