@@ -242,7 +242,13 @@ class Workouts(Model):
     )
 
     def duration(self) -> int:
-        return 0
+        # Calculate the difference
+        time_difference = self.end_time - self.start_time
+
+        # Convert the difference to minutes
+        duration_in_minutes = time_difference.total_seconds() / 60
+
+        return round(duration_in_minutes)
 
     class PydanticMeta:
         computed = ["duration"]
