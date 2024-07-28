@@ -240,3 +240,9 @@ class Workouts(Model):
     type = fields.ForeignKeyField(
         "models.WorkoutTypes", related_name="workouts", null=True
     )
+
+    def duration(self) -> int:
+        return 0
+
+    class PydanticMeta:
+        computed = ["duration"]
